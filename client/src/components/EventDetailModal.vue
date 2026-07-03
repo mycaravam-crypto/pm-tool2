@@ -197,8 +197,8 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
           <li v-if="(isEdit ? liveEvent.decisions.length : stagedDecisions.length) === 0" class="text-sm text-slate-400">No decisions yet.</li>
         </ul>
         <div class="flex gap-2">
-          <input v-model="newDecisionText" placeholder="New decision…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
-          <select v-model="newDecisionBy" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <input v-model="newDecisionText" placeholder="New decision…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision" />
+          <select v-model="newDecisionBy" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision">
             <option value="">Decided by…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
@@ -220,12 +220,12 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
           <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-400">No action items yet.</li>
         </ul>
         <div class="flex gap-2">
-          <input v-model="newActionText" placeholder="New action item…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
-          <select v-model="newActionAssignee" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <input v-model="newActionText" placeholder="New action item…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
+          <select v-model="newActionAssignee" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem">
             <option value="">Assignee…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <input v-model="newActionDue" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" />
+          <input v-model="newActionDue" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
           <button type="button" class="text-indigo-600" @click="addActionItem"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
@@ -247,11 +247,11 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
           <li v-if="(isEdit ? liveEvent.pain_points.length : stagedPainPoints.length) === 0" class="text-sm text-slate-400">No pain points yet.</li>
         </ul>
         <div class="flex gap-2">
-          <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" />
-          <select v-model="newPainSeverity" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" />
+          <select v-model="newPainSeverity" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option>Low</option><option>Medium</option><option>High</option>
           </select>
-          <select v-model="newPainOwner" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <select v-model="newPainOwner" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option value="">Owner…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>

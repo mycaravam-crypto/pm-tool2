@@ -178,11 +178,11 @@ async function changeRole(stakeholderId, role) {
           </li>
         </ul>
         <div class="flex items-center gap-2">
-          <select v-model="newPersonId" class="flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm">
+          <select v-model="newPersonId" class="flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
             <option value="" disabled>Add stakeholder…</option>
             <option v-for="s in availableToAdd" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <select v-model="newPersonRole" class="border border-slate-300 rounded-md px-2 py-1 text-sm">
+          <select v-model="newPersonRole" class="border border-slate-300 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
             <option value="sponsor">Sponsor</option>
             <option value="member">Member</option>
             <option value="stakeholder">Stakeholder</option>
