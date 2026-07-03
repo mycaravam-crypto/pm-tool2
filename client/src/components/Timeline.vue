@@ -93,6 +93,16 @@ const clusters = computed(() => {
   return result;
 });
 
+// Flattened for TransitionGroup, which needs a single-level v-for to animate
+// individual entries in/out as filtering (sidebar project selection) adds or
+// removes events — the nested cluster/event structure above is still what
+// decides each bubble's position, just re-shaped into one list here.
+const positionedEvents = computed(() => {
+  return clusters.value.flatMap(cluster =>
+    cluster.events.map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx }))
+  );
+});
+
 // Month gridlines give the timeline a sense of scale beyond the "Past/Future" corner labels.
 const monthMarkers = computed(() => {
   const { min, max } = range.value;
@@ -159,12 +169,17 @@ onMounted(() => nextTick(scrollToToday));
     <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-400">
       Select a project from the sidebar to see its timeline.
     </div>
-    <div v-else-if="store.loading" class="text-center py-24 text-slate-400">
+    <div v-else-if="store.loading && store.events.length === 0" class="text-center py-24 text-slate-400">
       Loading events…
     </div>
-    <div v-else-if="store.events.length === 0" class="text-center py-24 text-slate-400">
+    <div v-else-if="!store.loading && store.events.length === 0" class="text-center py-24 text-slate-400">
       No events yet for the selected project(s).
     </div>
+    <!-- Kept mounted across a background refetch (e.g. toggling a project
+         checkbox) whenever there's already something to show, rather than
+         swapping to the "Loading…" branch above and destroying/recreating
+         this whole subtree — that was killing the enter/leave transitions
+         below since TransitionGroup had no continuity to animate across. -->
     <template v-else>
       <div class="flex items-center justify-between gap-4 mb-3 flex-wrap">
         <div class="flex items-center gap-4 text-xs text-slate-500">
@@ -173,6 +188,7 @@ onMounted(() => nextTick(scrollToToday));
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
+          <span v-if="store.loading" class="text-slate-400 italic">Updating…</span>
         </div>
 
         <div class="flex items-center gap-3">
@@ -206,16 +222,20 @@ onMounted(() => nextTick(scrollToToday));
       <div ref="scrollContainer" class="relative overflow-x-auto pb-4">
         <div class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
           <!-- month gridlines -->
-          <div
-            v-for="m in monthMarkers" :key="m.key"
-            class="absolute top-0 w-px bg-slate-100"
-            :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-          />
-          <div
-            v-for="m in monthMarkers" :key="'label-' + m.key"
-            class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap"
-            :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
-          >{{ m.label }}</div>
+          <TransitionGroup name="fade-pop" tag="div">
+            <div
+              v-for="m in monthMarkers" :key="m.key"
+              class="absolute top-0 w-px bg-slate-100 transition-[left] duration-300 ease-out"
+              :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+            />
+          </TransitionGroup>
+          <TransitionGroup name="fade-pop" tag="div">
+            <div
+              v-for="m in monthMarkers" :key="'label-' + m.key"
+              class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+              :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
+            >{{ m.label }}</div>
+          </TransitionGroup>
 
           <!-- baseline -->
           <div class="absolute left-0 right-0 h-px bg-slate-300" :style="{ top: BASELINE_TOP + 'px' }" />
@@ -228,17 +248,17 @@ onMounted(() => nextTick(scrollToToday));
             <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Heute · {{ formatDate(todayStr) }}</span>
           </div>
 
-          <!-- event clusters -->
-          <div
-            v-for="cluster in clusters" :key="cluster.events[0].id"
-            class="absolute transition-[left] duration-300 ease-out"
-            :style="{ left: cluster.leftPercent + '%', top: BASELINE_TOP + 'px' }"
-          >
+          <!-- event bubbles: a flat, TransitionGroup-animated list so events
+               entering/leaving as the sidebar's project filter changes fade
+               and pop instead of snapping in/out; ongoing left/top transitions
+               (re-clustering, zoom, filtering-driven range changes) still
+               apply per-element via the transition-[left,top] utility below -->
+          <TransitionGroup name="event-pop" tag="div">
             <div
-              v-for="(event, idx) in cluster.events"
+              v-for="event in positionedEvents"
               :key="event.id"
-              class="absolute -translate-x-1/2 flex flex-col items-center transition-[top] duration-300 ease-out"
-              :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
+              class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
+              :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
             >
               <button
                 class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
@@ -258,9 +278,40 @@ onMounted(() => nextTick(scrollToToday));
                 :title="event.title"
               >{{ event.title }}</span>
             </div>
-          </div>
+          </TransitionGroup>
         </div>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+/* Event bubbles: pop + fade in/out as the sidebar's project filter adds or
+   removes events. `scale`/`opacity` are used instead of `transform` so this
+   doesn't fight the persistent `-translate-x-1/2` centering transform already
+   on the element — the two compose independently. */
+.event-pop-enter-active,
+.event-pop-leave-active {
+  transition: opacity 220ms ease, scale 220ms ease;
+}
+.event-pop-enter-from,
+.event-pop-leave-to {
+  opacity: 0;
+  scale: 0.5;
+}
+.event-pop-leave-active {
+  /* Removed nodes stay put (they're already position:absolute, so this has no
+     layout effect) rather than being yanked out before the fade finishes. */
+  pointer-events: none;
+}
+
+/* Month gridlines/labels: simple fade as the visible date range shifts. */
+.fade-pop-enter-active,
+.fade-pop-leave-active {
+  transition: opacity 220ms ease;
+}
+.fade-pop-enter-from,
+.fade-pop-leave-to {
+  opacity: 0;
+}
+</style>
