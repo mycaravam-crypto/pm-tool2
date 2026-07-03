@@ -10,8 +10,10 @@ const todayStr = new Date().toISOString().slice(0, 10);
 const DAY_MS = 86400000;
 const TRACK_HEIGHT = 400;
 const BASELINE_TOP = 280;
-const STACK_BASE = 56;
-const STACK_STEP = 66;
+// Each stacked unit is icon (40px) + label gap (6px) + one line of title text (~14px) = ~60px tall.
+// STACK_BASE must clear that whole unit above the baseline, or the title dips below the line.
+const STACK_BASE = 76;
+const STACK_STEP = 74;
 
 const range = computed(() => {
   const dates = store.events.map(e => e.date);
