@@ -85,6 +85,7 @@ CREATE TABLE events (
     date TEXT NOT NULL, -- Format: YYYY-MM-DD
     type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')), -- milestone/deadline are forward-looking markers, see Section 3
     summary TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- only meaningful for milestone/deadline, see Section 3.B
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -173,12 +174,13 @@ CREATE INDEX idx_pain_points_owner_id ON pain_points(owner_id);
         | milestone | `Flag` | diamond |
         | deadline | `AlarmClock` | diamond |
     *   **Milestone / Deadline events** are forward-looking markers, not meeting records: `milestone` marks a target the project is working toward (e.g., "Design freeze"); `deadline` marks a hard external due date. Both render as a diamond (vs. the circular bubble used for meeting-type events) so the "history vs. plan" distinction is visible without reading the icon. Participants are optional and typically empty for these two types — the Participants section on the detail card may be omitted for them, but Decisions/Action Items/Pain Points remain available since a deadline slip often produces exactly those.
+    *   **Status** applies only to `milestone`/`deadline` — the other six types are historical records with nothing to track. `status` (`pending`/`achieved`/`missed`) drives the bubble's icon and fill independently of its border: the border always stays the project color (identifies *whose* event it is on the shared overlay), while icon/fill communicate whether it was hit. `achieved` → green check-circle icon, light green fill. `missed` → red X-circle icon, light red fill. `pending` with a past date (nobody marked it either way) → the original type icon in amber, light amber fill, flagging it as needing attention. `pending` with a future date renders normally (white fill, slate icon) — it just hasn't happened yet.
     *   **Overlay Treatment:** The outer ring/border of the bubble must match the parent project's `color_hex` (e.g., `border-2` using inline style `borderColor: project.color_hex`). This allows users to immediately tell which project an event belongs to on a shared timeline.
     *   **Collision handling:** Multiple events on the same or nearby dates must not visually overlap. Cluster same-day events into a stacked/offset group (vertical offset per index within the cluster); clicking a cluster with >1 event opens a small picker before the detail view.
     *   Clicking a bubble opens the detail card.
 *   **Event Detail Slide-over / Modal:**
     *   Displays the source Project Name with its colored badge and the project Lead's name.
-    *   Title, Date, Type, Summary — editable in place.
+    *   Title, Date, Type, Summary — editable in place. For `milestone`/`deadline` types, a Status selector (Pending/Achieved/Missed) replaces the Participants field (see Section 2).
     *   **Participants Section:** Multi-select dropdown scoped to stakeholders assigned to that project (via `project_stakeholders`), backed by `event_participants`.
     *   **Action Items:** Task checklist with dropdown assignee selectors pulling from the project's assigned Stakeholders; add/edit/delete individual items. Overdue items (`due_date` in the past and `done = 0`) render with a red due-date treatment.
     *   **Decisions & Pain Points:** Interactive lists allowing additions, inline edits, and deletion. Each decision has a "Decided by" stakeholder selector (`decided_by`); each pain point has an "Owner" stakeholder selector (`owner_id`) — both scoped to the project's assigned Stakeholders and optional. This is what makes these lists actionable rather than a text log: every open item has someone accountable for it.
@@ -232,8 +234,8 @@ Conventions: JSON bodies; validation errors return `400 { error: string }`; miss
 
 **Events**
 *   `GET /api/events?project_ids=1,2,3` — Fetch events for specified project IDs, including nested decisions, action items, pain points, and participants, sorted by `date`.
-*   `POST /api/events` — Create a new event, along with its linked arrays of decisions, action items, pain points, and participants, in a single transaction.
-*   `PUT /api/events/:id` — Update event's own fields (title, date, type, summary) and its `participants` array (diffed against `event_participants`). Nested decisions/action items/pain points are managed through their own endpoints below, not replaced wholesale here.
+*   `POST /api/events` — Create a new event, along with its linked arrays of decisions, action items, pain points, and participants, in a single transaction. `status` defaults to `pending` if omitted.
+*   `PUT /api/events/:id` — Update event's own fields (title, date, type, summary, status) and its `participants` array (diffed against `event_participants`). Nested decisions/action items/pain points are managed through their own endpoints below, not replaced wholesale here.
 *   `DELETE /api/events/:id` — Delete event.
 
 **Decisions**
@@ -269,7 +271,7 @@ Phases 0–5 are **MVP** — the tool isn't usable as a PM tool without them. Ph
 ### Phase 1: SQLite Database Setup & Express API (MVP)
 1. Initialize the Node.js project in `/server`. Installs: `express`, `cors`, `better-sqlite3`.
 2. Write a database initializer script using the schema in Section 2, including `PRAGMA foreign_keys = ON;`.
-3. Seed the database with at least 2 projects (e.g., "Website Redesign" - Blue, "Marketing Campaign" - Green), each with `start_date`, `target_end_date`, and `budget_planned`/`budget_spent` set; 4 stakeholders (e.g., "Alice", "Bob", "Carol", "Dave") assigned across both projects with a mix of `project_role`s — each project needs exactly one `lead`, and at least one project should also have a `sponsor` — and 7+ events spanning past, present, and future dates — including: at least one same-day pair (to exercise timeline collision handling); at least one event with a decision (with `decided_by` set), an action item, and a pain point (with `owner_id` set) attached (to exercise all detail-card sections and ownership fields without manual data entry); at least one overdue action item (past `due_date`, `done = 0`); and at least one `milestone` or `deadline` event in the future (to exercise the diamond marker and the health summary's upcoming-deadlines count). Set one project's numbers so its scorecard (Section 3.E) comes out all-green and the other's so at least one dot comes out amber or red — this is the only way to verify the RAG thresholds actually render three distinct states.
+3. Seed the database with at least 2 projects (e.g., "Website Redesign" - Blue, "Marketing Campaign" - Green), each with `start_date`, `target_end_date`, and `budget_planned`/`budget_spent` set; 4 stakeholders (e.g., "Alice", "Bob", "Carol", "Dave") assigned across both projects with a mix of `project_role`s — each project needs exactly one `lead`, and at least one project should also have a `sponsor` — and 7+ events spanning past, present, and future dates — including: at least one same-day pair (to exercise timeline collision handling); at least one event with a decision (with `decided_by` set), an action item, and a pain point (with `owner_id` set) attached (to exercise all detail-card sections and ownership fields without manual data entry); at least one overdue action item (past `due_date`, `done = 0`); and at least one `milestone` or `deadline` event in the future (to exercise the diamond marker and the health summary's upcoming-deadlines count), one in the past with `status = 'achieved'`, one in the past with `status = 'missed'`, and one in the past left at the default `status = 'pending'` (to exercise all four timeline visual states from Section 3.B — upcoming, achieved, missed, and overdue-but-unmarked). Set one project's numbers so its scorecard (Section 3.E) comes out all-green and the other's so at least one dot comes out amber or red — this is the only way to verify the RAG thresholds actually render three distinct states.
 4. Implement all Express endpoints from Section 4 with the stated validation/error conventions (MVP endpoints only — skip the `[stretch]`-tagged ones for now).
 
 ### Phase 2: Vue 3 Frontend & Pinia Store (MVP)

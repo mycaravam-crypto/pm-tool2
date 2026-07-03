@@ -3,7 +3,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { Trash2, Plus } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { api } from '../lib/api.js';
-import { EVENT_TYPES, EVENT_TYPE_KEYS } from '../lib/eventTypes.js';
+import { EVENT_TYPES, EVENT_TYPE_KEYS, STATUS_LABELS, STATUS_KEYS } from '../lib/eventTypes.js';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({
@@ -29,6 +29,7 @@ const form = reactive({
   date: props.event?.date ?? todayStr,
   type: props.event?.type ?? 'sync',
   summary: props.event?.summary ?? '',
+  status: props.event?.status ?? 'pending',
   participants: props.event?.participants?.map(p => p.id) ?? []
 });
 
@@ -95,13 +96,13 @@ async function save() {
   try {
     if (isEdit.value) {
       await store.updateEvent(props.event.id, {
-        title: form.title, date: form.date, type: form.type, summary: form.summary,
+        title: form.title, date: form.date, type: form.type, summary: form.summary, status: form.status,
         participants: form.participants
       });
     } else {
       await store.createEvent({
         project_id: form.project_id, title: form.title, date: form.date, type: form.type, summary: form.summary,
-        participants: form.participants, decisions: stagedDecisions.value,
+        status: form.status, participants: form.participants, decisions: stagedDecisions.value,
         action_items: stagedActionItems.value, pain_points: stagedPainPoints.value
       });
     }
@@ -174,6 +175,13 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
           <select v-model="form.participants" multiple class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm h-24">
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }} ({{ p.project_role }})</option>
           </select>
+        </div>
+        <div v-else>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+          <select v-model="form.status" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+            <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
+          </select>
+          <p class="text-xs text-slate-400 mt-1">Was this {{ form.type }} hit or missed once its date passed?</p>
         </div>
       </div>
 

@@ -55,8 +55,8 @@ const seed = db.transaction(() => {
   insertPS.run(campaign, carol, 'member');
 
   const insertEvent = db.prepare(`
-    INSERT INTO events (project_id, title, date, type, summary)
-    VALUES (@project_id, @title, @date, @type, @summary)
+    INSERT INTO events (project_id, title, date, type, summary, status)
+    VALUES (@project_id, @title, @date, @type, @summary, @status)
   `);
   const insertParticipant = db.prepare(
     'INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)'
@@ -71,8 +71,8 @@ const seed = db.transaction(() => {
     'INSERT INTO pain_points (event_id, text, severity, owner_id, resolved, resolved_at) VALUES (?, ?, ?, ?, ?, ?)'
   );
 
-  function addEvent({ project_id, title, date, type, summary, participants = [] }) {
-    const id = insertEvent.run({ project_id, title, date, type, summary }).lastInsertRowid;
+  function addEvent({ project_id, title, date, type, summary, status = 'pending', participants = [] }) {
+    const id = insertEvent.run({ project_id, title, date, type, summary, status }).lastInsertRowid;
     for (const stakeholderId of participants) insertParticipant.run(id, stakeholderId);
     return id;
   }
@@ -102,6 +102,18 @@ const seed = db.transaction(() => {
     summary: 'All design assets finalized and locked.'
   });
 
+  addEvent({
+    project_id: website, title: 'Requirements Sign-off', date: '2026-02-15', type: 'milestone',
+    summary: 'Stakeholders signed off on the final requirements doc.', status: 'achieved'
+  });
+
+  addEvent({
+    project_id: website, title: 'Accessibility Audit Deadline', date: '2026-06-25', type: 'deadline',
+    summary: 'Third-party accessibility audit was due.'
+    // left at the default 'pending' status on purpose — the date has passed
+    // and nobody marked it achieved/missed, which is exactly the "needs attention" case.
+  });
+
   const e5 = addEvent({
     project_id: website, title: 'Q2 Retro', date: '2026-06-20', type: 'retro',
     summary: 'Retrospective on Q2 progress.', participants: [alice, bob, carol]
@@ -118,6 +130,11 @@ const seed = db.transaction(() => {
   addEvent({
     project_id: campaign, title: 'Mid-campaign Sync', date: '2026-04-15', type: 'sync',
     summary: 'Check-in on campaign metrics.', participants: [dave, carol]
+  });
+
+  addEvent({
+    project_id: campaign, title: 'Creative Concept Deadline', date: '2026-05-01', type: 'deadline',
+    summary: 'Agency was due to deliver final creative concepts.', status: 'missed'
   });
 
   const e8 = addEvent({
@@ -143,4 +160,4 @@ const seed = db.transaction(() => {
 
 seed();
 
-console.log('Seed complete: 2 projects, 4 stakeholders, 10 events.');
+console.log('Seed complete: 2 projects, 4 stakeholders, 13 events.');

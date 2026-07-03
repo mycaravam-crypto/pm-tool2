@@ -48,15 +48,15 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { project_id, title, date, type, summary, participants = [], decisions = [], action_items = [], pain_points = [] } = req.body;
+  const { project_id, title, date, type, summary, status = 'pending', participants = [], decisions = [], action_items = [], pain_points = [] } = req.body;
   if (!project_id || !title || !date || !type) {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
   }
 
   const create = db.transaction(() => {
     const info = db.prepare(`
-      INSERT INTO events (project_id, title, date, type, summary) VALUES (?, ?, ?, ?, ?)
-    `).run(project_id, title, date, type, summary ?? null);
+      INSERT INTO events (project_id, title, date, type, summary, status) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(project_id, title, date, type, summary ?? null, status);
     const eventId = info.lastInsertRowid;
 
     for (const stakeholderId of participants) {
@@ -89,13 +89,14 @@ router.put('/:id', (req, res) => {
     date = event.date,
     type = event.type,
     summary = event.summary,
+    status = event.status,
     participants
   } = req.body;
 
   const update = db.transaction(() => {
     db.prepare(`
-      UPDATE events SET title = ?, date = ?, type = ?, summary = ?, updated_at = datetime('now') WHERE id = ?
-    `).run(title, date, type, summary, req.params.id);
+      UPDATE events SET title = ?, date = ?, type = ?, summary = ?, status = ?, updated_at = datetime('now') WHERE id = ?
+    `).run(title, date, type, summary, status, req.params.id);
 
     if (Array.isArray(participants)) {
       db.prepare('DELETE FROM event_participants WHERE event_id = ?').run(req.params.id);

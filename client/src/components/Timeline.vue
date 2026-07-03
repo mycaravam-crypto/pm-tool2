@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useProjectStore } from '../stores/useProjectStore.js';
-import { EVENT_TYPES } from '../lib/eventTypes.js';
+import { resolveEventVisual } from '../lib/eventTypes.js';
 
 const emit = defineEmits(['select-event']);
 const store = useProjectStore();
@@ -47,7 +47,7 @@ const clusters = computed(() => {
   const byDate = new Map();
   for (const event of store.events) {
     if (!byDate.has(event.date)) byDate.set(event.date, []);
-    byDate.get(event.date).push(event);
+    byDate.get(event.date).push({ ...event, visual: resolveEventVisual(event, todayStr) });
   }
   return [...byDate.entries()].map(([date, events]) => ({
     date, leftPercent: leftPercent(date), events
@@ -119,16 +119,16 @@ const monthMarkers = computed(() => {
             :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
           >
             <button
-              class="group relative flex items-center justify-center w-10 h-10 bg-white shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
-              :class="EVENT_TYPES[event.type].shape === 'diamond' ? 'rotate-45' : 'rounded-full'"
+              class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
+              :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
               :style="{ border: `2px solid ${event.project.color_hex}` }"
-              :title="`${event.title} — ${event.project.name} (${event.date})`"
+              :title="`${event.title} — ${event.project.name} (${event.date})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
               @click="emit('select-event', event)"
             >
               <component
-                :is="EVENT_TYPES[event.type].icon"
-                class="w-4 h-4 text-slate-700"
-                :class="EVENT_TYPES[event.type].shape === 'diamond' ? '-rotate-45' : ''"
+                :is="event.visual.icon"
+                class="w-4 h-4"
+                :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
               />
             </button>
             <span
