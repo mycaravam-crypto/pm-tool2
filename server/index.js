@@ -1,0 +1,31 @@
+import express from 'express';
+import cors from 'cors';
+import './db/connection.js';
+
+import projectsRouter from './routes/projects.js';
+import stakeholdersRouter from './routes/stakeholders.js';
+import eventsRouter from './routes/events.js';
+import decisionsRouter from './routes/decisions.js';
+import actionItemsRouter from './routes/actionItems.js';
+import painPointsRouter from './routes/painPoints.js';
+import dashboardRouter from './routes/dashboard.js';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/api/projects', projectsRouter);
+app.use('/api/stakeholders', stakeholdersRouter);
+app.use('/api/events', eventsRouter);
+app.use('/api/decisions', decisionsRouter);
+app.use('/api/action-items', actionItemsRouter);
+app.use('/api/pain-points', painPointsRouter);
+app.use('/api/dashboard', dashboardRouter);
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'internal server error' });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
