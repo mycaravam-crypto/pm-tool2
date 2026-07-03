@@ -3,6 +3,7 @@ import { api } from '../lib/api.js';
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
+    currentMember: null,
     projects: [],
     stakeholders: [],
     members: [],
@@ -23,6 +24,15 @@ export const useProjectStore = defineStore('project', {
   },
 
   actions: {
+    setCurrentMember(member) {
+      this.currentMember = member;
+    },
+
+    async logout() {
+      await api.auth.logout();
+      this.currentMember = null;
+    },
+
     async init() {
       await Promise.all([
         this.fetchProjects(), this.fetchStakeholders(), this.fetchPortfolioSummary(),

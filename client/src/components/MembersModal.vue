@@ -11,7 +11,7 @@ const store = useProjectStore();
 const editingId = ref(null);
 const showForm = ref(false);
 const form = reactive({
-  name: '', email: '', stakeholder_id: '',
+  name: '', email: '', stakeholder_id: '', password: '',
   notify_assigned: true, notify_overdue_action_items: true, notify_upcoming_deadlines: true
 });
 const error = ref('');
@@ -25,7 +25,7 @@ function startNew() {
   editingId.value = null;
   showForm.value = true;
   error.value = '';
-  form.name = ''; form.email = ''; form.stakeholder_id = '';
+  form.name = ''; form.email = ''; form.stakeholder_id = ''; form.password = '';
   form.notify_assigned = true; form.notify_overdue_action_items = true; form.notify_upcoming_deadlines = true;
   subscribedProjects.value = [];
 }
@@ -34,7 +34,7 @@ async function startEdit(m) {
   editingId.value = m.id;
   showForm.value = true;
   error.value = '';
-  form.name = m.name; form.email = m.email; form.stakeholder_id = m.stakeholder_id ?? '';
+  form.name = m.name; form.email = m.email; form.stakeholder_id = m.stakeholder_id ?? ''; form.password = '';
   form.notify_assigned = !!m.notify_assigned;
   form.notify_overdue_action_items = !!m.notify_overdue_action_items;
   form.notify_upcoming_deadlines = !!m.notify_upcoming_deadlines;
@@ -51,7 +51,7 @@ async function save() {
   if (!form.name || !form.email) return;
   error.value = '';
   const payload = {
-    name: form.name, email: form.email, stakeholder_id: form.stakeholder_id || null,
+    name: form.name, email: form.email, stakeholder_id: form.stakeholder_id || null, password: form.password,
     notify_assigned: form.notify_assigned, notify_overdue_action_items: form.notify_overdue_action_items,
     notify_upcoming_deadlines: form.notify_upcoming_deadlines
   };
@@ -120,6 +120,12 @@ async function toggleSubscription(project) {
           <option v-for="s in store.stakeholders" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
       </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">
+          {{ editingId ? 'Set/change password (leave blank to keep unchanged)' : 'Password (leave blank — notification-only, can\'t log in)' }}
+        </label>
+        <input v-model="form.password" type="password" minlength="6" placeholder="At least 6 characters" class="w-full border border-slate-300 rounded px-2 py-1 text-sm" />
+      </div>
       <div class="flex flex-wrap gap-4 text-sm">
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_assigned" /> Assigned to you</label>
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_overdue_action_items" /> Overdue action items</label>
@@ -151,6 +157,7 @@ async function toggleSubscription(project) {
           <th class="py-1.5">Name</th>
           <th class="py-1.5">Email</th>
           <th class="py-1.5">Linked stakeholder</th>
+          <th class="py-1.5">Login</th>
           <th class="py-1.5"></th>
         </tr>
       </thead>
@@ -159,6 +166,12 @@ async function toggleSubscription(project) {
           <td class="py-1.5">{{ m.name }}</td>
           <td class="py-1.5 text-slate-500">{{ m.email }}</td>
           <td class="py-1.5 text-slate-500">{{ m.stakeholder_name || '—' }}</td>
+          <td class="py-1.5">
+            <span
+              class="text-xs px-1.5 py-0.5 rounded"
+              :class="m.has_password ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+            >{{ m.has_password ? 'Enabled' : 'Notification-only' }}</span>
+          </td>
           <td class="py-1.5 text-right whitespace-nowrap">
             <button class="text-slate-400 hover:text-indigo-600 mr-2" @click="startEdit(m)"><Pencil class="w-3.5 h-3.5" /></button>
             <button class="text-slate-400 hover:text-rose-600" @click="remove(m.id)"><Trash2 class="w-3.5 h-3.5" /></button>

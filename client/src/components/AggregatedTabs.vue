@@ -4,7 +4,9 @@ import { useProjectStore } from '../stores/useProjectStore.js';
 
 const store = useProjectStore();
 const subTab = ref('actions');
-const assigneeFilter = ref('');
+// Defaults "My Tasks" to whoever's logged in, when their account is linked to a
+// Stakeholder identity — still just a starting point, the dropdown stays editable.
+const assigneeFilter = ref(store.currentMember?.stakeholder_id ?? '');
 const projectFilter = ref('');
 
 const todayStr = new Date().toISOString().slice(0, 10);

@@ -1,9 +1,10 @@
 import { db } from './connection.js';
 import { notifyAssigned } from '../utils/notify.js';
+import { hashPassword } from '../utils/password.js';
 
 const clear = db.transaction(() => {
   for (const table of [
-    'notifications', 'member_projects', 'members',
+    'sessions', 'notifications', 'member_projects', 'members',
     'pain_points', 'action_items', 'decisions', 'event_participants',
     'events', 'project_stakeholders', 'events', 'projects', 'stakeholders'
   ]) {
@@ -161,17 +162,22 @@ const seed = db.transaction(() => {
 
   // --- Members (notification subscribers — deliberately separate from Stakeholders) ---
   const insertMember = db.prepare(`
-    INSERT INTO members (name, email, stakeholder_id, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO members (name, email, stakeholder_id, password_hash, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
   const insertMemberProject = db.prepare('INSERT INTO member_projects (member_id, project_id) VALUES (?, ?)');
 
-  const memberAlice = insertMember.run('Alice Chen', 'alice@example.com', alice, 1, 1, 1).lastInsertRowid;
-  const memberBob = insertMember.run('Bob Martinez', 'bob@example.com', bob, 1, 0, 0).lastInsertRowid; // wants "assigned to you" only
-  const memberDave = insertMember.run('Dave Okafor', 'dave@example.com', dave, 1, 1, 1).lastInsertRowid;
-  // Grace isn't a project stakeholder at all — an exec who just wants digests, the
-  // decoupled-from-Stakeholder use case that's the whole reason Members exists.
-  const memberGrace = insertMember.run('Grace Park', 'grace@example.com', null, 0, 1, 1).lastInsertRowid;
+  const DEMO_PASSWORD = 'chronos123';
+  const demoHash = hashPassword(DEMO_PASSWORD);
+
+  const memberAlice = insertMember.run('Alice Chen', 'alice@example.com', alice, demoHash, 1, 1, 1).lastInsertRowid;
+  const memberBob = insertMember.run('Bob Martinez', 'bob@example.com', bob, demoHash, 1, 0, 0).lastInsertRowid; // wants "assigned to you" only
+  const memberDave = insertMember.run('Dave Okafor', 'dave@example.com', dave, demoHash, 1, 1, 1).lastInsertRowid;
+  // Grace isn't a project stakeholder, and (unlike the other three) has no
+  // password — she's a pure notification subscriber, not a login account. Shows
+  // that password_hash being optional is a real, exercised capability, not just
+  // a schema nullable nobody uses.
+  const memberGrace = insertMember.run('Grace Park', 'grace@example.com', null, null, 0, 1, 1).lastInsertRowid;
 
   insertMemberProject.run(memberAlice, website);
   insertMemberProject.run(memberAlice, campaign);
@@ -193,3 +199,6 @@ seed();
 
 console.log('Seed complete: 2 projects, 4 stakeholders, 13 events, 4 members, 2 sample notifications.');
 console.log('Use the "Run Digest Now" button in the Notifications modal to generate overdue/deadline digests.');
+console.log('');
+console.log('Demo logins (password: chronos123): alice@example.com, bob@example.com, dave@example.com');
+console.log('grace@example.com has no password — notification-only, cannot log in.');

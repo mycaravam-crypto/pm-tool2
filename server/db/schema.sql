@@ -106,11 +106,15 @@ CREATE INDEX IF NOT EXISTS idx_pain_points_owner_id ON pain_points(owner_id);
 -- not necessarily a person doing project work. stakeholder_id is an optional link
 -- to a Stakeholder identity — only members linked this way can receive "assigned to
 -- you" notifications, since assignee_id/owner_id/decided_by all point at stakeholders.
+-- password_hash is nullable: a member is a notification subscriber first and a
+-- login account only once someone sets a password for them (via the Members
+-- modal, or the seed script). Never select/return this column to a client.
 CREATE TABLE IF NOT EXISTS members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     stakeholder_id INTEGER,
+    password_hash TEXT,
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
@@ -118,6 +122,17 @@ CREATE TABLE IF NOT EXISTS members (
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_members_stakeholder_id ON members(stakeholder_id);
+
+-- 9b. Sessions — backs the login cookie. No sliding expiry or cleanup job in this
+-- prototype; a session is just valid until expires_at, full stop.
+CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    member_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_member_id ON sessions(member_id);
 
 -- 10. Member-Project subscriptions (digest scope) — independent of project_stakeholders,
 -- since a member doesn't have to be doing work on a project to want its digests.

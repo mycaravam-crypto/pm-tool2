@@ -3,7 +3,7 @@
 ## 1. System Overview & Objectives
 "ChronosPM Multi-Project" is a full-stack, timeline-first project management application. It allows users to track multiple projects concurrently. The main view displays a highly visual chronological timeline where users can overlay events from multiple selected projects at once.
 
-**Scope note:** This is a single-user local tool — no authentication/authorization layer. Stakeholders are records of people referenced by events, not app users who log in.
+**Scope note:** Login exists (Section 3.G) and is required to use the app, but it's *authentication only* — there is no authorization/permissions layer. Anyone with a valid session can do everything; there's no admin/viewer distinction, no per-resource ownership, no roles. Stakeholders remain records of people referenced by events, not login accounts — login accounts live on `members` (Section 2), which can *optionally* link to a Stakeholder identity, the same way a Member can optionally link to one for notification purposes.
 
 ### PM Concept Mapping
 Standard project management defines a project by four constraints — **scope, time, cost, quality** (the "iron triangle" plus quality at its center) — governed by a **single accountable owner** (the Project Manager) and a **team** with differentiated roles. ChronosPM represents each of these deliberately, not implicitly:
@@ -153,11 +153,15 @@ CREATE INDEX idx_pain_points_owner_id ON pain_points(owner_id);
 -- Stakeholder identity — only members linked this way can receive "assigned to you"
 -- notifications, since assignee_id/owner_id/decided_by all point at stakeholders. A
 -- member with no stakeholder_id can still subscribe to project digests (see below).
+-- password_hash is nullable: a member is a notification subscriber first and a
+-- login account only once someone sets a password for them (Section 3.G). Never
+-- select/return this column to a client — see the members endpoints in Section 4.
 CREATE TABLE members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     stakeholder_id INTEGER,
+    password_hash TEXT,
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
@@ -165,6 +169,17 @@ CREATE TABLE members (
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_members_stakeholder_id ON members(stakeholder_id);
+
+-- 9b. Sessions — backs the login cookie (Section 3.G). No sliding expiry or
+-- cleanup job in this prototype; a session is valid until expires_at, full stop.
+CREATE TABLE sessions (
+    token TEXT PRIMARY KEY,
+    member_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_sessions_member_id ON sessions(member_id);
 
 -- 10. Member-Project Subscriptions (digest scope) — independent of project_stakeholders,
 -- since a member doesn't have to be doing work on a project to want its digests.
@@ -259,13 +274,26 @@ Closes the loop between "the data exists in the tool" and "the right person actu
 *   **Members button:** Opens a modal to manage the global list of notification subscribers — create/edit/delete, an optional dropdown to link a member to their Stakeholder identity (required for the "assigned to you" trigger), three toggles (`notify_assigned` / `notify_overdue_action_items` / `notify_upcoming_deadlines`), and a per-member project checklist controlling digest scope (`member_projects`) — independent of that person's `project_stakeholders` assignments, since wanting visibility into a project and doing work on it are different things.
 *   **Notification bell (with count) next to the portfolio health badge:** Opens a log of every notification the system has generated — subject, recipient, body, timestamp — since sending is stubbed (Section 2's `notifications` table comment) rather than wired to a real provider. Includes a **"Run Digest Now"** button, since there's no background scheduler in this prototype; in production this computation would run on a cron schedule (e.g. nightly) instead of on demand.
 *   **Triggers:** (1) *Assigned to you* — real-time, fires when an action item's `assignee_id`, a pain point's `owner_id`, or a decision's `decided_by` is set to a stakeholder linked to a notify-enabled member. (2) *Overdue action items* — digest, one row per subscribed member listing their overdue items across their subscribed projects. (3) *Upcoming deadlines/milestones* — digest, same shape, for `milestone`/`deadline` events within 14 days. A broader "a decision was logged on one of your projects" broadcast (to every subscriber, not just the decision-maker) was considered and deliberately not built — only these three triggers exist (see Phase 8 in Section 5).
-*   **Live delivery:** A WebSocket connection (server: `ws` library attached to the same HTTP server as Express, path `/ws`; client: reconnecting connection opened once on app load) pushes every newly generated notification to connected clients the instant it's written, instead of requiring a manual refresh or poll. Broadcasts are **not targeted to a specific member** — there's no auth/session concept in this app (Section 1's scope note), so there's no "which member is this browser tab" to route by; every connected client gets every notification, matching how the Notifications log already shows all of them regardless of member. Receiving one plays a short two-tone chime (generated client-side via the Web Audio API, no audio file asset) and prepends the notification into the log in real time; a mute toggle next to the bell persists to `localStorage`.
+*   **Live delivery:** A WebSocket connection (server: `ws` library attached to the same HTTP server as Express, path `/ws`; client: reconnecting connection opened once on app load) pushes every newly generated notification to connected clients the instant it's written, instead of requiring a manual refresh or poll. Broadcasts are **targeted to the specific member the notification is for** — the WS upgrade request carries the session cookie, so the server knows which member each connected socket belongs to (see Section 3.G) and only sends a notification to sockets for the member it names; a member with several tabs open gets it on all of them. The Notifications *log* (the modal, `GET /api/notifications`) still shows every notification to anyone logged in, regardless of member — this only changed what triggers the live push/sound. Receiving one plays a short two-tone chime (generated client-side via the Web Audio API, no audio file asset) and prepends the notification into the log in real time; a mute toggle next to the bell persists to `localStorage`.
+
+### G. Login
+Required to use the app at all — every `/api/*` route except `/api/auth/*` is gated server-side (Section 4), not just hidden in the UI, so this is real authentication, not cosmetic. **Not authorization**: there are no roles or permissions beyond "is there a valid session" (Section 1's scope note).
+*   **Login accounts live on `members`** (Section 2's `password_hash`, nullable), not a separate Users table and not Stakeholders. A member becomes login-capable the moment someone sets a password for them via the Members modal (Section 3.F) — until then they're notification-only, exactly as before this feature existed. This means the same person-record that already tracks notification preferences is the one that logs in, instead of adding a fourth overlapping "person" concept alongside Stakeholder and Member.
+*   **Flow:** app loads → `GET /api/auth/me` → a valid session shows the app, anything else (no cookie, expired, unknown) shows a full-screen login form (email + password) → successful `POST /api/auth/login` sets an httpOnly session cookie and reveals the app. A "Signed in as {name}" line with a logout button sits in the sidebar header; logout calls `POST /api/auth/logout` and reloads the page, which is the simplest correct way to tear down the WebSocket connection and all in-memory state at once.
+*   **Sessions:** an opaque random token (Section 2's `sessions` table) in an httpOnly, `SameSite=Lax` cookie, 7-day fixed expiry (no sliding renewal). Passwords hashed with Node's built-in `crypto.scrypt` (salted, `timingSafeEqual` comparison) — no bcrypt/argon2 dependency for what's explicitly a basic implementation.
+*   **One small UX payoff from knowing who's logged in:** the Action Items tab's "My Tasks" filter (Section 3.C) now defaults to the current member's linked Stakeholder, when they have one, instead of always starting on "all assignees." Still just a starting point — the dropdown stays fully editable.
+*   **Explicitly out of scope:** roles/permissions of any kind, password reset/forgot-password, self-service registration (accounts are provisioned through the Members modal, not a signup flow), CSRF tokens (relying on `SameSite=Lax` for this prototype), login rate-limiting/brute-force protection, and session cleanup for expired rows (they just sit unused) — see Phase 10 in Section 5 for the full list.
 
 ---
 
 ## 4. API Endpoints (Express Backend)
 
-Conventions: JSON bodies; validation errors return `400 { error: string }`; missing resources return `404 { error: string }`; all nested-write endpoints run inside a single `better-sqlite3` transaction.
+Conventions: JSON bodies; validation errors return `400 { error: string }`; missing resources return `404 { error: string }`; all nested-write endpoints run inside a single `better-sqlite3` transaction. **Every route below requires a valid session** (Section 3.G) — mounted after the `requireAuth` gate, which returns `401 { error: string }` for a missing/invalid/expired session. `/api/auth/*` is the only unprotected prefix, for the obvious reason that logging in can't require already being logged in.
+
+**Auth** (unprotected)
+*   `POST /api/auth/login` — `{ email, password }`. `400` if either is missing, `401` on a wrong email/password or a member with no password set at all. On success, sets the session cookie and returns `{ id, name, email, stakeholder_id }` — never the password hash.
+*   `POST /api/auth/logout` — clears the session (idempotent — succeeds even with no session to clear) and the cookie.
+*   `GET /api/auth/me` — returns the current member from the session cookie, or `401` if not logged in. This is what the client calls on load to decide whether to show the login screen or the app.
 
 **Projects**
 *   `GET /api/projects?status=active` — Get projects, optionally filtered by status (`active`/`archived`/`completed`); omit to get all. Each project object includes `lead: { id, name }` and `scorecard: { schedule, cost, quality }` (Section 3.E), computed on read. [stretch: `status` param and non-`active` values]
@@ -312,10 +340,10 @@ Conventions: JSON bodies; validation errors return `400 { error: string }`; miss
 *   `GET /api/dashboard/summary?project_ids=1,2,3` — Returns the three counts from Section 3.D (overdue action items, open high-severity pain points, upcoming milestones/deadlines within 14 days) for the given projects. Omit `project_ids` to compute across all `status = 'active'` projects — this is what powers the portfolio badge in Section 3.A.
 
 **Members**
-*   `GET /api/members` — Get all members, including `stakeholder_name` (joined) when linked.
-*   `POST /api/members` — Create a member (`{ name, email, stakeholder_id?, notify_assigned?, notify_overdue_action_items?, notify_upcoming_deadlines? }`, all three notify flags default `true`). `400` on a duplicate email or a `stakeholder_id` that doesn't exist.
-*   `PUT /api/members/:id` — Update a member's own fields (same shape as create).
-*   `DELETE /api/members/:id` — Delete a member (cascades to `member_projects` and their `notifications`).
+*   `GET /api/members` — Get all members, including `stakeholder_name` (joined) when linked and `has_password` (a boolean, not the hash — the only signal the client gets about whether a member can log in).
+*   `POST /api/members` — Create a member (`{ name, email, stakeholder_id?, password?, notify_assigned?, notify_overdue_action_items?, notify_upcoming_deadlines? }`, all three notify flags default `true`). `400` on a duplicate email, a `stakeholder_id` that doesn't exist, or a `password` under 6 characters. Omitting `password` creates a notification-only member with no login capability, same as before this field existed.
+*   `PUT /api/members/:id` — Update a member's own fields (same shape as create). An omitted or blank `password` leaves the existing one (or lack thereof) unchanged — there's no way to *clear* a password back to null through this endpoint, only to set or replace one.
+*   `DELETE /api/members/:id` — Delete a member (cascades to `member_projects`, their `notifications`, and their `sessions` — deleting a currently-logged-in member's account invalidates their session immediately on their next request).
 *   `GET /api/members/:id/projects` — List a member's subscribed projects.
 *   `POST /api/members/:id/projects` — Subscribe to a project (`{ project_id }`). `400` if already subscribed.
 *   `DELETE /api/members/:id/projects/:projectId` — Unsubscribe.
@@ -390,8 +418,18 @@ Phases 0–5 are **MVP** — the tool isn't usable as a PM tool without them. Ph
 7. **Explicitly out of scope for this phase:** real email delivery (needs provider credentials — swap point is `server/utils/notify.js`), a real cron scheduler, and a "new decision logged" broadcast-to-all-subscribers trigger (considered, not built — see Section 3.F).
 
 ### Phase 9: Live Delivery (WebSocket + sound)
-1. Add the `ws` package to `/server`. Create `server/ws.js`: attach a `WebSocketServer` to the same `http.Server` instance `app.listen()` returns (path `/ws`), track connected clients, and export a `broadcastNotification(notification)` that sends to all open sockets. No per-member targeting — see Section 3.F for why.
+1. Add the `ws` package to `/server`. Create `server/ws.js`: attach a `WebSocketServer` to the same `http.Server` instance `app.listen()` returns (path `/ws`), track connected clients, and export a `broadcastNotification(notification)`. Originally shipped broadcasting to every connected socket, since there was no login yet and so no "which member is this browser tab" to target by — **superseded by Phase 10**, which retrofits per-member targeting once that identity exists. Implement the two phases in order; don't skip straight to targeted delivery, since that requires the session/cookie plumbing Phase 10 builds.
 2. Call `broadcastNotification()` from `notifyAssigned()` in `server/utils/notify.js` and from the digest loop in `POST /api/notifications/run-digest`, in both cases only after the relevant write has committed (same rule as Phase 8 step 2).
 3. Add a `/ws` entry (`{ target: 'ws://localhost:3001', ws: true }`) next to the existing `/api` entry in the client's Vite dev proxy config, so the client can connect to the same origin as the page in dev without hardcoding a port.
 4. Client: a small reconnecting WebSocket client (opened once on app mount) that calls a callback with each incoming notification; a Web-Audio-based two-tone chime with no audio file dependency, muted by default only if the user has muted it before (persisted to `localStorage`); wire both together so an incoming notification prepends into the store's notification list and plays the chime, and add a mute toggle next to the bell in the sidebar.
-5. **Explicitly out of scope:** per-member/session-targeted delivery (would need the auth/session layer this app deliberately doesn't have — see Section 1's scope note), push notifications when the browser tab isn't open (would need a service worker + the Push API, a materially different mechanism from a same-tab WebSocket), and any change to the stub-vs-real-email seam from Phase 8 — this phase is purely about *when the browser finds out*, not about *how the email eventually gets sent*.
+5. **Explicitly out of scope:** push notifications when the browser tab isn't open (would need a service worker + the Push API, a materially different mechanism from a same-tab WebSocket), and any change to the stub-vs-real-email seam from Phase 8 — this phase is purely about *when the browser finds out*, not about *how the email eventually gets sent*.
+
+### Phase 10: Login
+1. Add `password_hash` to `members` and the `sessions` table from Section 2. Add `server/utils/password.js` (`hashPassword`/`verifyPassword` via Node's built-in `crypto.scrypt` — no new dependency for hashing).
+2. Add the `cookie-parser` package. Build `server/middleware/requireAuth.js` (exports `COOKIE_NAME`, `findSession(token)`, and the `requireAuth` middleware) and `server/routes/auth.js` (login/logout/me, Section 4). Mount `/api/auth` unprotected, then `app.use('/api', requireAuth)` before every other `/api/*` router, per Section 4's note.
+3. Retrofit `server/ws.js`: the WS upgrade request bypasses Express's middleware entirely (it's handled at the raw `http.Server` level), so cookie-parser/requireAuth don't run for it — parse the `Cookie` header by hand in the `connection` event, look up the session via the shared `findSession` helper from step 2, close the socket (`4401`) if it's missing/invalid, and stash `socket.memberId` on success. Change `broadcastNotification` to only send to sockets where `client.memberId === notification.member_id`.
+4. Update the members routes to accept an optional `password` on create/update (hash if provided; on update, a falsy password leaves the existing hash untouched), and to never `SELECT m.*` — use an explicit column list that excludes `password_hash` and adds a computed `has_password` boolean instead (Section 4).
+5. Client: `LoginView.vue` (email + password form), `api.auth.{me,login,logout}`, a `currentMember` field and `logout()` action on the Pinia store. In `App.vue`, call `GET /api/auth/me` on mount; show a loading state until that resolves, then the login view if it 401'd or the app if it didn't. `store.init()` and the WebSocket connection only start after a successful login (fresh or from an existing session) — they were previously unconditional in `onMounted`. Logout calls the API then `window.location.reload()`, the simplest correct way to tear down the WS connection and all in-memory state together.
+6. Add a "Signed in as {name}" line + logout button to the sidebar header, a password field to the Members modal's create/edit form (labeled differently for each — "leave blank, can't log in" vs. "leave blank, keep unchanged" — since blank means different things in the two modes), and a Login/Notification-only badge column to that modal's table. Default the Action Items tab's "My Tasks" filter to `store.currentMember.stakeholder_id` when set (Section 3.C/3.G).
+7. Seed three of the four demo members with the same demo password and print it to the console on seed; leave the fourth (Grace) without one, so "a member can exist without login capability" is an exercised state, not just a schema nullable nobody demonstrates.
+8. **Explicitly out of scope:** everything listed at the end of Section 3.G (roles/permissions, password reset, self-service registration, CSRF tokens, rate-limiting, session cleanup).

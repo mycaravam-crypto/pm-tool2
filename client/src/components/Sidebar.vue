@@ -1,11 +1,11 @@
 <script setup>
 import { ref } from 'vue';
-import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock, Volume2, VolumeX } from 'lucide-vue-next';
+import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock, Volume2, VolumeX, LogOut } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { isMuted, setMuted } from '../lib/sound.js';
 import ScorecardDots from './ScorecardDots.vue';
 
-const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project', 'open-members', 'open-notifications']);
+const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project', 'open-members', 'open-notifications', 'logout']);
 const store = useProjectStore();
 
 const leadInitials = (project) => {
@@ -25,6 +25,14 @@ function toggleMuted() {
     <div class="p-4 border-b border-slate-200">
       <h1 class="text-lg font-semibold text-slate-900">ChronosPM</h1>
       <p class="text-xs text-slate-500">Multi-project timeline</p>
+      <div class="flex items-center justify-between mt-2">
+        <span class="text-xs text-slate-500 truncate" :title="store.currentMember?.email">
+          Signed in as <span class="font-medium text-slate-700">{{ store.currentMember?.name }}</span>
+        </span>
+        <button class="text-slate-400 hover:text-rose-600 shrink-0" title="Log out" @click="emit('logout')">
+          <LogOut class="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
 
     <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-4 text-xs text-slate-600">

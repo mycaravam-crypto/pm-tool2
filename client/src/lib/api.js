@@ -20,6 +20,11 @@ const patch = (path, body) => request(path, { method: 'PATCH', body: JSON.string
 const del = (path) => request(path, { method: 'DELETE' });
 
 export const api = {
+  auth: {
+    me: () => get('/auth/me'),
+    login: (email, password) => post('/auth/login', { email, password }),
+    logout: () => post('/auth/logout', {})
+  },
   projects: {
     list: (status) => get(`/projects${status ? `?status=${status}` : ''}`),
     create: (data) => post('/projects', data),

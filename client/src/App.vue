@@ -11,8 +11,10 @@ import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vu
 import EventDetailModal from './components/EventDetailModal.vue';
 import MembersModal from './components/MembersModal.vue';
 import NotificationsLogModal from './components/NotificationsLogModal.vue';
+import LoginView from './components/LoginView.vue';
 import { connectNotificationSocket } from './lib/ws.js';
 import { playNotificationSound } from './lib/sound.js';
+import { api } from './lib/api.js';
 
 const store = useProjectStore();
 
@@ -24,14 +26,38 @@ const showMembers = ref(false);
 const showNotifications = ref(false);
 const showEventDetail = ref(false);
 const editingEvent = ref(null);
+const authChecked = ref(false);
 
-onMounted(() => {
-  store.init();
+onMounted(async () => {
+  try {
+    store.setCurrentMember(await api.auth.me());
+  } catch {
+    store.setCurrentMember(null);
+  }
+  authChecked.value = true;
+  if (store.currentMember) await afterLogin();
+});
+
+async function afterLogin() {
+  await store.init();
   connectNotificationSocket((notification) => {
     store.receiveNotification(notification);
     playNotificationSound();
   });
-});
+}
+
+async function handleLogin(member) {
+  store.setCurrentMember(member);
+  await afterLogin();
+}
+
+async function handleLogout() {
+  await store.logout();
+  // Simplest correct way to tear down the WebSocket connection and all in-memory
+  // state at once, rather than manually unwinding the reconnect loop and every
+  // store field.
+  window.location.reload();
+}
 
 function openNewProject() {
   editingProject.value = null;
@@ -52,13 +78,18 @@ function openEvent(event) {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden">
+  <div v-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-400">
+    Loading…
+  </div>
+  <LoginView v-else-if="!store.currentMember" @login="handleLogin" />
+  <div v-else class="flex h-screen overflow-hidden">
     <Sidebar
       @open-stakeholders="showStakeholders = true"
       @open-project-form="openNewProject"
       @edit-project="openEditProject"
       @open-members="showMembers = true"
       @open-notifications="showNotifications = true"
+      @logout="handleLogout"
     />
 
     <main class="flex-1 flex flex-col overflow-hidden">
