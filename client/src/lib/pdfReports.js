@@ -135,11 +135,18 @@ export function generateSituationReportPdf({ projects, events, summary }) {
   doc.setTextColor(30, 41, 59);
   doc.text('Portfolio Health (selected projects)', MARGIN, y);
   y += 6;
+  const totalRequirements = projects.reduce((sum, p) => sum + (p.requirements?.length ?? 0), 0);
+  const doneRequirements = projects.reduce((sum, p) => sum + (p.requirements?.filter((r) => r.done).length ?? 0), 0);
+  const totalGoals = projects.reduce((sum, p) => sum + (p.goals?.length ?? 0), 0);
+  const achievedGoals = projects.reduce((sum, p) => sum + (p.goals?.filter((g) => g.achieved).length ?? 0), 0);
   autoTable(doc, {
     startY: y,
     margin: { left: MARGIN, right: MARGIN },
-    head: [['Overdue action items', 'Open high-severity pain points', 'Upcoming milestones/deadlines (14d)']],
-    body: [[summary.overdue_action_items, summary.open_high_severity_pain_points, summary.upcoming_deadlines]],
+    head: [['Overdue action items', 'Open high-severity pain points', 'Upcoming milestones/deadlines (14d)', 'Requirements fulfilled', 'Goals achieved']],
+    body: [[
+      summary.overdue_action_items, summary.open_high_severity_pain_points, summary.upcoming_deadlines,
+      `${doneRequirements}/${totalRequirements}`, `${achievedGoals}/${totalGoals}`
+    ]],
     theme: 'grid',
     styles: { fontSize: 9, halign: 'center' },
     headStyles: { fillColor: [71, 85, 105] }
@@ -180,6 +187,26 @@ export function generateSituationReportPdf({ projects, events, summary }) {
       doc.text(`${key[0].toUpperCase()}${key.slice(1)}: ${SCORECARD_LABELS[status] || status}`, MARGIN + 6 + i * 38, y);
     });
     y += 9;
+
+    // Requirements/Goals track the "Scope" constraint (PLAN.md's PM Concept
+    // Mapping), so they're placed right after the scorecard — ahead of the
+    // work-in-progress tables below — showing only what's still outstanding,
+    // with the done/total progress in each table's title.
+    const projectRequirements = project.requirements ?? [];
+    const openRequirements = projectRequirements.filter((r) => !r.done).map((r) => [r.text]);
+    y = sectionTable(
+      doc, y, `Requirements (${projectRequirements.length - openRequirements.length}/${projectRequirements.length} fulfilled)`,
+      ['Outstanding Requirement'], openRequirements,
+      projectRequirements.length === 0 ? 'No requirements defined.' : 'All requirements fulfilled.'
+    );
+
+    const projectGoals = project.goals ?? [];
+    const openGoals = projectGoals.filter((g) => !g.achieved).map((g) => [g.text, g.target_date ? formatDate(g.target_date) : '—']);
+    y = sectionTable(
+      doc, y, `Goals (${projectGoals.length - openGoals.length}/${projectGoals.length} achieved)`,
+      ['Outstanding Goal', 'Target Date'], openGoals,
+      projectGoals.length === 0 ? 'No goals defined.' : 'All goals achieved.'
+    );
 
     const projectEvents = events.filter((e) => e.project_id === project.id);
     const openActions = projectEvents.flatMap((e) => e.action_items.filter((a) => !a.done).map((a) => [a.text, a.assignee_name || '—', formatDate(a.due_date)]));
