@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { Mail, PlayCircle } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import { formatDateTime } from '../lib/dateFormat.js';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -53,7 +54,7 @@ async function runDigest() {
           <Mail class="w-3.5 h-3.5 text-slate-400" />
           <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="TYPE_COLORS[n.type]">{{ TYPE_LABELS[n.type] }}</span>
           <span class="text-sm font-medium">{{ n.subject }}</span>
-          <span class="text-xs text-slate-400 ml-auto">{{ n.created_at }}</span>
+          <span class="text-xs text-slate-400 ml-auto">{{ formatDateTime(n.created_at) }}</span>
         </div>
         <p class="text-xs text-slate-500 mb-1">To: {{ n.member_name }} &lt;{{ n.member_email }}&gt;</p>
         <pre class="text-xs text-slate-600 whitespace-pre-wrap font-sans">{{ n.body }}</pre>

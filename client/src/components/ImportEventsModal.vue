@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { Upload, Download, CircleAlert } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { api } from '../lib/api.js';
+import { formatDate } from '../lib/dateFormat.js';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -123,7 +124,7 @@ function downloadTemplate() {
               <tr v-for="r in preview.rows" :key="r.row" :class="r.errors.length ? 'bg-rose-50' : ''" class="border-t border-slate-100">
                 <td class="px-2 py-1">{{ r.row }}</td>
                 <td class="px-2 py-1">{{ r.title }}</td>
-                <td class="px-2 py-1">{{ r.date }}</td>
+                <td class="px-2 py-1">{{ formatDate(r.date) }}</td>
                 <td class="px-2 py-1">{{ r.type }}</td>
                 <td class="px-2 py-1">
                   <span v-if="r.errors.length" class="text-rose-600">{{ r.errors.join('; ') }}</span>

@@ -1,13 +1,14 @@
 <script setup>
 import { computed, ref, nextTick, onMounted } from 'vue';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-vue-next';
+import { ZoomIn, ZoomOut, RotateCcw, CalendarSearch } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
+import { todayStr as getTodayStr, formatDate, formatMonthYear } from '../lib/dateFormat.js';
 
 const emit = defineEmits(['select-event']);
 const store = useProjectStore();
 
-const todayStr = new Date().toISOString().slice(0, 10);
+const todayStr = getTodayStr();
 const DAY_MS = 86400000;
 const TRACK_HEIGHT = 400;
 const BASELINE_TOP = 280;
@@ -95,18 +96,27 @@ const monthMarkers = computed(() => {
     markers.push({
       key: dateStr,
       leftPercent: leftPercent(dateStr),
-      label: cursor.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+      label: formatMonthYear(cursor)
     });
     cursor.setMonth(cursor.getMonth() + 1);
   }
   return markers;
 });
 
-function scrollToToday() {
+function scrollToDate(dateStr) {
   const container = scrollContainer.value;
   if (!container) return;
-  const todayPx = (todayLeftPercent.value / 100) * trackWidth.value;
-  container.scrollLeft = Math.max(0, todayPx - container.clientWidth / 2);
+  const px = (leftPercent(dateStr) / 100) * trackWidth.value;
+  container.scrollLeft = Math.max(0, px - container.clientWidth / 2);
+}
+function scrollToToday() {
+  scrollToDate(todayStr);
+}
+
+const jumpDate = ref('');
+function jumpToDate() {
+  if (!jumpDate.value) return;
+  scrollToDate(jumpDate.value);
 }
 
 // Re-centers on whatever was in the middle of the viewport before zooming, so a
@@ -141,24 +151,48 @@ onMounted(() => nextTick(scrollToToday));
     <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-400">
       Select a project from the sidebar to see its timeline.
     </div>
+    <div v-else-if="store.loading" class="text-center py-24 text-slate-400">
+      Loading events…
+    </div>
     <div v-else-if="store.events.length === 0" class="text-center py-24 text-slate-400">
       No events yet for the selected project(s).
     </div>
     <template v-else>
-      <div class="flex items-center justify-end gap-1 mb-2">
-        <button
-          class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-          title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
-        ><ZoomOut class="w-4 h-4" /></button>
-        <span class="text-xs text-slate-500 w-11 text-center tabular-nums">{{ Math.round(zoomLevel * 100) }}%</span>
-        <button
-          class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-          title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
-        ><ZoomIn class="w-4 h-4" /></button>
-        <button
-          class="p-1.5 rounded text-slate-500 hover:bg-slate-100"
-          title="Reset zoom and jump to today" @click="resetZoom"
-        ><RotateCcw class="w-4 h-4" /></button>
+      <div class="flex items-center justify-between gap-4 mb-3 flex-wrap">
+        <div class="flex items-center gap-4 text-xs text-slate-500">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400" /> Record</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border-2 border-slate-400 rotate-45" /> Milestone / Deadline</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-medium text-rose-600 whitespace-nowrap">Heute — {{ formatDate(todayStr) }}</span>
+          <form class="flex items-center gap-1" @submit.prevent="jumpToDate">
+            <input v-model="jumpDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-xs" />
+            <button
+              type="submit"
+              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="Jump to date" :disabled="!jumpDate"
+            ><CalendarSearch class="w-4 h-4" /></button>
+          </form>
+          <div class="flex items-center gap-1">
+            <button
+              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
+            ><ZoomOut class="w-4 h-4" /></button>
+            <span class="text-xs text-slate-500 w-11 text-center tabular-nums">{{ Math.round(zoomLevel * 100) }}%</span>
+            <button
+              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
+            ><ZoomIn class="w-4 h-4" /></button>
+            <button
+              class="p-1.5 rounded text-slate-500 hover:bg-slate-100"
+              title="Reset zoom and jump to today" @click="resetZoom"
+            ><RotateCcw class="w-4 h-4" /></button>
+          </div>
+        </div>
       </div>
 
       <div ref="scrollContainer" class="relative overflow-x-auto pb-4">
@@ -183,7 +217,7 @@ onMounted(() => nextTick(scrollToToday));
 
           <!-- today marker -->
           <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
-            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today</span>
+            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Heute · {{ formatDate(todayStr) }}</span>
           </div>
 
           <!-- event clusters -->
@@ -202,7 +236,7 @@ onMounted(() => nextTick(scrollToToday));
                 class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
                 :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
                 :style="{ border: `2px solid ${event.project.color_hex}` }"
-                :title="`${event.title} — ${event.project.name} (${event.date})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
+                :title="`${event.title} — ${event.project.name} (${formatDate(event.date)})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
                 @click="emit('select-event', event)"
               >
                 <component

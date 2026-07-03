@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { Plus, FileUp } from 'lucide-vue-next';
+import { Plus, FileUp, FileText } from 'lucide-vue-next';
 import { useProjectStore } from './stores/useProjectStore.js';
 import Sidebar from './components/Sidebar.vue';
 import Timeline from './components/Timeline.vue';
@@ -16,6 +16,8 @@ import LoginView from './components/LoginView.vue';
 import { connectNotificationSocket } from './lib/ws.js';
 import { playNotificationSound } from './lib/sound.js';
 import { api } from './lib/api.js';
+import { todayStr, formatDate } from './lib/dateFormat.js';
+import { generateSituationReportPdf } from './lib/pdfReports.js';
 
 const store = useProjectStore();
 
@@ -77,6 +79,13 @@ function openEvent(event) {
   editingEvent.value = event;
   showEventDetail.value = true;
 }
+function exportSituationReport() {
+  generateSituationReportPdf({
+    projects: store.selectedProjects,
+    events: store.events,
+    summary: store.scopedSummary
+  });
+}
 </script>
 
 <template>
@@ -110,19 +119,28 @@ function openEvent(event) {
             @click="mainTab = 'dashboard'"
           >Action Items / Pain Points / Decisions</button>
         </div>
-        <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
-          <button
-            class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-            @click="showImportEvents = true"
-          >
-            <FileUp class="w-4 h-4" /> Import Events
-          </button>
-          <button
-            class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-            @click="openNewEvent"
-          >
-            <Plus class="w-4 h-4" /> New Event
-          </button>
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-slate-500 whitespace-nowrap">Heute: <span class="font-medium text-slate-700">{{ formatDate(todayStr()) }}</span></span>
+          <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
+            <button
+              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+              @click="exportSituationReport"
+            >
+              <FileText class="w-4 h-4" /> Situation Report
+            </button>
+            <button
+              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+              @click="showImportEvents = true"
+            >
+              <FileUp class="w-4 h-4" /> Import Events
+            </button>
+            <button
+              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              @click="openNewEvent"
+            >
+              <Plus class="w-4 h-4" /> New Event
+            </button>
+          </div>
         </div>
       </div>
 

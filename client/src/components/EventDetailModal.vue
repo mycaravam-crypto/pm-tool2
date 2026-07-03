@@ -1,9 +1,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { Trash2, Plus } from 'lucide-vue-next';
+import { Trash2, Plus, FileDown } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { api } from '../lib/api.js';
 import { EVENT_TYPES, EVENT_TYPE_KEYS, STATUS_LABELS, STATUS_KEYS } from '../lib/eventTypes.js';
+import { todayStr as getTodayStr, formatDate } from '../lib/dateFormat.js';
+import { generateEventProtocolPdf } from '../lib/pdfReports.js';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({
@@ -13,7 +15,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const store = useProjectStore();
 const isEdit = computed(() => !!props.event);
-const todayStr = new Date().toISOString().slice(0, 10);
+const todayStr = getTodayStr();
 
 // props.event is a snapshot taken when the modal opened; store.events gets replaced
 // wholesale after every mutation (see useProjectStore), so nested lists must be read
@@ -112,6 +114,10 @@ async function save() {
   } finally {
     saving.value = false;
   }
+}
+
+function exportProtocol() {
+  generateEventProtocolPdf(liveEvent.value);
 }
 
 async function removeEvent() {
@@ -214,7 +220,7 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
             <input v-if="isEdit" type="checkbox" :checked="!!a.done" @change="toggleDone(a)" />
             <span class="flex-1" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</span>
             <span class="text-xs text-slate-400">{{ a.assignee_name || (a.assignee_id && projectPeople.find(p => p.id === a.assignee_id)?.name) || 'unassigned' }}</span>
-            <span class="text-xs" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-400'">{{ a.due_date || 'no due date' }}</span>
+            <span class="text-xs" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-400'">{{ a.due_date ? formatDate(a.due_date) : 'no due date' }}</span>
             <button type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-400">No action items yet.</li>
@@ -267,6 +273,11 @@ function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
         </button>
         <span v-else />
         <div class="flex gap-2">
+          <button
+            v-if="isEdit" type="button"
+            class="text-sm px-3 py-1.5 rounded-md border border-slate-300 flex items-center gap-1.5 hover:bg-slate-50"
+            @click="exportProtocol"
+          ><FileDown class="w-4 h-4" /> Export PDF</button>
           <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
           <button type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
             {{ saving ? 'Saving…' : 'Save' }}
