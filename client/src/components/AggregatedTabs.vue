@@ -1,7 +1,16 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { todayStr as getTodayStr, formatDate } from '../lib/dateFormat.js';
+import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
+
+const props = defineProps({
+  // Set by the parent (e.g. clicking a Health Summary stat) to jump straight to
+  // a filtered view instead of making the user hunt for it themselves. Include a
+  // `token` (a new value each time) so re-clicking the same stat still re-applies
+  // the filter even if subTab/flags were already at those values.
+  focus: { type: Object, default: null }
+});
 
 const store = useProjectStore();
 const subTab = ref('overview');
@@ -9,17 +18,43 @@ const subTab = ref('overview');
 // Stakeholder identity — still just a starting point, the dropdown stays editable.
 const assigneeFilter = ref(store.currentMember?.stakeholder_id ?? '');
 const projectFilter = ref('');
+const actionOverdueOnly = ref(false);
+const painOpenOnly = ref(false);
+const painSeverityFilter = ref('');
+
+watch(() => props.focus, (f) => {
+  if (!f) return;
+  subTab.value = f.subTab;
+  if (f.subTab === 'actions') {
+    assigneeFilter.value = ''; // drilling in from a portfolio-wide count shouldn't stay scoped to "My Tasks"
+    actionOverdueOnly.value = !!f.overdueOnly;
+  } else if (f.subTab === 'pain') {
+    painOpenOnly.value = !!f.openOnly;
+    painSeverityFilter.value = f.severity ?? '';
+  }
+}, { immediate: true });
 
 const todayStr = getTodayStr();
+const in14DaysStr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+
+function isOverdue(item) {
+  return item.due_date && !item.done && item.due_date < todayStr;
+}
 
 // Combines all three item types into one chronological log for a general
 // overview — the dedicated tabs below stay for focused per-type work/filtering.
+// Action items sort/display by their own due_date (falling back to the parent
+// event's date if unset) rather than the event date, since due_date is what
+// actually determines whether one reads as overdue.
 const allItems = computed(() => {
   let rows = store.events.flatMap(e => [
     ...e.action_items.map(a => ({
-      kind: 'action', id: `a${a.id}`, raw: a, text: a.text, date: e.date, event: e,
-      person: a.assignee_name, statusLabel: a.done ? 'Done' : 'Open',
-      statusClass: a.done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+      kind: 'action', id: `a${a.id}`, raw: a, text: a.text, date: a.due_date || e.date, event: e,
+      person: a.assignee_name,
+      statusLabel: a.done ? 'Done' : (isOverdue(a) ? 'Overdue' : 'Open'),
+      statusClass: a.done
+        ? 'bg-emerald-100 text-emerald-700'
+        : (isOverdue(a) ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600')
     })),
     ...e.pain_points.map(p => ({
       kind: 'pain', id: `p${p.id}`, raw: p, text: p.text, date: e.date, event: e,
@@ -40,18 +75,49 @@ const allItems = computed(() => {
 const KIND_LABELS = { action: 'Action Item', pain: 'Pain Point', decision: 'Decision' };
 const KIND_CLASSES = { action: 'bg-sky-100 text-sky-700', pain: 'bg-amber-100 text-amber-700', decision: 'bg-slate-200 text-slate-700' };
 
-const actionItems = computed(() => {
+// Scoped by project only (not assignee/overdue/etc.) so the empty states below can
+// tell "genuinely nothing here" apart from "filtered down to nothing" and offer to
+// clear the filter instead of just looking broken.
+const actionItemsInScope = computed(() => {
   let rows = store.events.flatMap(e => e.action_items.map(a => ({ ...a, event: e })));
-  if (assigneeFilter.value) rows = rows.filter(a => a.assignee_id === Number(assigneeFilter.value));
   if (projectFilter.value) rows = rows.filter(a => a.event.project_id === Number(projectFilter.value));
-  return rows.sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+  return rows;
 });
+const actionItems = computed(() => {
+  let rows = actionItemsInScope.value;
+  if (assigneeFilter.value) rows = rows.filter(a => a.assignee_id === Number(assigneeFilter.value));
+  if (actionOverdueOnly.value) rows = rows.filter(isOverdue);
+  return [...rows].sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+});
+function clearActionFilters() {
+  assigneeFilter.value = '';
+  actionOverdueOnly.value = false;
+}
 
-const painPoints = computed(() => {
+const painPointsInScope = computed(() => {
   let rows = store.events.flatMap(e => e.pain_points.map(p => ({ ...p, event: e })));
   if (projectFilter.value) rows = rows.filter(p => p.event.project_id === Number(projectFilter.value));
+  return rows;
+});
+const painPoints = computed(() => {
+  let rows = painPointsInScope.value;
+  if (painOpenOnly.value) rows = rows.filter(p => !p.resolved);
+  if (painSeverityFilter.value) rows = rows.filter(p => p.severity === painSeverityFilter.value);
   const order = { High: 0, Medium: 1, Low: 2 };
-  return rows.sort((a, b) => order[a.severity] - order[b.severity]);
+  return [...rows].sort((a, b) => order[a.severity] - order[b.severity]);
+});
+function clearPainFilters() {
+  painOpenOnly.value = false;
+  painSeverityFilter.value = '';
+}
+
+// Milestone/deadline events aren't decisions/action items/pain points — they're
+// events themselves — so they get their own tab rather than folding into Overview.
+// Mirrors the 14-day window GET /api/dashboard/summary uses server-side.
+const upcomingEvents = computed(() => {
+  let rows = store.events.filter(e => ['milestone', 'deadline'].includes(e.type) && e.date >= todayStr && e.date <= in14DaysStr);
+  if (projectFilter.value) rows = rows.filter(e => e.project_id === Number(projectFilter.value));
+  return rows.sort((a, b) => a.date.localeCompare(b.date));
 });
 
 const decisions = computed(() => {
@@ -78,9 +144,6 @@ const knownAssignees = computed(() => {
   return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 });
 
-function isOverdue(item) {
-  return item.due_date && !item.done && item.due_date < todayStr;
-}
 async function toggleDone(item) { await store.toggleActionItemDone(item.id, !item.done); }
 async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !pp.resolved); }
 </script>
@@ -94,17 +157,29 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
       <div class="flex items-center justify-between mb-4">
         <div class="flex gap-1">
           <button
-            v-for="t in [['overview', 'Overview'], ['actions', 'Action Items'], ['pain', 'Pain Points'], ['decisions', 'Decisions']]"
+            v-for="t in [['overview', 'Overview'], ['actions', 'Action Items'], ['pain', 'Pain Points'], ['decisions', 'Decisions'], ['upcoming', 'Upcoming']]"
             :key="t[0]"
             class="px-3 py-1.5 text-sm rounded-md"
             :class="subTab === t[0] ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
             @click="subTab = t[0]"
           >{{ t[1] }}</button>
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
+          <label v-if="subTab === 'actions'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+            <input type="checkbox" v-model="actionOverdueOnly" /> Overdue only
+          </label>
           <select v-if="subTab === 'actions'" v-model="assigneeFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
             <option value="">My Tasks: all assignees</option>
             <option v-for="s in knownAssignees" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select>
+          <label v-if="subTab === 'pain'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+            <input type="checkbox" v-model="painOpenOnly" /> Open only
+          </label>
+          <select v-if="subTab === 'pain'" v-model="painSeverityFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="">All severities</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
           </select>
           <select v-model="projectFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
             <option value="">All selected projects</option>
@@ -164,7 +239,13 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'actions' && actionItems.length === 0" class="text-sm text-slate-400 py-4">No action items.</p>
+      <div v-if="subTab === 'actions' && actionItems.length === 0" class="text-sm text-slate-400 py-4">
+        <template v-if="actionItemsInScope.length > 0">
+          No tasks match the current filter — {{ actionItemsInScope.length }} hidden.
+          <button type="button" class="text-indigo-600 hover:underline" @click="clearActionFilters">Clear filters</button>
+        </template>
+        <template v-else>No action items.</template>
+      </div>
 
       <table v-if="subTab === 'pain'" class="w-full text-sm">
         <thead>
@@ -191,7 +272,13 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'pain' && painPoints.length === 0" class="text-sm text-slate-400 py-4">No pain points.</p>
+      <div v-if="subTab === 'pain' && painPoints.length === 0" class="text-sm text-slate-400 py-4">
+        <template v-if="painPointsInScope.length > 0">
+          No pain points match the current filter — {{ painPointsInScope.length }} hidden.
+          <button type="button" class="text-indigo-600 hover:underline" @click="clearPainFilters">Clear filters</button>
+        </template>
+        <template v-else>No pain points.</template>
+      </div>
 
       <table v-if="subTab === 'decisions'" class="w-full text-sm">
         <thead>
@@ -214,6 +301,28 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
         </tbody>
       </table>
       <p v-if="subTab === 'decisions' && decisions.length === 0" class="text-sm text-slate-400 py-4">No decisions logged.</p>
+
+      <table v-if="subTab === 'upcoming'" class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+            <th class="py-1.5">Type</th><th class="py-1.5">Title</th><th class="py-1.5">Project</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="e in upcomingEvents" :key="e.id" class="border-b border-slate-100">
+            <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium bg-violet-100 text-violet-700">{{ EVENT_TYPES[e.type].label }}</span></td>
+            <td class="py-1.5">{{ e.title }}</td>
+            <td class="py-1.5">
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: e.project.color_hex }" />{{ e.project.name }}
+              </span>
+            </td>
+            <td class="py-1.5 text-slate-500">{{ STATUS_LABELS[e.status] }}</td>
+            <td class="py-1.5 text-slate-500">{{ formatDate(e.date) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="subTab === 'upcoming' && upcomingEvents.length === 0" class="text-sm text-slate-400 py-4">No milestones or deadlines in the next 14 days.</p>
     </template>
   </div>
 </template>

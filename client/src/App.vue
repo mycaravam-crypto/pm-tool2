@@ -31,6 +31,7 @@ const showEventDetail = ref(false);
 const editingEvent = ref(null);
 const showImportEvents = ref(false);
 const authChecked = ref(false);
+const dashboardFocus = ref(null);
 
 onMounted(async () => {
   try {
@@ -86,6 +87,22 @@ function exportSituationReport() {
     summary: store.scopedSummary
   });
 }
+
+// Jumps from a Health Summary count straight to the matching filtered list —
+// a token (always a fresh value) so re-clicking the same stat re-applies the
+// filter even when subTab/flags are already at those values.
+function focusOverdueActions() {
+  mainTab.value = 'dashboard';
+  dashboardFocus.value = { subTab: 'actions', overdueOnly: true, token: Date.now() };
+}
+function focusHighSeverityPain() {
+  mainTab.value = 'dashboard';
+  dashboardFocus.value = { subTab: 'pain', openOnly: true, severity: 'High', token: Date.now() };
+}
+function focusUpcoming() {
+  mainTab.value = 'dashboard';
+  dashboardFocus.value = { subTab: 'upcoming', token: Date.now() };
+}
 </script>
 
 <template>
@@ -104,7 +121,7 @@ function exportSituationReport() {
     />
 
     <main class="flex-1 flex flex-col overflow-hidden">
-      <HealthSummary />
+      <HealthSummary @focus-overdue="focusOverdueActions" @focus-pain="focusHighSeverityPain" @focus-upcoming="focusUpcoming" />
 
       <div class="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white">
         <div class="flex gap-1">
@@ -146,7 +163,7 @@ function exportSituationReport() {
 
       <div class="flex-1 overflow-auto">
         <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" />
-        <AggregatedTabs v-else />
+        <AggregatedTabs v-else :focus="dashboardFocus" />
       </div>
     </main>
 
