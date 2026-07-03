@@ -46,7 +46,8 @@ export const api = {
     list: (projectIds) => get(`/events?project_ids=${projectIds.join(',')}`),
     create: (data) => post('/events', data),
     update: (id, data) => put(`/events/${id}`, data),
-    remove: (id) => del(`/events/${id}`)
+    remove: (id) => del(`/events/${id}`),
+    import: (project_id, csv, commit = false) => post('/events/import', { project_id, csv, commit })
   },
   decisions: {
     create: (data) => post('/decisions', data),

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-import { Plus } from 'lucide-vue-next';
+import { Plus, FileUp } from 'lucide-vue-next';
 import { useProjectStore } from './stores/useProjectStore.js';
 import Sidebar from './components/Sidebar.vue';
 import Timeline from './components/Timeline.vue';
@@ -11,6 +11,7 @@ import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vu
 import EventDetailModal from './components/EventDetailModal.vue';
 import MembersModal from './components/MembersModal.vue';
 import NotificationsLogModal from './components/NotificationsLogModal.vue';
+import ImportEventsModal from './components/ImportEventsModal.vue';
 import LoginView from './components/LoginView.vue';
 import { connectNotificationSocket } from './lib/ws.js';
 import { playNotificationSound } from './lib/sound.js';
@@ -26,6 +27,7 @@ const showMembers = ref(false);
 const showNotifications = ref(false);
 const showEventDetail = ref(false);
 const editingEvent = ref(null);
+const showImportEvents = ref(false);
 const authChecked = ref(false);
 
 onMounted(async () => {
@@ -108,13 +110,20 @@ function openEvent(event) {
             @click="mainTab = 'dashboard'"
           >Action Items / Pain Points / Decisions</button>
         </div>
-        <button
-          v-if="store.selectedProjectIds.length > 0"
-          class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
-          @click="openNewEvent"
-        >
-          <Plus class="w-4 h-4" /> New Event
-        </button>
+        <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
+          <button
+            class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+            @click="showImportEvents = true"
+          >
+            <FileUp class="w-4 h-4" /> Import Events
+          </button>
+          <button
+            class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+            @click="openNewEvent"
+          >
+            <Plus class="w-4 h-4" /> New Event
+          </button>
+        </div>
       </div>
 
       <div class="flex-1 overflow-auto">
@@ -128,5 +137,6 @@ function openEvent(event) {
     <MembersModal v-if="showMembers" @close="showMembers = false" />
     <NotificationsLogModal v-if="showNotifications" @close="showNotifications = false" />
     <EventDetailModal v-if="showEventDetail" :event="editingEvent" @close="showEventDetail = false" />
+    <ImportEventsModal v-if="showImportEvents" @close="showImportEvents = false" />
   </div>
 </template>

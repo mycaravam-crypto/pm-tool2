@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { notifyAssigned } from '../utils/notify.js';
 import { getAccessibleProjectIds, canAccessProject } from '../utils/access.js';
+import { parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
 
 const router = Router();
 
@@ -100,6 +101,66 @@ router.post('/', (req, res) => {
   }
 
   res.status(201).json(serializeEvent(getEventStmt.get(id)));
+});
+
+const getProjectStakeholdersForImportStmt = db.prepare(`
+  SELECT s.id, s.name FROM project_stakeholders ps
+  JOIN stakeholders s ON s.id = ps.stakeholder_id
+  WHERE ps.project_id = ?
+`);
+
+// Bulk-create events from a pasted/uploaded CSV, for getting an ongoing
+// project's existing schedule into the timeline without hand-entering every
+// row. `commit: false` (the default) only validates and returns a preview —
+// nothing is written until the caller re-submits with `commit: true`, so the
+// UI can show per-row errors/warnings before anything lands. All rows in a
+// commit are inserted in one transaction, mirroring `POST /` above; nested
+// decisions/action items/pain points aren't importable in this form — those
+// stay hand-entered per event once it exists.
+router.post('/import', (req, res) => {
+  const { project_id, csv, commit = false } = req.body;
+  if (!project_id || !csv) return res.status(400).json({ error: 'project_id and csv are required' });
+  if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
+
+  const { records, error } = parseEventsCsv(csv);
+  if (error) return res.status(400).json({ error });
+  if (records.length === 0) return res.status(400).json({ error: 'CSV has no data rows' });
+
+  const stakeholderByName = new Map(
+    getProjectStakeholdersForImportStmt.all(project_id).map((s) => [s.name.toLowerCase(), s])
+  );
+
+  const rows = records.map((record, i) => ({ row: i + 2, ...validateEventRow(record, stakeholderByName) }));
+  const validRows = rows.filter((r) => r.errors.length === 0);
+
+  if (!commit) {
+    return res.json({
+      preview: true,
+      totalRows: rows.length,
+      validCount: validRows.length,
+      rows: rows.map(({ title, date, type, summary, status, participantIds, ...rest }) => ({
+        title, date, type, summary, status, ...rest
+      }))
+    });
+  }
+
+  const insertEvent = db.prepare(`
+    INSERT INTO events (project_id, title, date, type, summary, status) VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const insertParticipant = db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)');
+
+  const importAll = db.transaction(() => {
+    for (const row of validRows) {
+      const info = insertEvent.run(project_id, row.title, row.date, row.type, row.summary, row.status);
+      for (const stakeholderId of row.participantIds) insertParticipant.run(info.lastInsertRowid, stakeholderId);
+    }
+  });
+  importAll();
+
+  res.status(201).json({
+    imported: validRows.length,
+    skipped: rows.filter((r) => r.errors.length > 0).map(({ row, errors }) => ({ row, errors }))
+  });
 });
 
 router.put('/:id', (req, res) => {
