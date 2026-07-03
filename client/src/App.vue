@@ -9,6 +9,8 @@ import AggregatedTabs from './components/AggregatedTabs.vue';
 import ProjectFormModal from './components/ProjectFormModal.vue';
 import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vue';
 import EventDetailModal from './components/EventDetailModal.vue';
+import MembersModal from './components/MembersModal.vue';
+import NotificationsLogModal from './components/NotificationsLogModal.vue';
 
 const store = useProjectStore();
 
@@ -16,6 +18,8 @@ const mainTab = ref('timeline');
 const showProjectForm = ref(false);
 const editingProject = ref(null);
 const showStakeholders = ref(false);
+const showMembers = ref(false);
+const showNotifications = ref(false);
 const showEventDetail = ref(false);
 const editingEvent = ref(null);
 
@@ -41,7 +45,13 @@ function openEvent(event) {
 
 <template>
   <div class="flex h-screen overflow-hidden">
-    <Sidebar @open-stakeholders="showStakeholders = true" @open-project-form="openNewProject" @edit-project="openEditProject" />
+    <Sidebar
+      @open-stakeholders="showStakeholders = true"
+      @open-project-form="openNewProject"
+      @edit-project="openEditProject"
+      @open-members="showMembers = true"
+      @open-notifications="showNotifications = true"
+    />
 
     <main class="flex-1 flex flex-col overflow-hidden">
       <HealthSummary />
@@ -76,6 +86,8 @@ function openEvent(event) {
 
     <ProjectFormModal v-if="showProjectForm" :project="editingProject" @close="showProjectForm = false" />
     <StakeholderDirectoryModal v-if="showStakeholders" @close="showStakeholders = false" />
+    <MembersModal v-if="showMembers" @close="showMembers = false" />
+    <NotificationsLogModal v-if="showNotifications" @close="showNotifications = false" />
     <EventDetailModal v-if="showEventDetail" :event="editingEvent" @close="showEventDetail = false" />
   </div>
 </template>

@@ -5,6 +5,8 @@ export const useProjectStore = defineStore('project', {
   state: () => ({
     projects: [],
     stakeholders: [],
+    members: [],
+    notifications: [],
     selectedProjectIds: [],
     events: [],
     scopedSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
@@ -22,7 +24,10 @@ export const useProjectStore = defineStore('project', {
 
   actions: {
     async init() {
-      await Promise.all([this.fetchProjects(), this.fetchStakeholders(), this.fetchPortfolioSummary()]);
+      await Promise.all([
+        this.fetchProjects(), this.fetchStakeholders(), this.fetchPortfolioSummary(),
+        this.fetchMembers(), this.fetchNotifications()
+      ]);
     },
 
     async fetchProjects() {
@@ -31,6 +36,38 @@ export const useProjectStore = defineStore('project', {
 
     async fetchStakeholders() {
       this.stakeholders = await api.stakeholders.list();
+    },
+
+    async fetchMembers() {
+      this.members = await api.members.list();
+    },
+
+    async fetchNotifications() {
+      this.notifications = await api.notifications.list();
+    },
+
+    async createMember(data) {
+      await api.members.create(data);
+      await this.fetchMembers();
+    },
+    async updateMember(id, data) {
+      await api.members.update(id, data);
+      await this.fetchMembers();
+    },
+    async deleteMember(id) {
+      await api.members.remove(id);
+      await this.fetchMembers();
+    },
+    async subscribeMemberToProject(memberId, projectId) {
+      await api.members.subscribe(memberId, projectId);
+    },
+    async unsubscribeMemberFromProject(memberId, projectId) {
+      await api.members.unsubscribe(memberId, projectId);
+    },
+    async runDigestNow() {
+      const result = await api.notifications.runDigest();
+      await this.fetchNotifications();
+      return result;
     },
 
     async fetchPortfolioSummary() {
@@ -69,7 +106,10 @@ export const useProjectStore = defineStore('project', {
     },
 
     async refreshAll() {
-      await Promise.all([this.fetchProjects(), this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
+      await Promise.all([
+        this.fetchProjects(), this.fetchEvents(), this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(), this.fetchNotifications()
+      ]);
     },
 
     async createProject(data) {
@@ -132,10 +172,12 @@ export const useProjectStore = defineStore('project', {
     async addDecision(data) {
       await api.decisions.create(data);
       await this.fetchEvents();
+      await this.fetchNotifications();
     },
     async updateDecision(id, data) {
       await api.decisions.update(id, data);
       await this.fetchEvents();
+      await this.fetchNotifications();
     },
     async deleteDecision(id) {
       await api.decisions.remove(id);
@@ -147,10 +189,12 @@ export const useProjectStore = defineStore('project', {
       await this.fetchEvents();
       await this.fetchScopedSummary();
       await this.fetchPortfolioSummary();
+      await this.fetchNotifications();
     },
     async updateActionItem(id, data) {
       await api.actionItems.update(id, data);
       await this.fetchEvents();
+      await this.fetchNotifications();
     },
     async toggleActionItemDone(id, done) {
       await api.actionItems.toggleDone(id, done);
@@ -171,11 +215,13 @@ export const useProjectStore = defineStore('project', {
       await this.fetchScopedSummary();
       await this.fetchPortfolioSummary();
       await this.fetchProjects();
+      await this.fetchNotifications();
     },
     async updatePainPoint(id, data) {
       await api.painPoints.update(id, data);
       await this.fetchEvents();
       await this.fetchProjects();
+      await this.fetchNotifications();
     },
     async togglePainPointResolved(id, resolved) {
       await api.painPoints.toggleResolved(id, resolved);

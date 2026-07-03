@@ -1,13 +1,24 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
+import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
+
+const getEventContext = db.prepare(`
+  SELECT e.title AS event_title, p.name AS project_name
+  FROM events e JOIN projects p ON p.id = e.project_id WHERE e.id = ?
+`);
 
 router.post('/', (req, res) => {
   const { event_id, text, severity, owner_id } = req.body;
   if (!event_id || !text || !severity) return res.status(400).json({ error: 'event_id, text, and severity are required' });
   const info = db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)')
     .run(event_id, text, severity, owner_id ?? null);
+  if (owner_id) {
+    const ctx = getEventContext.get(event_id);
+    notifyAssigned(owner_id, 'New pain point assigned to you',
+      `"${text}" (${severity} severity — ${ctx.project_name} — ${ctx.event_title})`);
+  }
   res.status(201).json(db.prepare('SELECT * FROM pain_points WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -17,6 +28,11 @@ router.put('/:id', (req, res) => {
   const { text = existing.text, severity = existing.severity, owner_id = existing.owner_id } = req.body;
   db.prepare('UPDATE pain_points SET text = ?, severity = ?, owner_id = ? WHERE id = ?')
     .run(text, severity, owner_id, req.params.id);
+  if (owner_id && owner_id !== existing.owner_id) {
+    const ctx = getEventContext.get(existing.event_id);
+    notifyAssigned(owner_id, 'Pain point assigned to you',
+      `"${text}" (${severity} severity — ${ctx.project_name} — ${ctx.event_title})`);
+  }
   res.json(db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id));
 });
 

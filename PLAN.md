@@ -146,6 +146,51 @@ CREATE TABLE pain_points (
 );
 CREATE INDEX idx_pain_points_event_id ON pain_points(event_id);
 CREATE INDEX idx_pain_points_owner_id ON pain_points(owner_id);
+
+-- 9. Members Table
+-- Deliberately separate from Stakeholders: a member is a notification subscriber, not
+-- necessarily a person doing project work. stakeholder_id is an optional link to a
+-- Stakeholder identity — only members linked this way can receive "assigned to you"
+-- notifications, since assignee_id/owner_id/decided_by all point at stakeholders. A
+-- member with no stakeholder_id can still subscribe to project digests (see below).
+CREATE TABLE members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    stakeholder_id INTEGER,
+    notify_assigned INTEGER NOT NULL DEFAULT 1,
+    notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
+    notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_members_stakeholder_id ON members(stakeholder_id);
+
+-- 10. Member-Project Subscriptions (digest scope) — independent of project_stakeholders,
+-- since a member doesn't have to be doing work on a project to want its digests.
+CREATE TABLE member_projects (
+    member_id INTEGER NOT NULL,
+    project_id INTEGER NOT NULL,
+    PRIMARY KEY (member_id, project_id),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+-- 11. Notifications Table — stub outbox. Real sending needs an external provider
+-- (SMTP/SendGrid/Postmark/etc.) with credentials this project doesn't have yet, so a
+-- row here stands in for an actual send. Swapping in a real provider later means
+-- replacing the insert in server/utils/notify.js with an actual send call using the
+-- same (member, subject, body) shape — the trigger logic itself doesn't change.
+CREATE TABLE notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest')),
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_notifications_member_id ON notifications(member_id);
 ```
 
 ---
@@ -208,6 +253,12 @@ Every project gets three traffic-light indicators — **Schedule, Cost, Quality*
 
 These three dots appear next to each project in the sidebar (Section 3.A) and expanded, with labels, at the top of the timeline for the currently selected project(s). This is intentionally a lightweight heuristic, not Earned Value Management — see the non-goals in Section 1's PM Concept Mapping.
 
+### F. Members & Notifications
+Closes the loop between "the data exists in the tool" and "the right person actually saw it" — useful for anyone who isn't in the app day-to-day. Deliberately a separate concept from Stakeholders (Section 2's `members` table), reachable from two sidebar entry points:
+*   **Members button:** Opens a modal to manage the global list of notification subscribers — create/edit/delete, an optional dropdown to link a member to their Stakeholder identity (required for the "assigned to you" trigger), three toggles (`notify_assigned` / `notify_overdue_action_items` / `notify_upcoming_deadlines`), and a per-member project checklist controlling digest scope (`member_projects`) — independent of that person's `project_stakeholders` assignments, since wanting visibility into a project and doing work on it are different things.
+*   **Notification bell (with count) next to the portfolio health badge:** Opens a log of every notification the system has generated — subject, recipient, body, timestamp — since sending is stubbed (Section 2's `notifications` table comment) rather than wired to a real provider. Includes a **"Run Digest Now"** button, since there's no background scheduler in this prototype; in production this computation would run on a cron schedule (e.g. nightly) instead of on demand.
+*   **Triggers:** (1) *Assigned to you* — real-time, fires when an action item's `assignee_id`, a pain point's `owner_id`, or a decision's `decided_by` is set to a stakeholder linked to a notify-enabled member. (2) *Overdue action items* — digest, one row per subscribed member listing their overdue items across their subscribed projects. (3) *Upcoming deadlines/milestones* — digest, same shape, for `milestone`/`deadline` events within 14 days. A broader "a decision was logged on one of your projects" broadcast (to every subscriber, not just the decision-maker) was considered and deliberately not built — only these three triggers exist (see Phase 8 in Section 5).
+
 ---
 
 ## 4. API Endpoints (Express Backend)
@@ -257,6 +308,19 @@ Conventions: JSON bodies; validation errors return `400 { error: string }`; miss
 
 **Dashboard**
 *   `GET /api/dashboard/summary?project_ids=1,2,3` — Returns the three counts from Section 3.D (overdue action items, open high-severity pain points, upcoming milestones/deadlines within 14 days) for the given projects. Omit `project_ids` to compute across all `status = 'active'` projects — this is what powers the portfolio badge in Section 3.A.
+
+**Members**
+*   `GET /api/members` — Get all members, including `stakeholder_name` (joined) when linked.
+*   `POST /api/members` — Create a member (`{ name, email, stakeholder_id?, notify_assigned?, notify_overdue_action_items?, notify_upcoming_deadlines? }`, all three notify flags default `true`). `400` on a duplicate email or a `stakeholder_id` that doesn't exist.
+*   `PUT /api/members/:id` — Update a member's own fields (same shape as create).
+*   `DELETE /api/members/:id` — Delete a member (cascades to `member_projects` and their `notifications`).
+*   `GET /api/members/:id/projects` — List a member's subscribed projects.
+*   `POST /api/members/:id/projects` — Subscribe to a project (`{ project_id }`). `400` if already subscribed.
+*   `DELETE /api/members/:id/projects/:projectId` — Unsubscribe.
+
+**Notifications**
+*   `GET /api/notifications?limit=50` — Most recent stub log entries first, joined with member name/email, capped at 200.
+*   `POST /api/notifications/run-digest` — Computes overdue-action-item and upcoming-deadline digests for every member across their subscribed projects and logs one row per non-empty digest per member. Returns `{ generated: <count> }`. Stands in for a scheduled job — see Section 3.F.
 
 ---
 
@@ -312,3 +376,12 @@ Phases 0–5 are **MVP** — the tool isn't usable as a PM tool without them. Ph
 2. Confirm the empty-selection state, the same-day-cluster rendering, the overdue-item highlighting, and the health summary counts (both scoped and portfolio-wide) all look correct.
 3. Confirm the scorecard dots show three distinct RAG states across the seeded projects (not all green — see the Phase 1 seeding note), and that reassigning a project's lead via the UI correctly demotes the old lead and never leaves a project with zero or two leads.
 4. If Phase 6 was implemented, verify archiving a project removes it from the default sidebar list without deleting data, and that the stakeholder rollup shows correct cross-project counts.
+
+### Phase 8: Members & Notifications (stub outbox)
+1. Implement the `members` / `member_projects` / `notifications` tables from Section 2 and the Members/Notifications endpoints from Section 4.
+2. Wire `notifyAssigned()` (a single shared helper, not duplicated per route) into the create/update paths of action-items, pain-points, decisions, and the nested-creation path in `POST /api/events` — every place `assignee_id`/`owner_id`/`decided_by` can be set. Call it after the transaction commits, not inside it, so a rollback never produces a notification for data that didn't actually land.
+3. Implement `POST /api/notifications/run-digest` per Section 4. There is no cron/scheduler in this prototype — this is an on-demand stand-in for what would be a nightly job in production; document that seam clearly rather than pretending it's automatic.
+4. Build the Members modal (Section 3.F): CRUD, the optional Stakeholder link dropdown, the three notify toggles, and a per-member project checklist that calls the subscribe/unsubscribe endpoints immediately (not deferred to a form "Save") — mirrors the existing pattern in the Project edit form's People section.
+5. Build the Notifications log modal: reverse-chronological list of stub rows (subject, recipient, body, timestamp) plus the "Run Digest Now" button, and a bell-plus-count entry point in the sidebar next to the portfolio health badge.
+6. Seed at least one member linked to a stakeholder with `notify_assigned` on (and demonstrate it with real `notifyAssigned()` calls in the seed script itself, since seed data is written directly to SQL and bypasses the route-level hooks), one member *not* linked to any stakeholder but subscribed to project digests (the case that justifies keeping Members separate from Stakeholders at all), and confirm "Run Digest Now" produces at least one overdue-item and one upcoming-deadline row against the seeded data.
+7. **Explicitly out of scope for this phase:** real email delivery (needs provider credentials — swap point is `server/utils/notify.js`), a real cron scheduler, and a "new decision logged" broadcast-to-all-subscribers trigger (considered, not built — see Section 3.F).

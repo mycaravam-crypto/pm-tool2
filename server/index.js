@@ -9,6 +9,8 @@ import decisionsRouter from './routes/decisions.js';
 import actionItemsRouter from './routes/actionItems.js';
 import painPointsRouter from './routes/painPoints.js';
 import dashboardRouter from './routes/dashboard.js';
+import membersRouter from './routes/members.js';
+import notificationsRouter from './routes/notifications.js';
 
 const app = express();
 app.use(cors());
@@ -21,6 +23,8 @@ app.use('/api/decisions', decisionsRouter);
 app.use('/api/action-items', actionItemsRouter);
 app.use('/api/pain-points', painPointsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/members', membersRouter);
+app.use('/api/notifications', notificationsRouter);
 
 app.use((err, req, res, next) => {
   console.error(err);

@@ -62,5 +62,18 @@ export const api = {
   },
   dashboard: {
     summary: (projectIds) => get(`/dashboard/summary${projectIds && projectIds.length ? `?project_ids=${projectIds.join(',')}` : ''}`)
+  },
+  members: {
+    list: () => get('/members'),
+    create: (data) => post('/members', data),
+    update: (id, data) => put(`/members/${id}`, data),
+    remove: (id) => del(`/members/${id}`),
+    projects: (id) => get(`/members/${id}/projects`),
+    subscribe: (id, project_id) => post(`/members/${id}/projects`, { project_id }),
+    unsubscribe: (id, projectId) => del(`/members/${id}/projects/${projectId}`)
+  },
+  notifications: {
+    list: (limit) => get(`/notifications${limit ? `?limit=${limit}` : ''}`),
+    runDigest: () => post('/notifications/run-digest', {})
   }
 };

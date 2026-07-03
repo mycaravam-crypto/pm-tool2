@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
+import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
 
@@ -77,6 +78,20 @@ router.post('/', (req, res) => {
   });
 
   const id = create();
+
+  // Notify after the transaction commits, not inside it — a rollback shouldn't leave
+  // a "you were assigned" notification for data that never actually landed.
+  const projectName = getProjectStmt.get(project_id)?.name ?? '';
+  for (const d of decisions) {
+    if (d.decided_by) notifyAssigned(d.decided_by, 'A decision was logged under your name', `"${d.text}" (${projectName} — ${title})`);
+  }
+  for (const a of action_items) {
+    if (a.assignee_id) notifyAssigned(a.assignee_id, 'New action item assigned to you', `"${a.text}" (${projectName} — ${title})${a.due_date ? ` — due ${a.due_date}` : ''}`);
+  }
+  for (const p of pain_points) {
+    if (p.owner_id) notifyAssigned(p.owner_id, 'New pain point assigned to you', `"${p.text}" (${p.severity} severity — ${projectName} — ${title})`);
+  }
+
   res.status(201).json(serializeEvent(getEventStmt.get(id)));
 });
 

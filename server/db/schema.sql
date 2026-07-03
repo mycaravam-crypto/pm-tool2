@@ -100,3 +100,45 @@ CREATE TABLE IF NOT EXISTS pain_points (
 );
 CREATE INDEX IF NOT EXISTS idx_pain_points_event_id ON pain_points(event_id);
 CREATE INDEX IF NOT EXISTS idx_pain_points_owner_id ON pain_points(owner_id);
+
+-- 9. Members Table
+-- Deliberately separate from Stakeholders: a member is a notification subscriber,
+-- not necessarily a person doing project work. stakeholder_id is an optional link
+-- to a Stakeholder identity — only members linked this way can receive "assigned to
+-- you" notifications, since assignee_id/owner_id/decided_by all point at stakeholders.
+CREATE TABLE IF NOT EXISTS members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    stakeholder_id INTEGER,
+    notify_assigned INTEGER NOT NULL DEFAULT 1,
+    notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
+    notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_members_stakeholder_id ON members(stakeholder_id);
+
+-- 10. Member-Project subscriptions (digest scope) — independent of project_stakeholders,
+-- since a member doesn't have to be doing work on a project to want its digests.
+CREATE TABLE IF NOT EXISTS member_projects (
+    member_id INTEGER NOT NULL,
+    project_id INTEGER NOT NULL,
+    PRIMARY KEY (member_id, project_id),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+-- 11. Notifications Table — stub outbox. Real sending is out of scope for now (no
+-- provider credentials); this is the seam where a real email call would go, logged
+-- instead so the feature is buildable and demoable without external infrastructure.
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest')),
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_member_id ON notifications(member_id);

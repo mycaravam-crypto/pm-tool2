@@ -1,10 +1,10 @@
 <script setup>
 import { computed } from 'vue';
-import { Users, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock } from 'lucide-vue-next';
+import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import ScorecardDots from './ScorecardDots.vue';
 
-const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project']);
+const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project', 'open-members', 'open-notifications']);
 const store = useProjectStore();
 
 const leadInitials = (project) => {
@@ -30,6 +30,13 @@ const leadInitials = (project) => {
       <span class="flex items-center gap-1" title="Upcoming milestones/deadlines within 14 days">
         <CalendarClock class="w-3.5 h-3.5 text-sky-500" />{{ store.portfolioSummary.upcoming_deadlines }}
       </span>
+      <button
+        class="ml-auto flex items-center gap-1 text-slate-500 hover:text-slate-800"
+        title="Notification log"
+        @click="emit('open-notifications')"
+      >
+        <Bell class="w-3.5 h-3.5" />{{ store.notifications.length }}
+      </button>
     </div>
 
     <div class="flex-1 overflow-y-auto">
@@ -78,12 +85,20 @@ const leadInitials = (project) => {
       >
         <Plus class="w-4 h-4" /> New Project
       </button>
-      <button
-        class="w-full flex items-center justify-center gap-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-md py-2 hover:bg-slate-50"
-        @click="emit('open-stakeholders')"
-      >
-        <Users class="w-4 h-4" /> Stakeholder Directory
-      </button>
+      <div class="grid grid-cols-2 gap-2">
+        <button
+          class="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-md py-2 hover:bg-slate-50"
+          @click="emit('open-stakeholders')"
+        >
+          <Users class="w-4 h-4" /> Stakeholders
+        </button>
+        <button
+          class="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-md py-2 hover:bg-slate-50"
+          @click="emit('open-members')"
+        >
+          <UserCog class="w-4 h-4" /> Members
+        </button>
+      </div>
     </div>
   </aside>
 </template>

@@ -1,7 +1,9 @@
 import { db } from './connection.js';
+import { notifyAssigned } from '../utils/notify.js';
 
 const clear = db.transaction(() => {
   for (const table of [
+    'notifications', 'member_projects', 'members',
     'pain_points', 'action_items', 'decisions', 'event_participants',
     'events', 'project_stakeholders', 'events', 'projects', 'stakeholders'
   ]) {
@@ -156,8 +158,38 @@ const seed = db.transaction(() => {
     summary: 'Hard deadline for campaign go-live.'
   });
   insertActionItem.run(e10, 'Prepare launch day checklist', dave, 0, '2026-07-09');
+
+  // --- Members (notification subscribers — deliberately separate from Stakeholders) ---
+  const insertMember = db.prepare(`
+    INSERT INTO members (name, email, stakeholder_id, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  const insertMemberProject = db.prepare('INSERT INTO member_projects (member_id, project_id) VALUES (?, ?)');
+
+  const memberAlice = insertMember.run('Alice Chen', 'alice@example.com', alice, 1, 1, 1).lastInsertRowid;
+  const memberBob = insertMember.run('Bob Martinez', 'bob@example.com', bob, 1, 0, 0).lastInsertRowid; // wants "assigned to you" only
+  const memberDave = insertMember.run('Dave Okafor', 'dave@example.com', dave, 1, 1, 1).lastInsertRowid;
+  // Grace isn't a project stakeholder at all — an exec who just wants digests, the
+  // decoupled-from-Stakeholder use case that's the whole reason Members exists.
+  const memberGrace = insertMember.run('Grace Park', 'grace@example.com', null, 0, 1, 1).lastInsertRowid;
+
+  insertMemberProject.run(memberAlice, website);
+  insertMemberProject.run(memberAlice, campaign);
+  insertMemberProject.run(memberBob, website);
+  insertMemberProject.run(memberDave, campaign);
+  insertMemberProject.run(memberGrace, website);
+  insertMemberProject.run(memberGrace, campaign);
+
+  // Seed writes go straight to SQL, bypassing the route-level notifyAssigned() hooks —
+  // these two calls stand in for that, showing what the real-time "assigned to you"
+  // trigger produces for two of the assignments already seeded above.
+  notifyAssigned(bob, 'New action item assigned to you',
+    '"Finalize component library selection" (Website Redesign — Design Workshop) — due 2026-06-01');
+  notifyAssigned(dave, 'New pain point assigned to you',
+    '"Creative assets delivered late from agency" (High severity — Marketing Campaign — Creative Review)');
 });
 
 seed();
 
-console.log('Seed complete: 2 projects, 4 stakeholders, 13 events.');
+console.log('Seed complete: 2 projects, 4 stakeholders, 13 events, 4 members, 2 sample notifications.');
+console.log('Use the "Run Digest Now" button in the Notifications modal to generate overdue/deadline digests.');
