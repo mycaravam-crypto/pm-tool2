@@ -46,6 +46,14 @@ export const useProjectStore = defineStore('project', {
       this.notifications = await api.notifications.list();
     },
 
+    // Pushed live over WebSocket (see lib/ws.js). A subsequent fetchNotifications()
+    // triggered by whatever mutation caused this (e.g. the user's own addPainPoint)
+    // will replace this with the authoritative list moments later, so a duplicate
+    // here is at most a brief visual flash, never a lasting one.
+    receiveNotification(notification) {
+      this.notifications = [notification, ...this.notifications];
+    },
+
     async createMember(data) {
       await api.members.create(data);
       await this.fetchMembers();

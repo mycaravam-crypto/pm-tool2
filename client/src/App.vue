@@ -11,6 +11,8 @@ import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vu
 import EventDetailModal from './components/EventDetailModal.vue';
 import MembersModal from './components/MembersModal.vue';
 import NotificationsLogModal from './components/NotificationsLogModal.vue';
+import { connectNotificationSocket } from './lib/ws.js';
+import { playNotificationSound } from './lib/sound.js';
 
 const store = useProjectStore();
 
@@ -23,7 +25,13 @@ const showNotifications = ref(false);
 const showEventDetail = ref(false);
 const editingEvent = ref(null);
 
-onMounted(() => store.init());
+onMounted(() => {
+  store.init();
+  connectNotificationSocket((notification) => {
+    store.receiveNotification(notification);
+    playNotificationSound();
+  });
+});
 
 function openNewProject() {
   editingProject.value = null;

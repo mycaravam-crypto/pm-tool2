@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
+import { broadcastNotification } from '../ws.js';
+import { getFullNotification } from '../utils/notify.js';
 
 const router = Router();
 
@@ -25,7 +27,7 @@ router.post('/run-digest', (req, res) => {
   `);
   const members = db.prepare('SELECT * FROM members').all();
 
-  let generated = 0;
+  const generatedIds = [];
 
   const run = db.transaction(() => {
     for (const member of members) {
@@ -44,8 +46,8 @@ router.post('/run-digest', (req, res) => {
         `).all(...projectIds, today);
         if (overdue.length > 0) {
           const body = overdue.map(o => `- [${o.project_name}] ${o.text} (due ${o.due_date})`).join('\n');
-          insertNotification.run(member.id, 'overdue_digest', `${overdue.length} overdue action item(s)`, body);
-          generated++;
+          const info = insertNotification.run(member.id, 'overdue_digest', `${overdue.length} overdue action item(s)`, body);
+          generatedIds.push(info.lastInsertRowid);
         }
       }
 
@@ -58,15 +60,20 @@ router.post('/run-digest', (req, res) => {
         `).all(...projectIds, today, in14);
         if (upcoming.length > 0) {
           const body = upcoming.map(u => `- [${u.project_name}] ${u.type}: ${u.title} (${u.date})`).join('\n');
-          insertNotification.run(member.id, 'deadline_digest', `${upcoming.length} upcoming milestone/deadline(s)`, body);
-          generated++;
+          const info = insertNotification.run(member.id, 'deadline_digest', `${upcoming.length} upcoming milestone/deadline(s)`, body);
+          generatedIds.push(info.lastInsertRowid);
         }
       }
     }
   });
   run();
 
-  res.json({ generated });
+  // Broadcast after the transaction commits, same rule as everywhere else that
+  // calls notify — a rollback should never produce a WebSocket push for data that
+  // didn't land.
+  for (const id of generatedIds) broadcastNotification(getFullNotification.get(id));
+
+  res.json({ generated: generatedIds.length });
 });
 
 export default router;

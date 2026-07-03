@@ -11,6 +11,7 @@ import painPointsRouter from './routes/painPoints.js';
 import dashboardRouter from './routes/dashboard.js';
 import membersRouter from './routes/members.js';
 import notificationsRouter from './routes/notifications.js';
+import { initWebSocketServer } from './ws.js';
 
 const app = express();
 app.use(cors());
@@ -32,4 +33,5 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
+initWebSocketServer(server);

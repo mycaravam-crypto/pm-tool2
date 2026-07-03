@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from 'vue';
-import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock } from 'lucide-vue-next';
+import { ref } from 'vue';
+import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock, Volume2, VolumeX } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import { isMuted, setMuted } from '../lib/sound.js';
 import ScorecardDots from './ScorecardDots.vue';
 
 const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project', 'open-members', 'open-notifications']);
@@ -11,6 +12,12 @@ const leadInitials = (project) => {
   if (!project.lead) return '?';
   return project.lead.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 };
+
+const muted = ref(isMuted());
+function toggleMuted() {
+  muted.value = !muted.value;
+  setMuted(muted.value);
+}
 </script>
 
 <template>
@@ -36,6 +43,14 @@ const leadInitials = (project) => {
         @click="emit('open-notifications')"
       >
         <Bell class="w-3.5 h-3.5" />{{ store.notifications.length }}
+      </button>
+      <button
+        class="text-slate-400 hover:text-slate-700"
+        :title="muted ? 'Unmute notification sound' : 'Mute notification sound'"
+        @click="toggleMuted"
+      >
+        <VolumeX v-if="muted" class="w-3.5 h-3.5" />
+        <Volume2 v-else class="w-3.5 h-3.5" />
       </button>
     </div>
 
