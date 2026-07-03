@@ -71,16 +71,24 @@ const clusters = computed(() => {
   const width = trackWidth.value;
   const result = [];
   let prevPx = null;
+  let prevIsFuture = null;
   for (const event of sorted) {
     const pct = leftPercent(event.date);
     const px = (pct / 100) * width;
+    const isFuture = event.date >= todayStr;
     const withVisual = { ...event, visual: resolveEventVisual(event, todayStr) };
-    if (result.length > 0 && prevPx !== null && Math.abs(px - prevPx) < CLUSTER_THRESHOLD_PX) {
+    const withinThreshold = result.length > 0 && prevPx !== null && Math.abs(px - prevPx) < CLUSTER_THRESHOLD_PX;
+    // A cluster renders every event at its first member's x-position (the rest
+    // stack vertically above it) — so a cluster must never straddle "today," or
+    // an after-today event pulled into a before-today cluster would render on
+    // the wrong side of the marker, even though its own position is correct.
+    if (withinThreshold && prevIsFuture === isFuture) {
       result[result.length - 1].events.push(withVisual);
     } else {
       result.push({ leftPercent: pct, events: [withVisual] });
     }
     prevPx = px;
+    prevIsFuture = isFuture;
   }
   return result;
 });
@@ -196,7 +204,7 @@ onMounted(() => nextTick(scrollToToday));
       </div>
 
       <div ref="scrollContainer" class="relative overflow-x-auto pb-4">
-        <div class="relative" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+        <div class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
           <!-- month gridlines -->
           <div
             v-for="m in monthMarkers" :key="m.key"
@@ -223,13 +231,13 @@ onMounted(() => nextTick(scrollToToday));
           <!-- event clusters -->
           <div
             v-for="cluster in clusters" :key="cluster.events[0].id"
-            class="absolute"
+            class="absolute transition-[left] duration-300 ease-out"
             :style="{ left: cluster.leftPercent + '%', top: BASELINE_TOP + 'px' }"
           >
             <div
               v-for="(event, idx) in cluster.events"
               :key="event.id"
-              class="absolute -translate-x-1/2 flex flex-col items-center"
+              class="absolute -translate-x-1/2 flex flex-col items-center transition-[top] duration-300 ease-out"
               :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
             >
               <button
