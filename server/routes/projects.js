@@ -12,10 +12,18 @@ const getLeadStmt = db.prepare(`
   JOIN stakeholders s ON s.id = ps.stakeholder_id
   WHERE ps.project_id = ? AND ps.project_role = 'lead'
 `);
+const getRequirementsStmt = db.prepare('SELECT * FROM requirements WHERE project_id = ? ORDER BY created_at');
+const getGoalsStmt = db.prepare('SELECT * FROM goals WHERE project_id = ? ORDER BY created_at');
 
 function serializeProject(project) {
   const lead = getLeadStmt.get(project.id) || null;
-  return { ...project, lead, scorecard: computeScorecard(project) };
+  return {
+    ...project,
+    lead,
+    scorecard: computeScorecard(project),
+    requirements: getRequirementsStmt.all(project.id),
+    goals: getGoalsStmt.all(project.id)
+  };
 }
 
 // 404 (not 403) when a non-admin can't access a project — same response as the

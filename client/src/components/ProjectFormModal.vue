@@ -1,14 +1,21 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
-import { Trash2 } from 'lucide-vue-next';
+import { Trash2, Plus } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { api } from '../lib/api.js';
+import { formatDate } from '../lib/dateFormat.js';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({ project: { type: Object, default: null } });
 const emit = defineEmits(['close']);
 const store = useProjectStore();
 const isEdit = computed(() => !!props.project);
+
+// props.project is a snapshot from when the modal opened; store.projects gets
+// replaced wholesale after every mutation (see useProjectStore), so Requirements
+// and Goals — delivered nested on the project, like lead/scorecard — must be read
+// from the live store entry or they'd go stale after the first add/toggle/delete.
+const liveProject = computed(() => (isEdit.value ? store.projectById(props.project.id) ?? props.project : null));
 
 const form = reactive({
   name: props.project?.name ?? '',
@@ -96,6 +103,26 @@ async function changeRole(stakeholderId, role) {
   await api.projects.setStakeholderRole(props.project.id, stakeholderId, role);
   await loadPeople();
 }
+
+const newRequirementText = ref('');
+async function addRequirement() {
+  if (!newRequirementText.value.trim()) return;
+  await store.addRequirement({ project_id: props.project.id, text: newRequirementText.value.trim() });
+  newRequirementText.value = '';
+}
+async function toggleRequirement(r) { await store.toggleRequirementDone(r.id, !r.done); }
+async function removeRequirement(id) { await store.deleteRequirement(id); }
+
+const newGoalText = ref('');
+const newGoalTargetDate = ref('');
+async function addGoal() {
+  if (!newGoalText.value.trim()) return;
+  await store.addGoal({ project_id: props.project.id, text: newGoalText.value.trim(), target_date: newGoalTargetDate.value || null });
+  newGoalText.value = '';
+  newGoalTargetDate.value = '';
+}
+async function toggleGoal(g) { await store.toggleGoalAchieved(g.id, !g.achieved); }
+async function removeGoal(id) { await store.deleteGoal(id); }
 </script>
 
 <template>
@@ -188,6 +215,40 @@ async function changeRole(stakeholderId, role) {
             <option value="stakeholder">Stakeholder</option>
           </select>
           <button type="button" class="text-sm text-indigo-600 hover:underline" @click="addPerson">Add</button>
+        </div>
+      </div>
+
+      <div v-if="isEdit" class="border-t border-slate-200 pt-4">
+        <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Requirements</h3>
+        <ul class="space-y-1 mb-2">
+          <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="flex items-center gap-2 text-sm">
+            <input type="checkbox" :checked="!!r.done" @change="toggleRequirement(r)" />
+            <span class="flex-1" :class="r.done ? 'line-through text-slate-400' : ''">{{ r.text }}</span>
+            <button type="button" class="text-slate-400 hover:text-rose-600" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+          </li>
+          <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-400">No requirements yet.</li>
+        </ul>
+        <div class="flex gap-2">
+          <input v-model="newRequirementText" placeholder="New requirement…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addRequirement" />
+          <button type="button" class="text-indigo-600" @click="addRequirement"><Plus class="w-4 h-4" /></button>
+        </div>
+      </div>
+
+      <div v-if="isEdit" class="border-t border-slate-200 pt-4">
+        <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Goals</h3>
+        <ul class="space-y-1 mb-2">
+          <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="flex items-center gap-2 text-sm">
+            <input type="checkbox" :checked="!!g.achieved" @change="toggleGoal(g)" />
+            <span class="flex-1" :class="g.achieved ? 'line-through text-slate-400' : ''">{{ g.text }}</span>
+            <span v-if="g.target_date" class="text-xs text-slate-400 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
+            <button type="button" class="text-slate-400 hover:text-rose-600" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+          </li>
+          <li v-if="!liveProject?.goals?.length" class="text-sm text-slate-400">No goals yet.</li>
+        </ul>
+        <div class="flex gap-2">
+          <input v-model="newGoalText" placeholder="New goal…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
+          <input v-model="newGoalTargetDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
+          <button type="button" class="text-indigo-600" @click="addGoal"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 

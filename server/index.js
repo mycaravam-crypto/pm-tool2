@@ -10,6 +10,8 @@ import eventsRouter from './routes/events.js';
 import decisionsRouter from './routes/decisions.js';
 import actionItemsRouter from './routes/actionItems.js';
 import painPointsRouter from './routes/painPoints.js';
+import requirementsRouter from './routes/requirements.js';
+import goalsRouter from './routes/goals.js';
 import dashboardRouter from './routes/dashboard.js';
 import membersRouter from './routes/members.js';
 import notificationsRouter from './routes/notifications.js';
@@ -40,6 +42,8 @@ app.use('/api/events', eventsRouter);
 app.use('/api/decisions', decisionsRouter);
 app.use('/api/action-items', actionItemsRouter);
 app.use('/api/pain-points', painPointsRouter);
+app.use('/api/requirements', requirementsRouter);
+app.use('/api/goals', goalsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/notifications', notificationsRouter);
 

@@ -66,6 +66,18 @@ export const api = {
     toggleResolved: (id, resolved) => patch(`/pain-points/${id}`, { resolved }),
     remove: (id) => del(`/pain-points/${id}`)
   },
+  requirements: {
+    create: (data) => post('/requirements', data),
+    update: (id, data) => put(`/requirements/${id}`, data),
+    toggleDone: (id, done) => patch(`/requirements/${id}`, { done }),
+    remove: (id) => del(`/requirements/${id}`)
+  },
+  goals: {
+    create: (data) => post('/goals', data),
+    update: (id, data) => put(`/goals/${id}`, data),
+    toggleAchieved: (id, achieved) => patch(`/goals/${id}`, { achieved }),
+    remove: (id) => del(`/goals/${id}`)
+  },
   dashboard: {
     summary: (projectIds) => get(`/dashboard/summary${projectIds && projectIds.length ? `?project_ids=${projectIds.join(',')}` : ''}`)
   },

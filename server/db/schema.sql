@@ -158,3 +158,30 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_member_id ON notifications(member_id);
+
+-- 12. Requirements — what the project must deliver. Project-scoped (not event-scoped
+-- like decisions/action_items/pain_points), since a requirement isn't tied to a
+-- single meeting. Part of the "Scope" constraint alongside projects.description
+-- and the Decisions log.
+CREATE TABLE IF NOT EXISTS requirements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_requirements_project_id ON requirements(project_id);
+
+-- 13. Goals — what success looks like for the project. target_date is optional;
+-- a goal doesn't have to be time-bound.
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    achieved INTEGER NOT NULL DEFAULT 0,
+    target_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_goals_project_id ON goals(project_id);

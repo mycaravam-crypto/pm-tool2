@@ -240,6 +240,43 @@ export const useProjectStore = defineStore('project', {
     async deletePainPoint(id) {
       await api.painPoints.remove(id);
       await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchProjects()]);
+    },
+
+    // Requirements/goals are project-scoped, not event-scoped, and are delivered
+    // nested on GET /api/projects (like lead/scorecard) rather than through a
+    // separate fetch — so a single fetchProjects() refresh is all these need.
+    async addRequirement(data) {
+      await api.requirements.create(data);
+      await this.fetchProjects();
+    },
+    async updateRequirement(id, data) {
+      await api.requirements.update(id, data);
+      await this.fetchProjects();
+    },
+    async toggleRequirementDone(id, done) {
+      await api.requirements.toggleDone(id, done);
+      await this.fetchProjects();
+    },
+    async deleteRequirement(id) {
+      await api.requirements.remove(id);
+      await this.fetchProjects();
+    },
+
+    async addGoal(data) {
+      await api.goals.create(data);
+      await this.fetchProjects();
+    },
+    async updateGoal(id, data) {
+      await api.goals.update(id, data);
+      await this.fetchProjects();
+    },
+    async toggleGoalAchieved(id, achieved) {
+      await api.goals.toggleAchieved(id, achieved);
+      await this.fetchProjects();
+    },
+    async deleteGoal(id) {
+      await api.goals.remove(id);
+      await this.fetchProjects();
     }
   }
 });
