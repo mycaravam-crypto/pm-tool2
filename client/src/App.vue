@@ -163,7 +163,7 @@ function focusUpcoming() {
 
       <div class="flex-1 overflow-auto">
         <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" />
-        <AggregatedTabs v-else :focus="dashboardFocus" />
+        <AggregatedTabs v-else :focus="dashboardFocus" @select-event="openEvent" />
       </div>
     </main>
 

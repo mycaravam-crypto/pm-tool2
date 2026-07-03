@@ -11,6 +11,7 @@ const props = defineProps({
   // the filter even if subTab/flags were already at those values.
   focus: { type: Object, default: null }
 });
+const emit = defineEmits(['select-event']);
 
 const store = useProjectStore();
 const subTab = ref('overview');
@@ -191,7 +192,7 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
       <table v-if="subTab === 'overview'" class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Type</th><th class="py-1.5">Text</th><th class="py-1.5">Project</th><th class="py-1.5">Person</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Type</th><th class="py-1.5">Text</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Person</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
@@ -206,6 +207,13 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
             </td>
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="KIND_CLASSES[r.kind]">{{ KIND_LABELS[r.kind] }}</span></td>
             <td class="py-1.5" :class="(r.raw.done || r.raw.resolved) ? 'line-through text-slate-400' : ''">{{ r.text }}</td>
+            <td class="py-1.5">
+              <button
+                type="button" class="text-indigo-600 hover:underline text-left"
+                :title="`Open ${r.event.title} (${formatDate(r.event.date)})`"
+                @click="emit('select-event', r.event)"
+              >{{ r.event.title }}</button>
+            </td>
             <td class="py-1.5">
               <span class="inline-flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: r.event.project.color_hex }" />{{ r.event.project.name }}

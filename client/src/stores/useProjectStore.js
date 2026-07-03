@@ -109,8 +109,7 @@ export const useProjectStore = defineStore('project', {
       } else {
         this.selectedProjectIds = [...this.selectedProjectIds, projectId];
       }
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary()]);
     },
 
     async fetchEvents() {
@@ -135,8 +134,7 @@ export const useProjectStore = defineStore('project', {
 
     async createProject(data) {
       await api.projects.create(data);
-      await this.fetchProjects();
-      await this.fetchPortfolioSummary();
+      await Promise.all([this.fetchProjects(), this.fetchPortfolioSummary()]);
     },
 
     async updateProject(id, data) {
@@ -171,8 +169,7 @@ export const useProjectStore = defineStore('project', {
 
     async deleteStakeholder(id) {
       await api.stakeholders.remove(id);
-      await this.fetchStakeholders();
-      await this.fetchEvents();
+      await Promise.all([this.fetchStakeholders(), this.fetchEvents()]);
     },
 
     async createEvent(data) {
@@ -190,15 +187,18 @@ export const useProjectStore = defineStore('project', {
       await this.refreshAll();
     },
 
+    // The fetches below are all independent reads (different endpoints, none
+    // depending on another's result), so they run via Promise.all rather than
+    // sequential awaits — each stacked await was a full extra network round
+    // trip of added latency on every single mutation, most noticeably on the
+    // Overview tab's done/resolved checkboxes, which fire these constantly.
     async addDecision(data) {
       await api.decisions.create(data);
-      await this.fetchEvents();
-      await this.fetchNotifications();
+      await Promise.all([this.fetchEvents(), this.fetchNotifications()]);
     },
     async updateDecision(id, data) {
       await api.decisions.update(id, data);
-      await this.fetchEvents();
-      await this.fetchNotifications();
+      await Promise.all([this.fetchEvents(), this.fetchNotifications()]);
     },
     async deleteDecision(id) {
       await api.decisions.remove(id);
@@ -207,56 +207,39 @@ export const useProjectStore = defineStore('project', {
 
     async addActionItem(data) {
       await api.actionItems.create(data);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
-      await this.fetchNotifications();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchNotifications()]);
     },
     async updateActionItem(id, data) {
       await api.actionItems.update(id, data);
-      await this.fetchEvents();
-      await this.fetchNotifications();
+      await Promise.all([this.fetchEvents(), this.fetchNotifications()]);
     },
     async toggleActionItemDone(id, done) {
       await api.actionItems.toggleDone(id, done);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
     },
     async deleteActionItem(id) {
       await api.actionItems.remove(id);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
     },
 
     async addPainPoint(data) {
       await api.painPoints.create(data);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
-      await this.fetchProjects();
-      await this.fetchNotifications();
+      await Promise.all([
+        this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(),
+        this.fetchProjects(), this.fetchNotifications()
+      ]);
     },
     async updatePainPoint(id, data) {
       await api.painPoints.update(id, data);
-      await this.fetchEvents();
-      await this.fetchProjects();
-      await this.fetchNotifications();
+      await Promise.all([this.fetchEvents(), this.fetchProjects(), this.fetchNotifications()]);
     },
     async togglePainPointResolved(id, resolved) {
       await api.painPoints.toggleResolved(id, resolved);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
-      await this.fetchProjects();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchProjects()]);
     },
     async deletePainPoint(id) {
       await api.painPoints.remove(id);
-      await this.fetchEvents();
-      await this.fetchScopedSummary();
-      await this.fetchPortfolioSummary();
-      await this.fetchProjects();
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchProjects()]);
     }
   }
 });
