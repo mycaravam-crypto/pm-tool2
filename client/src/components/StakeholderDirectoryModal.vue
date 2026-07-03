@@ -10,37 +10,50 @@ const store = useProjectStore();
 const editingId = ref(null);
 const form = reactive({ name: '', email: '', role: '' });
 const showNewForm = ref(false);
+const error = ref('');
 
 function startEdit(s) {
   editingId.value = s.id;
   form.name = s.name; form.email = s.email ?? ''; form.role = s.role ?? '';
   showNewForm.value = false;
+  error.value = '';
 }
 
 function startNew() {
   editingId.value = null;
   form.name = ''; form.email = ''; form.role = '';
   showNewForm.value = true;
+  error.value = '';
 }
 
 function cancel() {
   editingId.value = null;
   showNewForm.value = false;
+  error.value = '';
 }
 
 async function save() {
   if (!form.name) return;
-  if (editingId.value) {
-    await store.updateStakeholder(editingId.value, { ...form });
-  } else {
-    await store.createStakeholder({ ...form });
+  error.value = '';
+  try {
+    if (editingId.value) {
+      await store.updateStakeholder(editingId.value, { ...form });
+    } else {
+      await store.createStakeholder({ ...form });
+    }
+    cancel();
+  } catch (e) {
+    error.value = e.message;
   }
-  cancel();
 }
 
 async function remove(id) {
   if (!confirm('Delete this stakeholder? They will be removed from all projects, events, and unassigned from any decisions/action items/pain points they owned.')) return;
-  await store.deleteStakeholder(id);
+  try {
+    await store.deleteStakeholder(id);
+  } catch (e) {
+    alert(e.message);
+  }
 }
 </script>
 
@@ -48,8 +61,11 @@ async function remove(id) {
   <ModalShell title="Stakeholder Directory" wide @close="emit('close')">
     <div class="flex items-center justify-between mb-3">
       <p class="text-sm text-slate-500">Global list of people referenced across projects.</p>
-      <button class="text-sm text-indigo-600 hover:underline flex items-center gap-1" @click="startNew">
-        <Plus class="w-4 h-4" /> New stakeholder
+      <button
+        class="flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md px-3 py-1.5 hover:bg-indigo-700"
+        @click="startNew"
+      >
+        <Plus class="w-4 h-4" /> New Stakeholder
       </button>
     </div>
 
@@ -59,6 +75,7 @@ async function remove(id) {
         <input v-model="form.email" placeholder="Email" type="email" class="border border-slate-300 rounded px-2 py-1 text-sm" />
         <input v-model="form.role" placeholder="Organizational role (e.g. Designer)" class="border border-slate-300 rounded px-2 py-1 text-sm" />
       </div>
+      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
       <div class="flex gap-2 justify-end">
         <button type="button" class="text-xs px-2 py-1 rounded border border-slate-300" @click="cancel">Cancel</button>
         <button type="submit" class="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Save</button>

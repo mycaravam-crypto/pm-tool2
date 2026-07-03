@@ -7,19 +7,29 @@ const emit = defineEmits(['select-event']);
 const store = useProjectStore();
 
 const todayStr = new Date().toISOString().slice(0, 10);
+const DAY_MS = 86400000;
+const TRACK_HEIGHT = 400;
+const BASELINE_TOP = 280;
+const STACK_BASE = 56;
+const STACK_STEP = 66;
 
 const range = computed(() => {
   const dates = store.events.map(e => e.date);
   dates.push(todayStr);
   if (dates.length === 1) {
     const only = new Date(dates[0]);
-    return { min: new Date(only.getTime() - 30 * 86400000), max: new Date(only.getTime() + 30 * 86400000) };
+    return { min: new Date(only.getTime() - 30 * DAY_MS), max: new Date(only.getTime() + 30 * DAY_MS) };
   }
   const sorted = [...dates].sort();
   const min = new Date(sorted[0]);
   const max = new Date(sorted[sorted.length - 1]);
-  const pad = Math.max((max - min) * 0.08, 5 * 86400000);
+  const pad = Math.max((max - min) * 0.1, 7 * DAY_MS);
   return { min: new Date(min.getTime() - pad), max: new Date(max.getTime() + pad) };
+});
+
+const trackWidth = computed(() => {
+  const days = (range.value.max - range.value.min) / DAY_MS;
+  return Math.min(4000, Math.max(900, Math.round(days * 7)));
 });
 
 function leftPercent(dateStr) {
@@ -42,10 +52,23 @@ const clusters = computed(() => {
   }));
 });
 
-function bucketLabel(dateStr) {
-  if (dateStr === todayStr) return 'present';
-  return dateStr < todayStr ? 'past' : 'future';
-}
+// Month gridlines give the timeline a sense of scale beyond the "Past/Future" corner labels.
+const monthMarkers = computed(() => {
+  const { min, max } = range.value;
+  const markers = [];
+  const cursor = new Date(min.getFullYear(), min.getMonth(), 1);
+  if (cursor < min) cursor.setMonth(cursor.getMonth() + 1);
+  while (cursor <= max) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+    markers.push({
+      key: dateStr,
+      leftPercent: leftPercent(dateStr),
+      label: cursor.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return markers;
+});
 </script>
 
 <template>
@@ -57,25 +80,44 @@ function bucketLabel(dateStr) {
       No events yet for the selected project(s).
     </div>
     <div v-else class="relative overflow-x-auto pb-4">
-      <div class="relative" style="height: 320px; min-width: 900px;">
-        <div class="absolute left-0 right-0 top-1/2 h-px bg-slate-300" />
+      <div class="relative" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+        <!-- month gridlines -->
+        <div
+          v-for="m in monthMarkers" :key="m.key"
+          class="absolute top-0 w-px bg-slate-100"
+          :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+        />
+        <div
+          v-for="m in monthMarkers" :key="'label-' + m.key"
+          class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap"
+          :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
+        >{{ m.label }}</div>
 
-        <div class="absolute top-2 text-xs text-slate-400 left-0">Past</div>
-        <div class="absolute top-2 text-xs text-slate-400 right-0">Future</div>
+        <!-- baseline -->
+        <div class="absolute left-0 right-0 h-px bg-slate-300" :style="{ top: BASELINE_TOP + 'px' }" />
 
-        <div class="absolute top-0 bottom-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%' }">
-          <span class="absolute -top-1 left-1 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today</span>
+        <div class="absolute text-xs font-medium text-slate-400 left-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Past</div>
+        <div class="absolute text-xs font-medium text-slate-400 right-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Future</div>
+
+        <!-- today marker -->
+        <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
+          <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today</span>
         </div>
 
-        <div v-for="cluster in clusters" :key="cluster.date" class="absolute top-1/2" :style="{ left: cluster.leftPercent + '%' }">
+        <!-- event clusters -->
+        <div
+          v-for="cluster in clusters" :key="cluster.date"
+          class="absolute"
+          :style="{ left: cluster.leftPercent + '%', top: BASELINE_TOP + 'px' }"
+        >
           <div
             v-for="(event, idx) in cluster.events"
             :key="event.id"
-            class="absolute -translate-x-1/2"
-            :style="{ top: `${-24 - idx * 46}px` }"
+            class="absolute -translate-x-1/2 flex flex-col items-center"
+            :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
           >
             <button
-              class="group relative flex items-center justify-center w-10 h-10 bg-white shadow hover:shadow-md transition-shadow"
+              class="group relative flex items-center justify-center w-10 h-10 bg-white shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
               :class="EVENT_TYPES[event.type].shape === 'diamond' ? 'rotate-45' : 'rounded-full'"
               :style="{ border: `2px solid ${event.project.color_hex}` }"
               :title="`${event.title} — ${event.project.name} (${event.date})`"
@@ -87,6 +129,10 @@ function bucketLabel(dateStr) {
                 :class="EVENT_TYPES[event.type].shape === 'diamond' ? '-rotate-45' : ''"
               />
             </button>
+            <span
+              class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
+              :title="event.title"
+            >{{ event.title }}</span>
           </div>
         </div>
       </div>

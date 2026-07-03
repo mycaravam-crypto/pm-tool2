@@ -227,7 +227,7 @@ Conventions: JSON bodies; validation errors return `400 { error: string }`; miss
 *   `GET /api/stakeholders` — Get all global stakeholders.
 *   `POST /api/stakeholders` — Create a stakeholder.
 *   `PUT /api/stakeholders/:id` — Update a stakeholder.
-*   `DELETE /api/stakeholders/:id` — Delete a stakeholder (cascades to `project_stakeholders` / `event_participants`; `decisions.decided_by`, `pain_points.owner_id`, and `action_items.assignee_id` set NULL).
+*   `DELETE /api/stakeholders/:id` — Delete a stakeholder (cascades to `project_stakeholders` / `event_participants`; `decisions.decided_by`, `pain_points.owner_id`, and `action_items.assignee_id` set NULL). `400` if the stakeholder is the `lead` on any project — the cascade would otherwise silently delete the `project_stakeholders` row that holds the single-accountable-owner guarantee from Section 2, leaving that project with no lead. Reassign the lead first.
 *   `GET /api/stakeholders/:id/summary` — **[stretch]** Rollup across all their projects: assigned projects, open action items, unresolved pain points they own, and upcoming milestones/deadlines. Powers the Section 3.A directory rollup.
 
 **Events**
