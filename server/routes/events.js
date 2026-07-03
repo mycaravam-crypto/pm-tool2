@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { notifyAssigned } from '../utils/notify.js';
+import { getAccessibleProjectIds, canAccessProject } from '../utils/access.js';
 
 const router = Router();
 
@@ -41,7 +42,12 @@ function serializeEvent(event) {
 router.get('/', (req, res) => {
   const { project_ids } = req.query;
   if (!project_ids) return res.json([]);
-  const ids = project_ids.split(',').map(Number).filter(Number.isFinite);
+  let ids = project_ids.split(',').map(Number).filter(Number.isFinite);
+  // Defensive, not just cosmetic: re-filter server-side regardless of what the
+  // client asked for, so a direct API call with someone else's project_ids can't
+  // pull their events even if the UI would never construct such a request.
+  const accessibleIds = getAccessibleProjectIds(req.member);
+  if (accessibleIds !== null) ids = ids.filter(id => accessibleIds.includes(id));
   if (ids.length === 0) return res.json([]);
   const placeholders = ids.map(() => '?').join(',');
   const events = db.prepare(`SELECT * FROM events WHERE project_id IN (${placeholders}) ORDER BY date`).all(...ids);
@@ -53,6 +59,7 @@ router.post('/', (req, res) => {
   if (!project_id || !title || !date || !type) {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
   }
+  if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
 
   const create = db.transaction(() => {
     const info = db.prepare(`
@@ -97,7 +104,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
-  if (!event) return res.status(404).json({ error: 'event not found' });
+  if (!event || !canAccessProject(req.member, event.project_id)) return res.status(404).json({ error: 'event not found' });
 
   const {
     title = event.title,
@@ -127,7 +134,7 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
-  if (!event) return res.status(404).json({ error: 'event not found' });
+  if (!event || !canAccessProject(req.member, event.project_id)) return res.status(404).json({ error: 'event not found' });
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

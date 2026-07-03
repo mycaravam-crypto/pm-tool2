@@ -28,6 +28,7 @@ function toggleMuted() {
       <div class="flex items-center justify-between mt-2">
         <span class="text-xs text-slate-500 truncate" :title="store.currentMember?.email">
           Signed in as <span class="font-medium text-slate-700">{{ store.currentMember?.name }}</span>
+          <span v-if="store.isAdmin" class="ml-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-600 bg-indigo-50 rounded px-1 py-0.5">Admin</span>
         </span>
         <button class="text-slate-400 hover:text-rose-600 shrink-0" title="Log out" @click="emit('logout')">
           <LogOut class="w-3.5 h-3.5" />
@@ -66,6 +67,7 @@ function toggleMuted() {
       <div class="px-4 pt-3 pb-1 flex items-center justify-between">
         <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Projects</span>
         <button
+          v-if="store.isAdmin"
           class="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded px-1.5 py-0.5 -mr-1.5"
           title="New project"
           @click="emit('open-project-form')"
@@ -101,7 +103,7 @@ function toggleMuted() {
       <p v-if="store.projects.length === 0" class="px-4 py-2 text-sm text-slate-400">No active projects yet.</p>
     </div>
 
-    <div class="p-4 border-t border-slate-200 space-y-2">
+    <div v-if="store.isAdmin" class="p-4 border-t border-slate-200 space-y-2">
       <button
         class="w-full flex items-center justify-center gap-2 text-sm font-medium text-white bg-indigo-600 rounded-md py-2 hover:bg-indigo-700"
         @click="emit('open-project-form')"

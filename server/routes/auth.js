@@ -34,7 +34,7 @@ router.post('/login', (req, res) => {
 
   const { token, expiresAt } = createSession(member.id);
   setSessionCookie(res, token, expiresAt);
-  res.json({ id: member.id, name: member.name, email: member.email, stakeholder_id: member.stakeholder_id });
+  res.json({ id: member.id, name: member.name, email: member.email, stakeholder_id: member.stakeholder_id, role: member.role });
 });
 
 router.post('/logout', (req, res) => {
@@ -48,7 +48,7 @@ router.get('/me', (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
   const session = token ? findSession(token) : null;
   if (!session) return res.status(401).json({ error: 'not logged in' });
-  const member = db.prepare('SELECT id, name, email, stakeholder_id FROM members WHERE id = ?').get(session.member_id);
+  const member = db.prepare('SELECT id, name, email, stakeholder_id, role FROM members WHERE id = ?').get(session.member_id);
   if (!member) return res.status(401).json({ error: 'not logged in' });
   res.json(member);
 });

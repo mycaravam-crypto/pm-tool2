@@ -194,7 +194,7 @@ async function changeRole(stakeholderId, role) {
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
 
       <div class="flex items-center justify-between pt-2">
-        <button v-if="isEdit" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeProject">
+        <button v-if="isEdit && store.isAdmin" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeProject">
           <Trash2 class="w-4 h-4" /> Delete project
         </button>
         <span v-else />

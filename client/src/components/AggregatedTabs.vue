@@ -31,6 +31,24 @@ const decisions = computed(() => {
   return rows.sort((a, b) => b.event.date.localeCompare(a.event.date));
 });
 
+// The Stakeholder Directory is admin-only now (PLAN.md Section 3.H), so a
+// non-admin can't fetch store.stakeholders to populate this filter — build it
+// instead from assignees who actually appear in the events this user can already
+// see, plus their own entry (so "My Tasks" always has something to select even
+// before they have any tasks assigned).
+const knownAssignees = computed(() => {
+  const byId = new Map();
+  for (const e of store.events) {
+    for (const a of e.action_items) {
+      if (a.assignee_id && !byId.has(a.assignee_id)) byId.set(a.assignee_id, a.assignee_name);
+    }
+  }
+  if (store.currentMember?.stakeholder_id && !byId.has(store.currentMember.stakeholder_id)) {
+    byId.set(store.currentMember.stakeholder_id, store.currentMember.name);
+  }
+  return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+});
+
 function isOverdue(item) {
   return item.due_date && !item.done && item.due_date < todayStr;
 }
@@ -57,7 +75,7 @@ async function toggleResolved(pp) { await store.togglePainPointResolved(pp.id, !
         <div class="flex gap-2">
           <select v-if="subTab === 'actions'" v-model="assigneeFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
             <option value="">My Tasks: all assignees</option>
-            <option v-for="s in store.stakeholders" :key="s.id" :value="s.id">{{ s.name }}</option>
+            <option v-for="s in knownAssignees" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
           <select v-model="projectFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
             <option value="">All selected projects</option>

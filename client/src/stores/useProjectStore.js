@@ -20,7 +20,8 @@ export const useProjectStore = defineStore('project', {
     selectedProjects: (state) => state.projects.filter(p => state.selectedProjectIds.includes(p.id)),
     projectById: (state) => (id) => state.projects.find(p => p.id === id),
     stakeholderById: (state) => (id) => state.stakeholders.find(s => s.id === id),
-    sortedEvents: (state) => [...state.events].sort((a, b) => a.date.localeCompare(b.date))
+    sortedEvents: (state) => [...state.events].sort((a, b) => a.date.localeCompare(b.date)),
+    isAdmin: (state) => state.currentMember?.role === 'admin'
   },
 
   actions: {
@@ -34,10 +35,12 @@ export const useProjectStore = defineStore('project', {
     },
 
     async init() {
-      await Promise.all([
-        this.fetchProjects(), this.fetchStakeholders(), this.fetchPortfolioSummary(),
-        this.fetchMembers(), this.fetchNotifications()
-      ]);
+      // Stakeholder Directory and Members management are admin-only server-side
+      // (PLAN.md Section 3.H) — fetching them as a non-admin would 403 and blow up
+      // this Promise.all, so they're conditional here rather than always-on.
+      const tasks = [this.fetchProjects(), this.fetchPortfolioSummary(), this.fetchNotifications()];
+      if (this.isAdmin) tasks.push(this.fetchStakeholders(), this.fetchMembers());
+      await Promise.all(tasks);
     },
 
     async fetchProjects() {

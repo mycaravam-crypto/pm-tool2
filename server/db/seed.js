@@ -162,22 +162,27 @@ const seed = db.transaction(() => {
 
   // --- Members (notification subscribers — deliberately separate from Stakeholders) ---
   const insertMember = db.prepare(`
-    INSERT INTO members (name, email, stakeholder_id, password_hash, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO members (name, email, stakeholder_id, password_hash, role, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const insertMemberProject = db.prepare('INSERT INTO member_projects (member_id, project_id) VALUES (?, ?)');
 
   const DEMO_PASSWORD = 'chronos123';
   const demoHash = hashPassword(DEMO_PASSWORD);
 
-  const memberAlice = insertMember.run('Alice Chen', 'alice@example.com', alice, demoHash, 1, 1, 1).lastInsertRowid;
-  const memberBob = insertMember.run('Bob Martinez', 'bob@example.com', bob, demoHash, 1, 0, 0).lastInsertRowid; // wants "assigned to you" only
-  const memberDave = insertMember.run('Dave Okafor', 'dave@example.com', dave, demoHash, 1, 1, 1).lastInsertRowid;
+  // Alice is the only admin — she also happens to be a stakeholder on both
+  // projects already (lead on Website, sponsor on Campaign), so logging in as
+  // her doesn't demonstrate the visibility difference by itself. Bob (Website
+  // only) and Dave (Campaign only) are the two that actually show a non-admin
+  // seeing just their own committed project.
+  const memberAlice = insertMember.run('Alice Chen', 'alice@example.com', alice, demoHash, 'admin', 1, 1, 1).lastInsertRowid;
+  const memberBob = insertMember.run('Bob Martinez', 'bob@example.com', bob, demoHash, 'member', 1, 0, 0).lastInsertRowid; // wants "assigned to you" only
+  const memberDave = insertMember.run('Dave Okafor', 'dave@example.com', dave, demoHash, 'member', 1, 1, 1).lastInsertRowid;
   // Grace isn't a project stakeholder, and (unlike the other three) has no
   // password — she's a pure notification subscriber, not a login account. Shows
   // that password_hash being optional is a real, exercised capability, not just
   // a schema nullable nobody uses.
-  const memberGrace = insertMember.run('Grace Park', 'grace@example.com', null, null, 0, 1, 1).lastInsertRowid;
+  const memberGrace = insertMember.run('Grace Park', 'grace@example.com', null, null, 'member', 0, 1, 1).lastInsertRowid;
 
   insertMemberProject.run(memberAlice, website);
   insertMemberProject.run(memberAlice, campaign);
@@ -200,5 +205,8 @@ seed();
 console.log('Seed complete: 2 projects, 4 stakeholders, 13 events, 4 members, 2 sample notifications.');
 console.log('Use the "Run Digest Now" button in the Notifications modal to generate overdue/deadline digests.');
 console.log('');
-console.log('Demo logins (password: chronos123): alice@example.com, bob@example.com, dave@example.com');
+console.log('Demo logins (password: chronos123):');
+console.log('  alice@example.com — admin, sees both projects');
+console.log('  bob@example.com   — member, sees only Website Redesign');
+console.log('  dave@example.com  — member, sees only Marketing Campaign');
 console.log('grace@example.com has no password — notification-only, cannot log in.');

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
+import { getAccessibleProjectIds } from '../utils/access.js';
 
 const router = Router();
 
@@ -11,6 +12,12 @@ router.get('/summary', (req, res) => {
   } else {
     ids = db.prepare("SELECT id FROM projects WHERE status = 'active'").all().map(r => r.id);
   }
+
+  // Same defensive re-filter as GET /api/events — the portfolio badge (no
+  // project_ids given) must default to "my accessible active projects," not
+  // literally every active project in the system.
+  const accessibleIds = getAccessibleProjectIds(req.member);
+  if (accessibleIds !== null) ids = ids.filter(id => accessibleIds.includes(id));
 
   if (ids.length === 0) {
     return res.json({ overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 });

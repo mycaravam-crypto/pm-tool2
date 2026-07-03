@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS members (
     email TEXT NOT NULL UNIQUE,
     stakeholder_id INTEGER,
     password_hash TEXT,
+    role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin','member')),
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,

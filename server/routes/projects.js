@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { computeScorecard } from '../utils/scorecard.js';
+import { requireAdmin } from '../middleware/requireAuth.js';
+import { getAccessibleProjectIds, canAccessProject } from '../utils/access.js';
 
 const router = Router();
 
@@ -16,15 +18,34 @@ function serializeProject(project) {
   return { ...project, lead, scorecard: computeScorecard(project) };
 }
 
+// 404 (not 403) when a non-admin can't access a project — same response as the
+// project genuinely not existing, so a non-admin probing IDs can't distinguish
+// "doesn't exist" from "exists but isn't yours."
+function requireProjectAccess(req, res) {
+  const project = getProjectStmt.get(req.params.id);
+  if (!project || !canAccessProject(req.member, project.id)) {
+    res.status(404).json({ error: 'project not found' });
+    return null;
+  }
+  return project;
+}
+
 router.get('/', (req, res) => {
   const { status } = req.query;
-  const projects = status
+  let projects = status
     ? db.prepare('SELECT * FROM projects WHERE status = ? ORDER BY name').all(status)
     : db.prepare('SELECT * FROM projects ORDER BY name').all();
+
+  const accessibleIds = getAccessibleProjectIds(req.member);
+  if (accessibleIds !== null) projects = projects.filter(p => accessibleIds.includes(p.id));
+
   res.json(projects.map(serializeProject));
 });
 
-router.post('/', (req, res) => {
+// Creating (and deleting, below) a project is portfolio-management, not
+// project-participation — admin-only, unlike everything else in this router
+// which is gated by commitment to the specific project instead.
+router.post('/', requireAdmin, (req, res) => {
   const { name, description, color_hex, start_date, target_end_date, budget_planned, budget_spent, lead_stakeholder_id } = req.body;
 
   if (!name) return res.status(400).json({ error: 'name is required' });
@@ -54,8 +75,8 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const project = getProjectStmt.get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'project not found' });
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
 
   const {
     name = project.name,
@@ -83,8 +104,8 @@ router.put('/:id', (req, res) => {
 });
 
 router.put('/:id/lead', (req, res) => {
-  const project = getProjectStmt.get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'project not found' });
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
 
   const { stakeholder_id } = req.body;
   const membership = db.prepare(
@@ -107,7 +128,7 @@ router.put('/:id/lead', (req, res) => {
   res.json(serializeProject(getProjectStmt.get(req.params.id)));
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireAdmin, (req, res) => {
   const project = getProjectStmt.get(req.params.id);
   if (!project) return res.status(404).json({ error: 'project not found' });
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
@@ -115,8 +136,8 @@ router.delete('/:id', (req, res) => {
 });
 
 router.get('/:id/stakeholders', (req, res) => {
-  const project = getProjectStmt.get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'project not found' });
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
   const rows = db.prepare(`
     SELECT s.id, s.name, s.email, s.role, ps.project_role
     FROM project_stakeholders ps
@@ -128,8 +149,8 @@ router.get('/:id/stakeholders', (req, res) => {
 });
 
 router.post('/:id/stakeholders', (req, res) => {
-  const project = getProjectStmt.get(req.params.id);
-  if (!project) return res.status(404).json({ error: 'project not found' });
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
 
   const { stakeholder_id, project_role = 'member' } = req.body;
   if (project_role === 'lead') {
@@ -147,6 +168,9 @@ router.post('/:id/stakeholders', (req, res) => {
 });
 
 router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
+
   const { project_role } = req.body;
   if (project_role === 'lead') {
     return res.status(400).json({ error: 'use PUT /api/projects/:id/lead to change the lead' });
@@ -162,6 +186,9 @@ router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {
 });
 
 router.delete('/:id/stakeholders/:stakeholderId', (req, res) => {
+  const project = requireProjectAccess(req, res);
+  if (!project) return;
+
   const membership = db.prepare(
     'SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?'
   ).get(req.params.id, req.params.stakeholderId);
