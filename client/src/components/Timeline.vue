@@ -1,5 +1,6 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, nextTick, onMounted } from 'vue';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-vue-next';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
 
@@ -14,6 +15,21 @@ const BASELINE_TOP = 280;
 // STACK_BASE must clear that whole unit above the baseline, or the title dips below the line.
 const STACK_BASE = 76;
 const STACK_STEP = 74;
+
+// Zoom controls pixels-per-day directly, so "zoom in" is literally "give nearby
+// events more room" — which is also how label collisions get resolved, see
+// CLUSTER_THRESHOLD_PX below.
+const BASE_PX_PER_DAY = 5;
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 6;
+const ZOOM_STEP = 1.4;
+const MAX_TRACK_WIDTH = 16000;
+// Two truncated title labels (max-w-22 = 88px, centered under their icon) start
+// visually colliding once their icons are closer than about this many pixels.
+const CLUSTER_THRESHOLD_PX = 90;
+
+const zoomLevel = ref(1);
+const scrollContainer = ref(null);
 
 const range = computed(() => {
   const dates = store.events.map(e => e.date);
@@ -31,7 +47,8 @@ const range = computed(() => {
 
 const trackWidth = computed(() => {
   const days = (range.value.max - range.value.min) / DAY_MS;
-  return Math.min(4000, Math.max(900, Math.round(days * 7)));
+  const pxPerDay = BASE_PX_PER_DAY * zoomLevel.value;
+  return Math.min(MAX_TRACK_WIDTH, Math.max(900, Math.round(days * pxPerDay)));
 });
 
 function leftPercent(dateStr) {
@@ -43,15 +60,28 @@ function leftPercent(dateStr) {
 
 const todayLeftPercent = computed(() => leftPercent(todayStr));
 
+// Groups events close enough in *rendered pixel space* to collide, not just events
+// sharing an exact date. At low zoom many days collapse into the same handful of
+// pixels, so nearby-but-different-date events need to stack too; at high zoom the
+// same events end up far enough apart to stand alone. Recomputes with trackWidth,
+// so zooming in is the fix for "labels are colliding."
 const clusters = computed(() => {
-  const byDate = new Map();
-  for (const event of store.events) {
-    if (!byDate.has(event.date)) byDate.set(event.date, []);
-    byDate.get(event.date).push({ ...event, visual: resolveEventVisual(event, todayStr) });
+  const sorted = [...store.events].sort((a, b) => a.date.localeCompare(b.date));
+  const width = trackWidth.value;
+  const result = [];
+  let prevPx = null;
+  for (const event of sorted) {
+    const pct = leftPercent(event.date);
+    const px = (pct / 100) * width;
+    const withVisual = { ...event, visual: resolveEventVisual(event, todayStr) };
+    if (result.length > 0 && prevPx !== null && Math.abs(px - prevPx) < CLUSTER_THRESHOLD_PX) {
+      result[result.length - 1].events.push(withVisual);
+    } else {
+      result.push({ leftPercent: pct, events: [withVisual] });
+    }
+    prevPx = px;
   }
-  return [...byDate.entries()].map(([date, events]) => ({
-    date, leftPercent: leftPercent(date), events
-  }));
+  return result;
 });
 
 // Month gridlines give the timeline a sense of scale beyond the "Past/Future" corner labels.
@@ -71,6 +101,39 @@ const monthMarkers = computed(() => {
   }
   return markers;
 });
+
+function scrollToToday() {
+  const container = scrollContainer.value;
+  if (!container) return;
+  const todayPx = (todayLeftPercent.value / 100) * trackWidth.value;
+  container.scrollLeft = Math.max(0, todayPx - container.clientWidth / 2);
+}
+
+// Re-centers on whatever was in the middle of the viewport before zooming, so a
+// zoom click doesn't jump the view to an unrelated part of the timeline.
+function zoomBy(factor) {
+  const container = scrollContainer.value;
+  const oldWidth = trackWidth.value;
+  const oldCenterRatio = container
+    ? (container.scrollLeft + container.clientWidth / 2) / oldWidth
+    : 0.5;
+
+  zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(zoomLevel.value * factor).toFixed(2)));
+
+  nextTick(() => {
+    if (!container) return;
+    const newWidth = trackWidth.value;
+    container.scrollLeft = Math.max(0, oldCenterRatio * newWidth - container.clientWidth / 2);
+  });
+}
+function zoomIn() { zoomBy(ZOOM_STEP); }
+function zoomOut() { zoomBy(1 / ZOOM_STEP); }
+function resetZoom() {
+  zoomLevel.value = 1;
+  nextTick(scrollToToday);
+}
+
+onMounted(() => nextTick(scrollToToday));
 </script>
 
 <template>
@@ -81,63 +144,81 @@ const monthMarkers = computed(() => {
     <div v-else-if="store.events.length === 0" class="text-center py-24 text-slate-400">
       No events yet for the selected project(s).
     </div>
-    <div v-else class="relative overflow-x-auto pb-4">
-      <div class="relative" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
-        <!-- month gridlines -->
-        <div
-          v-for="m in monthMarkers" :key="m.key"
-          class="absolute top-0 w-px bg-slate-100"
-          :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-        />
-        <div
-          v-for="m in monthMarkers" :key="'label-' + m.key"
-          class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap"
-          :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
-        >{{ m.label }}</div>
+    <template v-else>
+      <div class="flex items-center justify-end gap-1 mb-2">
+        <button
+          class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+          title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
+        ><ZoomOut class="w-4 h-4" /></button>
+        <span class="text-xs text-slate-500 w-11 text-center tabular-nums">{{ Math.round(zoomLevel * 100) }}%</span>
+        <button
+          class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+          title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
+        ><ZoomIn class="w-4 h-4" /></button>
+        <button
+          class="p-1.5 rounded text-slate-500 hover:bg-slate-100"
+          title="Reset zoom and jump to today" @click="resetZoom"
+        ><RotateCcw class="w-4 h-4" /></button>
+      </div>
 
-        <!-- baseline -->
-        <div class="absolute left-0 right-0 h-px bg-slate-300" :style="{ top: BASELINE_TOP + 'px' }" />
-
-        <div class="absolute text-xs font-medium text-slate-400 left-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Past</div>
-        <div class="absolute text-xs font-medium text-slate-400 right-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Future</div>
-
-        <!-- today marker -->
-        <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
-          <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today</span>
-        </div>
-
-        <!-- event clusters -->
-        <div
-          v-for="cluster in clusters" :key="cluster.date"
-          class="absolute"
-          :style="{ left: cluster.leftPercent + '%', top: BASELINE_TOP + 'px' }"
-        >
+      <div ref="scrollContainer" class="relative overflow-x-auto pb-4">
+        <div class="relative" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+          <!-- month gridlines -->
           <div
-            v-for="(event, idx) in cluster.events"
-            :key="event.id"
-            class="absolute -translate-x-1/2 flex flex-col items-center"
-            :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
+            v-for="m in monthMarkers" :key="m.key"
+            class="absolute top-0 w-px bg-slate-100"
+            :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+          />
+          <div
+            v-for="m in monthMarkers" :key="'label-' + m.key"
+            class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap"
+            :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
+          >{{ m.label }}</div>
+
+          <!-- baseline -->
+          <div class="absolute left-0 right-0 h-px bg-slate-300" :style="{ top: BASELINE_TOP + 'px' }" />
+
+          <div class="absolute text-xs font-medium text-slate-400 left-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Past</div>
+          <div class="absolute text-xs font-medium text-slate-400 right-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Future</div>
+
+          <!-- today marker -->
+          <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
+            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today</span>
+          </div>
+
+          <!-- event clusters -->
+          <div
+            v-for="cluster in clusters" :key="cluster.events[0].id"
+            class="absolute"
+            :style="{ left: cluster.leftPercent + '%', top: BASELINE_TOP + 'px' }"
           >
-            <button
-              class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
-              :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
-              :style="{ border: `2px solid ${event.project.color_hex}` }"
-              :title="`${event.title} — ${event.project.name} (${event.date})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
-              @click="emit('select-event', event)"
+            <div
+              v-for="(event, idx) in cluster.events"
+              :key="event.id"
+              class="absolute -translate-x-1/2 flex flex-col items-center"
+              :style="{ top: `${-(STACK_BASE + idx * STACK_STEP)}px` }"
             >
-              <component
-                :is="event.visual.icon"
-                class="w-4 h-4"
-                :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
-              />
-            </button>
-            <span
-              class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
-              :title="event.title"
-            >{{ event.title }}</span>
+              <button
+                class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
+                :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
+                :style="{ border: `2px solid ${event.project.color_hex}` }"
+                :title="`${event.title} — ${event.project.name} (${event.date})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
+                @click="emit('select-event', event)"
+              >
+                <component
+                  :is="event.visual.icon"
+                  class="w-4 h-4"
+                  :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
+                />
+              </button>
+              <span
+                class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
+                :title="event.title"
+              >{{ event.title }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
