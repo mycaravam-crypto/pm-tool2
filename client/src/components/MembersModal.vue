@@ -2,6 +2,7 @@
 import { Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
@@ -170,7 +171,7 @@ async function toggleSubscription(project) {
 
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+        <tr :class="TABLE_HEADER_ROW">
           <th class="py-1.5">Name</th>
           <th class="py-1.5">Email</th>
           <th class="py-1.5">Linked stakeholder</th>
@@ -179,7 +180,7 @@ async function toggleSubscription(project) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="m in store.members" :key="m.id" class="border-b border-slate-100">
+        <tr v-for="m in store.members" :key="m.id" :class="TABLE_BODY_ROW">
           <td class="py-1.5">{{ m.name }}</td>
           <td class="py-1.5 text-slate-500">{{ m.email }}</td>
           <td class="py-1.5 text-slate-500">{{ m.stakeholder_name || '—' }}</td>

@@ -1,6 +1,7 @@
 <script setup>
 import { Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
@@ -93,7 +94,7 @@ async function remove(id) {
 
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+        <tr :class="TABLE_HEADER_ROW">
           <th class="py-1.5">Name</th>
           <th class="py-1.5">Role</th>
           <th class="py-1.5">Email</th>
@@ -101,7 +102,7 @@ async function remove(id) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="s in store.stakeholders" :key="s.id" class="border-b border-slate-100">
+        <tr v-for="s in store.stakeholders" :key="s.id" :class="TABLE_BODY_ROW">
           <td class="py-1.5">{{ s.name }}</td>
           <td class="py-1.5 text-slate-500">{{ s.role || '—' }}</td>
           <td class="py-1.5 text-slate-500">{{ s.email || '—' }}</td>

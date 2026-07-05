@@ -2,7 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import EventLink from './EventLink.vue';
+import ProjectChip from './ProjectChip.vue';
 
 const props = defineProps({
   // Set by the parent (e.g. clicking a Health Summary stat) to jump straight to
@@ -318,12 +321,12 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'overview'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5 w-8"></th><th class="py-1.5">Type</th><th class="py-1.5">Text</th><th class="py-1.5">Event</th><th class="py-1.5">Person</th><th class="py-1.5">Project</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in allItems" :key="r.id" class="border-b border-slate-100">
+          <tr v-for="r in allItems" :key="r.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5">
               <input
                 v-if="r.kind === 'action'" type="checkbox" :checked="!!r.raw.done" @change="toggleDone(r.raw)"
@@ -341,20 +344,11 @@ async function toggleGoal(g) {
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="KIND_CLASSES[r.kind]">{{ KIND_LABELS[r.kind] }}</span></td>
             <td class="py-1.5" :class="(r.raw.done || r.raw.resolved || r.raw.achieved) ? 'line-through text-slate-400' : ''">{{ r.text }}</td>
             <td class="py-1.5">
-              <button
-                v-if="r.event"
-                type="button" class="text-indigo-600 hover:underline text-left"
-                :title="`Open ${r.event.title} (${formatDate(r.event.date)})`"
-                @click="emit('select-event', r.event)"
-              >{{ r.event.title }}</button>
+              <EventLink v-if="r.event" :event="r.event" @select="emit('select-event', $event)" />
               <span v-else class="text-slate-400">—</span>
             </td>
             <td class="py-1.5 text-slate-500">{{ r.person || '—' }}</td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: r.project.color_hex }" />{{ r.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><ProjectChip :project="r.project" /></td>
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded" :class="r.statusClass">{{ r.statusLabel }}</span></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.date) }}</td>
           </tr>
@@ -364,27 +358,17 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'actions'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5 w-8"></th><th class="py-1.5">Action Item</th><th class="py-1.5">Assignee</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Due date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="a in actionItems" :key="a.id" class="border-b border-slate-100">
+          <tr v-for="a in actionItems" :key="a.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!a.done" @change="toggleDone(a)" /></td>
             <td class="py-1.5" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</td>
             <td class="py-1.5 text-slate-500">{{ a.assignee_name || '—' }}</td>
-            <td class="py-1.5">
-              <button
-                type="button" class="text-indigo-600 hover:underline text-left"
-                :title="`Open ${a.event.title} (${formatDate(a.event.date)})`"
-                @click="emit('select-event', a.event)"
-              >{{ a.event.title }}</button>
-            </td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: a.event.project.color_hex }" />{{ a.event.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><EventLink :event="a.event" @select="emit('select-event', $event)" /></td>
+            <td class="py-1.5"><ProjectChip :project="a.event.project" /></td>
             <td class="py-1.5" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-500'">{{ formatDate(a.due_date) }}</td>
           </tr>
         </tbody>
@@ -399,12 +383,12 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'pain'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5 w-8"></th><th class="py-1.5">Pain Point</th><th class="py-1.5">Severity</th><th class="py-1.5">Owner</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in painPoints" :key="p.id" class="border-b border-slate-100">
+          <tr v-for="p in painPoints" :key="p.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!p.resolved" @change="toggleResolved(p)" /></td>
             <td class="py-1.5" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</td>
             <td class="py-1.5">
@@ -414,18 +398,8 @@ async function toggleGoal(g) {
               >{{ p.severity }}</span>
             </td>
             <td class="py-1.5 text-slate-500">{{ p.owner_name || '—' }}</td>
-            <td class="py-1.5">
-              <button
-                type="button" class="text-indigo-600 hover:underline text-left"
-                :title="`Open ${p.event.title} (${formatDate(p.event.date)})`"
-                @click="emit('select-event', p.event)"
-              >{{ p.event.title }}</button>
-            </td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.event.project.color_hex }" />{{ p.event.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><EventLink :event="p.event" @select="emit('select-event', $event)" /></td>
+            <td class="py-1.5"><ProjectChip :project="p.event.project" /></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(p.event.date) }}</td>
           </tr>
         </tbody>
@@ -440,26 +414,16 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'decisions'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5">Decision</th><th class="py-1.5">Decided by</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in decisions" :key="d.id" class="border-b border-slate-100">
+          <tr v-for="d in decisions" :key="d.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5">{{ d.text }}</td>
             <td class="py-1.5 text-slate-500">{{ d.decided_by_name || '—' }}</td>
-            <td class="py-1.5">
-              <button
-                type="button" class="text-indigo-600 hover:underline text-left"
-                :title="`Open ${d.event.title} (${formatDate(d.event.date)})`"
-                @click="emit('select-event', d.event)"
-              >{{ d.event.title }}</button>
-            </td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: d.event.project.color_hex }" />{{ d.event.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><EventLink :event="d.event" @select="emit('select-event', $event)" /></td>
+            <td class="py-1.5"><ProjectChip :project="d.event.project" /></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(d.event.date) }}</td>
           </tr>
         </tbody>
@@ -468,19 +432,15 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'requirements'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5 w-8"></th><th class="py-1.5">Requirement</th><th class="py-1.5">Project</th><th class="py-1.5">Created</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in requirementsList" :key="r.id" class="border-b border-slate-100">
+          <tr v-for="r in requirementsList" :key="r.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!r.done" @change="toggleRequirement(r)" /></td>
             <td class="py-1.5" :class="r.done ? 'line-through text-slate-400' : ''">{{ r.text }}</td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: r.project.color_hex }" />{{ r.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><ProjectChip :project="r.project" /></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.created_at.slice(0, 10)) }}</td>
           </tr>
         </tbody>
@@ -495,19 +455,15 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'goals'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5 w-8"></th><th class="py-1.5">Goal</th><th class="py-1.5">Project</th><th class="py-1.5">Target date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="g in goalsList" :key="g.id" class="border-b border-slate-100">
+          <tr v-for="g in goalsList" :key="g.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!g.achieved" @change="toggleGoal(g)" /></td>
             <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-400' : ''">{{ g.text }}</td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: g.project.color_hex }" />{{ g.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><ProjectChip :project="g.project" /></td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>
           </tr>
         </tbody>
@@ -522,25 +478,15 @@ async function toggleGoal(g) {
 
       <table v-if="subTab === 'upcoming'" class="w-full text-sm">
         <thead>
-          <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
+          <tr :class="TABLE_HEADER_ROW">
             <th class="py-1.5">Type</th><th class="py-1.5">Title</th><th class="py-1.5">Project</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="e in upcomingEvents" :key="e.id" class="border-b border-slate-100">
+          <tr v-for="e in upcomingEvents" :key="e.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium bg-violet-100 text-violet-700">{{ EVENT_TYPES[e.type].label }}</span></td>
-            <td class="py-1.5">
-              <button
-                type="button" class="text-indigo-600 hover:underline text-left"
-                :title="`Open ${e.title} (${formatDate(e.date)})`"
-                @click="emit('select-event', e)"
-              >{{ e.title }}</button>
-            </td>
-            <td class="py-1.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: e.project.color_hex }" />{{ e.project.name }}
-              </span>
-            </td>
+            <td class="py-1.5"><EventLink :event="e" @select="emit('select-event', $event)" /></td>
+            <td class="py-1.5"><ProjectChip :project="e.project" /></td>
             <td class="py-1.5 text-slate-500">{{ STATUS_LABELS[e.status] }}</td>
             <td class="py-1.5 text-slate-500">{{ formatDate(e.date) }}</td>
           </tr>
