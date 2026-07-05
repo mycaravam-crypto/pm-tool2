@@ -112,6 +112,14 @@ export const useProjectStore = defineStore('project', {
       await Promise.all([this.fetchEvents(), this.fetchScopedSummary()]);
     },
 
+    // Used when drilling into a portfolio-wide stat (Health Summary) with no
+    // project selected yet — the dashboard only ever shows selected projects,
+    // so "show me these across the portfolio" means selecting all of them.
+    async selectAllProjects() {
+      this.selectedProjectIds = this.projects.map((p) => p.id);
+      await Promise.all([this.fetchEvents(), this.fetchScopedSummary()]);
+    },
+
     async fetchEvents() {
       if (this.selectedProjectIds.length === 0) {
         this.events = [];

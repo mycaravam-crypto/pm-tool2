@@ -16,6 +16,12 @@ const BASELINE_TOP = 280;
 // STACK_BASE must clear that whole unit above the baseline, or the title dips below the line.
 const STACK_BASE = 76;
 const STACK_STEP = 74;
+// Beyond this many events, a cluster collapses the rest into a "+N" badge
+// instead of stacking indefinitely — an unbounded stack eventually pushes
+// bubbles above the track entirely, which is exactly the overlay-timeline
+// promise ("see clusters at a glance") breaking down under real multi-project
+// density. Capping keeps the max stack offset constant regardless of size.
+const MAX_VISIBLE_STACK = 4;
 
 // Zoom controls pixels-per-day directly, so "zoom in" is literally "give nearby
 // events more room" — which is also how label collisions get resolved, see
@@ -97,11 +103,49 @@ const clusters = computed(() => {
 // individual entries in/out as filtering (sidebar project selection) adds or
 // removes events — the nested cluster/event structure above is still what
 // decides each bubble's position, just re-shaped into one list here.
+// Clusters at or under MAX_VISIBLE_STACK render every event normally; larger
+// ones show the first (MAX_VISIBLE_STACK - 1) events and fold the rest into
+// one overflow badge in the last slot, so the tallest a cluster ever gets is
+// the same regardless of how many events it actually contains.
 const positionedEvents = computed(() => {
-  return clusters.value.flatMap((cluster) =>
-    cluster.events.map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx })),
-  );
+  return clusters.value.flatMap((cluster) => {
+    const events = cluster.events;
+    if (events.length <= MAX_VISIBLE_STACK) {
+      return events.map((event, idx) => ({
+        ...event,
+        leftPercent: cluster.leftPercent,
+        stackIndex: idx,
+        isOverflow: false,
+      }));
+    }
+    const visible = events
+      .slice(0, MAX_VISIBLE_STACK - 1)
+      .map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx, isOverflow: false }));
+    const overflowEvents = events.slice(MAX_VISIBLE_STACK - 1);
+    return [
+      ...visible,
+      {
+        id: `overflow-${events[0].id}`,
+        isOverflow: true,
+        leftPercent: cluster.leftPercent,
+        stackIndex: MAX_VISIBLE_STACK - 1,
+        overflowEvents,
+      },
+    ];
+  });
 });
+
+const openOverflowId = ref(null);
+function toggleOverflow(id) {
+  openOverflowId.value = openOverflowId.value === id ? null : id;
+}
+function closeOverflow() {
+  openOverflowId.value = null;
+}
+function selectOverflowEvent(event) {
+  closeOverflow();
+  emit('select-event', event);
+}
 
 // Month gridlines give the timeline a sense of scale beyond the "Past/Future" corner labels.
 const monthMarkers = computed(() => {
@@ -183,6 +227,17 @@ onMounted(() => nextTick(scrollToToday));
          this whole subtree — that was killing the enter/leave transitions
          below since TransitionGroup had no continuity to animate across. -->
     <template v-else>
+      <!-- Project color legend: the timeline's overlay only works if you can tell
+           whose event is whose without looking away to the sidebar checkboxes. -->
+      <div v-if="store.selectedProjects.length > 1" class="flex items-center gap-3 flex-wrap mb-2 text-xs text-slate-600">
+        <span
+          v-for="p in store.selectedProjects" :key="p.id"
+          class="flex items-center gap-1.5"
+        >
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: p.color_hex }" />{{ p.name }}
+        </span>
+      </div>
+
       <div class="flex items-center justify-between gap-4 mb-3 flex-wrap">
         <div class="flex items-center gap-4 text-xs text-slate-500">
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400" /> Record</span>
@@ -194,7 +249,6 @@ onMounted(() => nextTick(scrollToToday));
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="text-xs font-medium text-rose-600 whitespace-nowrap">Heute — {{ formatDate(todayStr) }}</span>
           <form class="flex items-center gap-1" @submit.prevent="jumpToDate">
             <input v-model="jumpDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-xs" />
             <button
@@ -247,7 +301,7 @@ onMounted(() => nextTick(scrollToToday));
 
           <!-- today marker -->
           <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
-            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Heute · {{ formatDate(todayStr) }}</span>
+            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today · {{ formatDate(todayStr) }}</span>
           </div>
 
           <!-- event bubbles: a flat, TransitionGroup-animated list so events
@@ -256,31 +310,64 @@ onMounted(() => nextTick(scrollToToday));
                (re-clustering, zoom, filtering-driven range changes) still
                apply per-element via the transition-[left,top] utility below -->
           <TransitionGroup name="event-pop" tag="div">
-            <div
-              v-for="event in positionedEvents"
-              :key="event.id"
-              class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
-              :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
-            >
-              <button
-                class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
-                :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
-                :style="{ border: `2px solid ${event.project.color_hex}` }"
-                :title="`${event.title} — ${event.project.name} (${formatDate(event.date)})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
-                @click="emit('select-event', event)"
+            <template v-for="event in positionedEvents" :key="event.id">
+              <div
+                v-if="event.isOverflow"
+                :key="event.id"
+                class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
+                :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
               >
-                <component
-                  :is="event.visual.icon"
-                  class="w-4 h-4"
-                  :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
-                />
-              </button>
-              <span
-                class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
-                :title="event.title"
-              >{{ event.title }}</span>
-            </div>
+                <button
+                  class="flex items-center justify-center w-10 h-10 rounded-full shadow hover:shadow-md hover:-translate-y-0.5 transition-all bg-slate-100 border-2 border-slate-400 text-slate-600 text-xs font-semibold"
+                  :title="`${event.overflowEvents.length} more event(s) — click to list`"
+                  @click="toggleOverflow(event.id)"
+                >+{{ event.overflowEvents.length }}</button>
+                <span class="mt-1.5 text-[11px] leading-tight text-slate-500">more</span>
+
+                <div
+                  v-if="openOverflowId === event.id"
+                  class="absolute top-full mt-1 z-20 w-52 bg-white border border-slate-200 rounded-md shadow-lg py-1 max-h-56 overflow-y-auto"
+                >
+                  <button
+                    v-for="oe in event.overflowEvents" :key="oe.id" type="button"
+                    class="w-full flex items-center gap-1.5 px-2 py-1.5 text-left text-xs hover:bg-slate-50"
+                    @click="selectOverflowEvent(oe)"
+                  >
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: oe.project.color_hex }" />
+                    <span class="flex-1 truncate" :title="oe.title">{{ oe.title }}</span>
+                    <span class="text-slate-400 shrink-0">{{ formatDate(oe.date) }}</span>
+                  </button>
+                </div>
+              </div>
+              <div
+                v-else
+                :key="event.id"
+                class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
+                :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
+              >
+                <button
+                  class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
+                  :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
+                  :style="{ border: `2px solid ${event.project.color_hex}` }"
+                  :title="`${event.title} — ${event.project.name} (${formatDate(event.date)})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
+                  @click="emit('select-event', event)"
+                >
+                  <component
+                    :is="event.visual.icon"
+                    class="w-4 h-4"
+                    :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
+                  />
+                </button>
+                <span
+                  class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
+                  :title="event.title"
+                >{{ event.title }}</span>
+              </div>
+            </template>
           </TransitionGroup>
+
+          <!-- click-outside closer for the overflow dropdown -->
+          <div v-if="openOverflowId" class="fixed inset-0 z-10" @click="closeOverflow" />
         </div>
       </div>
     </template>

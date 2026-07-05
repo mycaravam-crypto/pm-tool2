@@ -101,15 +101,21 @@ function exportSituationReport() {
 // Jumps from a Health Summary count straight to the matching filtered list —
 // a token (always a fresh value) so re-clicking the same stat re-applies the
 // filter even when subTab/flags are already at those values.
-function focusOverdueActions() {
+async function ensureProjectsSelected() {
+  if (store.selectedProjectIds.length === 0) await store.selectAllProjects();
+}
+async function focusOverdueActions() {
+  await ensureProjectsSelected();
   mainTab.value = 'dashboard';
   dashboardFocus.value = { subTab: 'actions', overdueOnly: true, token: Date.now() };
 }
-function focusHighSeverityPain() {
+async function focusHighSeverityPain() {
+  await ensureProjectsSelected();
   mainTab.value = 'dashboard';
   dashboardFocus.value = { subTab: 'pain', openOnly: true, severity: 'High', token: Date.now() };
 }
-function focusUpcoming() {
+async function focusUpcoming() {
+  await ensureProjectsSelected();
   mainTab.value = 'dashboard';
   dashboardFocus.value = { subTab: 'upcoming', token: Date.now() };
 }
@@ -148,7 +154,7 @@ function focusUpcoming() {
           >Action Items / Pain Points / Decisions</button>
         </div>
         <div class="flex items-center gap-4">
-          <span class="text-sm text-slate-500 whitespace-nowrap">Heute: <span class="font-medium text-slate-700">{{ formatDate(todayStr()) }}</span></span>
+          <span class="text-sm text-slate-500 whitespace-nowrap">Today: <span class="font-medium text-slate-700">{{ formatDate(todayStr()) }}</span></span>
           <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
             <button
               class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"

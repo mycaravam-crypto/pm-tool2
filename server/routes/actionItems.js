@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { canAccessEvent, canContribute, getEventContext, getProjectIdForEvent } from '../utils/access.js';
+import { formatDate } from '../utils/dateFormat.js';
 import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
@@ -19,7 +20,7 @@ router.post('/', (req, res) => {
     notifyAssigned(
       assignee_id,
       'New action item assigned to you',
-      `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${due_date}` : ''}`,
+      `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${formatDate(due_date)}` : ''}`,
       ctx.project_id,
     );
   }
@@ -44,7 +45,7 @@ router.put('/:id', (req, res) => {
     notifyAssigned(
       assignee_id,
       'Action item assigned to you',
-      `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${due_date}` : ''}`,
+      `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${formatDate(due_date)}` : ''}`,
       ctx.project_id,
     );
   }

@@ -1,17 +1,5 @@
 <script setup>
-import {
-  AlertCircle,
-  Bell,
-  CalendarClock,
-  LogOut,
-  Pencil,
-  Plus,
-  ShieldAlert,
-  UserCog,
-  Users,
-  Volume2,
-  VolumeX,
-} from 'lucide-vue-next';
+import { Bell, LogOut, Pencil, Plus, UserCog, Users, Volume2, VolumeX } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { isMuted, setMuted } from '../lib/sound.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
@@ -60,25 +48,16 @@ function toggleMuted() {
       </div>
     </div>
 
-    <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-4 text-xs text-slate-600">
-      <span class="flex items-center gap-1" title="Overdue action items across active projects">
-        <AlertCircle class="w-3.5 h-3.5 text-rose-500" />{{ store.portfolioSummary.overdue_action_items }}
-      </span>
-      <span class="flex items-center gap-1" title="Open high-severity pain points across active projects">
-        <ShieldAlert class="w-3.5 h-3.5 text-amber-500" />{{ store.portfolioSummary.open_high_severity_pain_points }}
-      </span>
-      <span class="flex items-center gap-1" title="Upcoming milestones/deadlines within 14 days">
-        <CalendarClock class="w-3.5 h-3.5 text-sky-500" />{{ store.portfolioSummary.upcoming_deadlines }}
-      </span>
+    <div class="px-4 py-2 border-b border-slate-200 flex items-center gap-3 text-xs text-slate-600">
       <button
-        class="ml-auto flex items-center gap-1 text-slate-500 hover:text-slate-800"
+        class="flex items-center gap-1 text-slate-500 hover:text-slate-800"
         title="Notification log"
         @click="emit('open-notifications')"
       >
         <Bell class="w-3.5 h-3.5" />{{ store.notifications.length }}
       </button>
       <button
-        class="text-slate-400 hover:text-slate-700"
+        class="ml-auto text-slate-400 hover:text-slate-700"
         :title="muted ? 'Unmute notification sound' : 'Mute notification sound'"
         @click="toggleMuted"
       >
@@ -127,13 +106,7 @@ function toggleMuted() {
       <p v-if="store.projects.length === 0" class="px-4 py-2 text-sm text-slate-400">No active projects yet.</p>
     </div>
 
-    <div v-if="store.isAdmin" class="p-4 border-t border-slate-200 space-y-2">
-      <button
-        class="w-full flex items-center justify-center gap-2 text-sm font-medium text-white bg-indigo-600 rounded-md py-2 hover:bg-indigo-700"
-        @click="emit('open-project-form')"
-      >
-        <Plus class="w-4 h-4" /> New Project
-      </button>
+    <div v-if="store.isAdmin" class="p-4 border-t border-slate-200">
       <div class="grid grid-cols-2 gap-2">
         <button
           class="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-md py-2 hover:bg-slate-50"

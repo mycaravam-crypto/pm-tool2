@@ -1,5 +1,6 @@
 import { db } from '../db/connection.js';
 import { broadcastNotification } from '../ws.js';
+import { formatDate } from './dateFormat.js';
 import { sendEmail } from './mailer.js';
 import { getFullNotification } from './notify.js';
 
@@ -36,7 +37,7 @@ export function runDigest() {
           `)
             .all(projectId, today);
           if (overdue.length > 0) {
-            const body = overdue.map((o) => `- ${o.text} (due ${o.due_date})`).join('\n');
+            const body = overdue.map((o) => `- ${o.text} (due ${formatDate(o.due_date)})`).join('\n');
             const info = insertNotification.run(
               member.id,
               'overdue_digest',
@@ -57,7 +58,7 @@ export function runDigest() {
           `)
             .all(projectId, today, in14);
           if (upcoming.length > 0) {
-            const body = upcoming.map((u) => `- ${u.type}: ${u.title} (${u.date})`).join('\n');
+            const body = upcoming.map((u) => `- ${u.type}: ${u.title} (${formatDate(u.date)})`).join('\n');
             const info = insertNotification.run(
               member.id,
               'deadline_digest',
