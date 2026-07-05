@@ -287,11 +287,13 @@ const seed = db.transaction(() => {
     bob,
     'New action item assigned to you',
     '"Finalize component library selection" (Website Redesign — Design Workshop) — due 2026-06-01',
+    website,
   );
   notifyAssigned(
     dave,
     'New pain point assigned to you',
     '"Creative assets delivered late from agency" (High severity — Marketing Campaign — Creative Review)',
+    campaign,
   );
 });
 

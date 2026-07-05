@@ -15,6 +15,9 @@ export function runMigrations(db) {
   }
   if (!hasColumn(db, 'notifications', 'project_id')) {
     db.exec('ALTER TABLE notifications ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
-    db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id)');
   }
+  // Outside the check above, not inside it: on a brand-new database the column
+  // already exists (created directly by schema.sql), so the ALTER is skipped —
+  // but the index still needs to be created either way.
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id)');
 }

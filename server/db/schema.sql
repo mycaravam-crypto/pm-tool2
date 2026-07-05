@@ -173,7 +173,10 @@ CREATE TABLE IF NOT EXISTS notifications (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_member_id ON notifications(member_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id);
+-- idx_notifications_project_id is created in migrations.js, not here: on a
+-- database that predates this column, an unconditional CREATE INDEX in this
+-- file would run (and fail — no such column) before migrations.js gets a
+-- chance to ALTER TABLE it in.
 
 -- 12. Requirements — what the project must deliver. Project-scoped (not event-scoped
 -- like decisions/action_items/pain_points), since a requirement isn't tied to a
