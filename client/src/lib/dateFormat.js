@@ -7,6 +7,7 @@ const timeFmt = new Intl.DateTimeFormat('de-DE', {
   minute: '2-digit',
 });
 const monthYearFmt = new Intl.DateTimeFormat('de-DE', { month: 'short', year: 'numeric' });
+const yearFmt = new Intl.DateTimeFormat('de-DE', { year: 'numeric' });
 
 export function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -35,4 +36,8 @@ export function formatDateTime(timestamp) {
 
 export function formatMonthYear(date) {
   return monthYearFmt.format(date);
+}
+
+export function formatYear(date) {
+  return yearFmt.format(date);
 }

@@ -1,9 +1,10 @@
 <script setup>
 import { CalendarSearch, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { formatDate, formatMonthYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
+import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import HelpTooltip from './HelpTooltip.vue';
 
 const emit = defineEmits(['select-event']);
 const store = useProjectStore();
@@ -30,10 +31,17 @@ const BASE_PX_PER_DAY = 5;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 6;
 const ZOOM_STEP = 1.4;
+// Continuous zoom factor per wheel-delta unit (vs. the fixed ZOOM_STEP used by
+// the +/- buttons), so a single scroll gesture zooms smoothly rather than in clicky jumps.
+const WHEEL_ZOOM_SENSITIVITY = 0.0018;
 const MAX_TRACK_WIDTH = 16000;
 // Two truncated title labels (max-w-22 = 88px, centered under their icon) start
 // visually colliding once their icons are closer than about this many pixels.
 const CLUSTER_THRESHOLD_PX = 90;
+// Day gridlines only render once each day has this much width — below it
+// they'd pack into an illegible solid band, so day-level detail stays hidden
+// until you've zoomed in far enough for it to actually read as detail.
+const DAY_GRID_MIN_PX_PER_DAY = 16;
 
 const zoomLevel = ref(1);
 const scrollContainer = ref(null);
@@ -165,6 +173,46 @@ const monthMarkers = computed(() => {
   return markers;
 });
 
+// Year gridlines are the heaviest tier — they anchor the "which year am I in"
+// question at a glance, since the month labels below repeat the year on every
+// single tick and get easy to lose track of over a multi-year range.
+const yearMarkers = computed(() => {
+  const { min, max } = range.value;
+  const markers = [];
+  const cursor = new Date(min.getFullYear(), 0, 1);
+  if (cursor < min) cursor.setFullYear(cursor.getFullYear() + 1);
+  while (cursor <= max) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+    markers.push({
+      key: dateStr,
+      leftPercent: leftPercent(dateStr),
+      label: formatYear(cursor),
+    });
+    cursor.setFullYear(cursor.getFullYear() + 1);
+  }
+  return markers;
+});
+
+// Day gridlines are the lightest tier, gated by DAY_GRID_MIN_PX_PER_DAY (see
+// above) so they only appear once you've zoomed in enough for one-per-day
+// lines to read as texture instead of a solid smear. Uses the actual rendered
+// trackWidth (post-clamping) rather than the nominal zoom-derived px/day, since
+// that's what determines how the lines will really look.
+const dayMarkers = computed(() => {
+  const { min, max } = range.value;
+  const totalDays = (max - min) / DAY_MS;
+  if (totalDays <= 0 || trackWidth.value / totalDays < DAY_GRID_MIN_PX_PER_DAY) return [];
+  const markers = [];
+  const cursor = new Date(min.getFullYear(), min.getMonth(), min.getDate());
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= max) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+    markers.push({ key: dateStr, leftPercent: leftPercent(dateStr) });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return markers;
+});
+
 function scrollToDate(dateStr) {
   const container = scrollContainer.value;
   if (!container) return;
@@ -181,19 +229,23 @@ function jumpToDate() {
   scrollToDate(jumpDate.value);
 }
 
-// Re-centers on whatever was in the middle of the viewport before zooming, so a
-// zoom click doesn't jump the view to an unrelated part of the timeline.
-function zoomBy(factor) {
+// Re-centers on whatever was under `viewportAnchor` (an x-offset within the
+// container's visible area) before zooming, so a zoom doesn't jump the view to
+// an unrelated part of the timeline. Defaults to the viewport's own center for
+// the +/- buttons; the wheel handler below passes the cursor position instead,
+// so scrolling zooms into whatever date you're pointing at.
+function zoomBy(factor, viewportAnchor) {
   const container = scrollContainer.value;
   const oldWidth = trackWidth.value;
-  const oldCenterRatio = container ? (container.scrollLeft + container.clientWidth / 2) / oldWidth : 0.5;
+  const anchor = viewportAnchor ?? (container ? container.clientWidth / 2 : 0);
+  const oldRatio = container ? (container.scrollLeft + anchor) / oldWidth : 0.5;
 
   zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(zoomLevel.value * factor).toFixed(2)));
 
   nextTick(() => {
     if (!container) return;
     const newWidth = trackWidth.value;
-    container.scrollLeft = Math.max(0, oldCenterRatio * newWidth - container.clientWidth / 2);
+    container.scrollLeft = Math.max(0, oldRatio * newWidth - anchor);
   });
 }
 function zoomIn() {
@@ -205,6 +257,20 @@ function zoomOut() {
 function resetZoom() {
   zoomLevel.value = 1;
   nextTick(scrollToToday);
+}
+
+// Lets the mouse wheel zoom the timeline (matching the pinch-to-zoom feel of
+// maps/design tools) instead of only offering it via the +/- buttons. Plain
+// wheel is free to repurpose here because the track never overflows
+// vertically — horizontal panning still works via shift+wheel, trackpad swipe,
+// or the scrollbar, none of which this handler touches (deltaY stays ~0 for those).
+function handleWheel(e) {
+  if (e.deltaY === 0) return;
+  const container = scrollContainer.value;
+  if (!container) return;
+  e.preventDefault();
+  const anchor = e.clientX - container.getBoundingClientRect().left;
+  zoomBy(Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY), anchor);
 }
 
 onMounted(() => nextTick(scrollToToday));
@@ -271,17 +337,32 @@ onMounted(() => nextTick(scrollToToday));
               class="p-1.5 rounded text-slate-500 hover:bg-slate-100"
               title="Reset zoom and jump to today" @click="resetZoom"
             ><RotateCcw class="w-4 h-4" /></button>
+            <HelpTooltip
+              align="right"
+              text="Scroll your mouse wheel or trackpad over the timeline to zoom in and out — it zooms into whatever date is under your cursor."
+            />
           </div>
         </div>
       </div>
 
-      <div ref="scrollContainer" class="relative overflow-x-auto pb-4">
+      <div ref="scrollContainer" class="relative overflow-x-auto pb-4" @wheel="handleWheel">
         <div class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+          <!-- day gridlines: lightest tier, only rendered once zoomed in enough
+               (see DAY_GRID_MIN_PX_PER_DAY) for one-per-day lines to read as
+               texture rather than a solid smear -->
+          <TransitionGroup name="fade-pop" tag="div">
+            <div
+              v-for="d in dayMarkers" :key="d.key"
+              class="absolute top-0 w-px bg-slate-100 transition-[left] duration-300 ease-out"
+              :style="{ left: d.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+            />
+          </TransitionGroup>
+
           <!-- month gridlines -->
           <TransitionGroup name="fade-pop" tag="div">
             <div
               v-for="m in monthMarkers" :key="m.key"
-              class="absolute top-0 w-px bg-slate-100 transition-[left] duration-300 ease-out"
+              class="absolute top-0 w-px bg-slate-200 transition-[left] duration-300 ease-out"
               :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
             />
           </TransitionGroup>
@@ -291,6 +372,23 @@ onMounted(() => nextTick(scrollToToday));
               class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
               :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
             >{{ m.label }}</div>
+          </TransitionGroup>
+
+          <!-- year gridlines: heaviest tier, painted last so they win visually
+               wherever they land on the same tick as a month/day line -->
+          <TransitionGroup name="fade-pop" tag="div">
+            <div
+              v-for="y in yearMarkers" :key="y.key"
+              class="absolute top-0 w-px bg-slate-300 transition-[left] duration-300 ease-out"
+              :style="{ left: y.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+            />
+          </TransitionGroup>
+          <TransitionGroup name="fade-pop" tag="div">
+            <div
+              v-for="y in yearMarkers" :key="'label-' + y.key"
+              class="absolute text-[11px] font-semibold text-slate-500 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+              :style="{ left: y.leftPercent + '%', top: (BASELINE_TOP + 28) + 'px' }"
+            >{{ y.label }}</div>
           </TransitionGroup>
 
           <!-- baseline -->
