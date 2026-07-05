@@ -11,8 +11,17 @@ const RESET_TOKEN_HOURS = 1;
 
 function createSession(memberId) {
   const token = crypto.randomBytes(32).toString('hex');
+  // expires_at is computed by SQLite itself (not new Date().toISOString()) so it's
+  // stored in the same "YYYY-MM-DD HH:MM:SS" format datetime('now') produces. Mixing
+  // formats broke expiry checks entirely: the ISO 'T' separator (0x54) sorts after
+  // ' ' (0x20), so `expires_at > datetime('now')` was true for any same-UTC-day
+  // timestamp regardless of the actual time — see findSession below.
+  db.prepare(`
+    INSERT INTO sessions (token, member_id, expires_at) VALUES (?, ?, datetime('now', ?))
+  `).run(token, memberId, `+${SESSION_DAYS} days`);
+  // For the cookie's `expires` attribute only — an approximate hint to the browser,
+  // not the security boundary (findSession's server-side check is authoritative).
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
-  db.prepare('INSERT INTO sessions (token, member_id, expires_at) VALUES (?, ?, ?)').run(token, memberId, expiresAt);
   return { token, expiresAt };
 }
 
@@ -83,12 +92,12 @@ router.post('/forgot-password', (req, res) => {
   const member = db.prepare('SELECT id, name, email FROM members WHERE email = ?').get(email);
   if (member) {
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + RESET_TOKEN_HOURS * 3600000).toISOString();
-    db.prepare('INSERT INTO password_resets (member_id, token, expires_at) VALUES (?, ?, ?)').run(
-      member.id,
-      token,
-      expiresAt,
-    );
+    // Computed by SQLite (see createSession's comment above) so the format matches
+    // datetime('now') at the comparison in /reset-password below — a JS-computed
+    // ISO string there made the 1-hour expiry never actually take effect.
+    db.prepare(`
+      INSERT INTO password_resets (member_id, token, expires_at) VALUES (?, ?, datetime('now', ?))
+    `).run(member.id, token, `+${RESET_TOKEN_HOURS} hours`);
     sendEmail({
       to: member.email,
       subject: 'Reset your ChronosPM password',
