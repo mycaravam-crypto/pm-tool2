@@ -1,70 +1,97 @@
-# Project Specification: "ChronosPM Multi-Project"
+# ChronosPM Multi-Project — Project Plan
 
-## 1. System Overview & Objectives
-"ChronosPM Multi-Project" is a full-stack, timeline-first project management application. It allows users to track multiple projects concurrently. The main view displays a highly visual chronological timeline where users can overlay events from multiple selected projects at once.
+## 1. Overview
 
-**Scope note:** Login exists (Section 3.G) and is required to use the app. There is now a two-role authorization layer on top of it (Section 3.H): `admin` sees and manages everything, `member` sees only the projects they're committed to — but it's still just two roles, not a permission matrix; there's no per-resource ownership finer than "committed or not," no custom role definitions, no viewer-vs-editor distinction within a project. Stakeholders remain records of people referenced by events, not login accounts — login accounts live on `members` (Section 2), which can *optionally* link to a Stakeholder identity, the same way a Member can optionally link to one for notification purposes. Being "committed to" a project specifically means that link resolving to a `project_stakeholders` row — not a `member_projects` digest subscription, which is a deliberately weaker, opt-in-only relationship (Section 3.F).
+ChronosPM is a timeline-first project management tool for people who run more than one project at once. Instead of flipping between separate boards per project, the main view is a single chronological timeline where you can overlay events from several projects at the same time — so a PM covering three initiatives can see at a glance where kickoffs, reviews, and deadlines across all of them land relative to each other and to today.
 
-### PM Concept Mapping
-Standard project management defines a project by four constraints — **scope, time, cost, quality** (the "iron triangle" plus quality at its center) — governed by a **single accountable owner** (the Project Manager) and a **team** with differentiated roles. ChronosPM represents each of these deliberately, not implicitly:
+This document is our working plan for the app: what it does, how it's structured, and the order we intend to build and ship it in. It's a living reference for the team, not a locked spec — sections will get updated as decisions change during the build.
+
+**Who it's for:** a PM (or a small team of them) juggling 2+ concurrent projects who wants one place to see schedule health, budget health, open risks, and who's accountable for what — without adopting a heavyweight enterprise PM suite.
+
+## 2. Goals & Non-Goals
+
+**Goals**
+- One overlay timeline across multiple projects, not a per-project silo
+- Real (if simplified) tracking of the four things that actually define a project: scope, time, cost, quality
+- Clear single-owner accountability per project
+- Enough process around decisions, action items, and pain points that they're actionable, not just a notes field
+- Basic login and a two-tier permission model, since this will hold real project data
+- Lightweight notifications so people who aren't in the tool daily still find out when something changes
+
+**Non-goals** — things we're deliberately not building, to keep this shippable:
+- A formal Work Breakdown Structure or task hierarchy
+- Earned Value Management (EV/PV/AC/CPI/SPI) — full cost/schedule performance indices are overkill here
+- Per-task RACI assignment — we use a simpler project-level role instead (see below)
+- Multi-currency budgeting or a line-item cost ledger — budget is a single planned-vs-actual number, not a transaction log
+- Real email/SMS delivery for notifications — v1 logs notifications in-app and pushes them live to open browser tabs; wiring an actual provider is a later swap-in, not part of this build
+- A background job scheduler — anything that would run nightly (digests) is triggered on demand for now
+- A fine-grained permission matrix — two roles (admin/member) is enough for the team size we're building for
+- Password reset, self-service signup, SSO — accounts are provisioned by an admin by hand
+
+We can revisit any of these once the core tool proves useful — they're deferred, not rejected.
+
+## 3. How This Maps to Standard PM Practice
+
+We didn't want to invent our own vocabulary, so the app is built around the classic project triangle — **scope, time, cost, quality** — plus a single accountable owner and a small team with differentiated roles:
 
 | PM concept | Represented as |
 |---|---|
-| Scope | `projects.description` + the Decisions log (what was agreed to build) |
-| Time | `projects.start_date` / `target_end_date` / `actual_end_date`, plus `milestone`/`deadline` events and the overlay timeline itself |
-| Cost | `projects.budget_planned` / `budget_spent` (planned vs. actual, see Section 3.E) |
-| Quality | `pain_points` (severity/resolution) — quality problems are exactly what a pain point is |
-| People / roles | `project_stakeholders.project_role` (`lead` / `sponsor` / `member` / `stakeholder`) — see below |
-| Single accountable owner | Exactly one `project_role = 'lead'` per project, enforced by the schema (Section 2) — this is the person accountable for time/cost/quality, i.e. the Project Manager |
+| Scope | The project description, plus the Decisions log (a record of what was actually agreed to build) |
+| Time | Start date / target end date / actual end date, plus milestone and deadline events on the timeline |
+| Cost | Planned budget vs. spent budget |
+| Quality | Pain Points, each with a severity and a resolution state |
+| People / roles | Each project's team, with a project-level role: `lead` / `sponsor` / `member` / `stakeholder` |
+| Single accountable owner | Exactly one `lead` per project — the person accountable for schedule, budget, and quality outcomes, i.e. the PM |
 
-**Role mapping (a simplified RACI, not a full one):** `lead` = Accountable (the Project Manager — owns schedule, budget, and quality outcomes); `member` = Responsible (does the work); `sponsor` = the business owner who authorized the project, roughly Consulted; `stakeholder` = Informed. This is a project-level role, separate from `stakeholders.role`, which is a free-text organizational title (e.g. "UX Designer") — a person's job title and their governance role on a given project are different things.
+**Role mapping** (a simplified RACI, not a full one): `lead` = Accountable (owns schedule/budget/quality), `member` = Responsible (does the work), `sponsor` = the business owner who authorized the project (roughly Consulted), `stakeholder` = Informed. This project-level role is separate from a person's actual job title (e.g. "UX Designer") — what you do for a living and what you're accountable for on a given project are different things.
 
-**Deliberately out of scope**, to keep this "as simple as possible" while still being recognizably by-the-book: a formal Work Breakdown Structure, Earned Value Management (EV/PV/AC/CPI/SPI cost & schedule performance indices), per-task RACI assignment, multi-currency budgeting, and a cost ledger with line-item entries. `budget_spent` is a single manually-updated running total, not a transaction log — sufficient for a planned-vs-actual signal, not for audit-grade cost accounting.
+## 4. Tech Stack & Architecture
 
-### Technology Stack
-*   **Frontend:** Vue 3 (Composition API with `<script setup>`), Tailwind CSS, Lucide Vue Icons, and Pinia (for state management). No Vue Router — this is a single-page view; the Stakeholder Directory is a modal and the aggregated dashboards are an in-page tab switcher (see Section 3).
-*   **Backend:** Node.js with Express.
-*   **Database:** SQLite (using `better-sqlite3` — synchronous API simplifies transaction handling for the nested-write endpoints in Section 4).
+- **Frontend:** Vue 3 (Composition API, `<script setup>`), Tailwind CSS, Lucide icons, Pinia for state. No router — this is a single page; the Stakeholder Directory is a modal and the aggregated dashboards are an in-page tab switcher, not separate routes.
+- **Backend:** Node.js + Express.
+- **Database:** SQLite via `better-sqlite3` — its synchronous API keeps the nested-write endpoints (an event plus its decisions/action items/pain points in one go) simple to reason about without an ORM.
+- **Layout:** a monorepo with two workspaces — `/server` (API, port 3001) and `/client` (Vite + Vue SPA, port 5173, dev server proxies `/api/*` to the server).
 
-### Project Layout
-Monorepo with two workspaces:
-*   `/server` — Express API, port `3001`.
-*   `/client` — Vite + Vue 3 SPA, port `5173`, dev server proxies `/api/*` to `http://localhost:3001`.
+This is a deliberately small stack for a small team to move fast in — no microservices, no separate auth provider, no message queue. If usage outgrows SQLite or the app needs to scale past a single server process, that's a good problem to revisit later, not something to design around up front.
 
----
+## 5. Data Model
 
-## 2. Database Schema (SQLite)
-The AI agent should create the SQLite database with the following relational structure. Foreign keys are not enforced by SQLite by default — the connection init code must run `PRAGMA foreign_keys = ON;` on every connection/statement setup.
+The schema follows directly from Section 3: projects, the people on them, the events that happen on them, and the three actionable record types (decisions, action items, pain points) that hang off events. A separate `members`/`sessions` layer handles login and notification preferences — kept apart from `stakeholders` because being a login/notification subscriber and being a person actively doing project work are genuinely different relationships (more on that in Section 6.F).
+
+Key modeling decisions worth calling out:
+- **Every project has exactly one lead**, enforced by a partial unique index — the schema itself won't allow a project to end up with zero or two.
+- **Stakeholders are people referenced by events** (decision-makers, assignees, pain-point owners); they don't necessarily have login access. **Members** are the ones who can log in and/or subscribe to notifications. A member can optionally link to a stakeholder identity — that's what lets "assigned to you" notifications work — but doesn't have to.
+- **Foreign keys cascade sensibly:** deleting a project cascades to its events, decisions, action items, and pain points. Deleting a stakeholder nulls out their references (`decided_by`, `owner_id`, `assignee_id`) rather than deleting the records they're attached to — losing a person shouldn't erase project history.
+
+<details>
+<summary>Reference: full SQLite schema</summary>
 
 ```sql
--- 1. Stakeholders Table
+-- 1. Stakeholders — people referenced by project events (not necessarily login users)
 CREATE TABLE stakeholders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT UNIQUE,
-    role TEXT,
+    role TEXT, -- free-text job title, e.g. "UX Designer" — distinct from project_role below
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 2. Projects Table
+-- 2. Projects
 CREATE TABLE projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    description TEXT, -- captures Scope, see PM Concept Mapping in Section 1
-    color_hex TEXT NOT NULL DEFAULT '#3B82F6', -- Used for project overlay representation
-    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived','completed')), -- [stretch] drives sidebar visibility, see Section 3
-    start_date TEXT, -- YYYY-MM-DD, planned/actual kickoff
-    target_end_date TEXT, -- YYYY-MM-DD, planned delivery date (the "Time" constraint)
-    actual_end_date TEXT, -- YYYY-MM-DD; server sets this when status flips to 'completed' (see Section 4), null while active
-    budget_planned REAL, -- the "Cost" constraint; single implicit currency, no multi-currency support
-    budget_spent REAL NOT NULL DEFAULT 0, -- manually-updated running total, not a line-item ledger — see Section 1 non-goals
+    description TEXT, -- Scope
+    color_hex TEXT NOT NULL DEFAULT '#3B82F6', -- identifies this project on the overlay timeline
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived','completed')),
+    start_date TEXT, -- YYYY-MM-DD
+    target_end_date TEXT, -- YYYY-MM-DD — the Time constraint
+    actual_end_date TEXT, -- set when status flips to 'completed'; null while active
+    budget_planned REAL, -- the Cost constraint; single implicit currency
+    budget_spent REAL NOT NULL DEFAULT 0, -- a running total, not a line-item ledger
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 3. Project-Stakeholder Association (Many-to-Many)
--- Defines which stakeholders are assignable within a project (drives the
--- participant/assignee dropdowns in Section 3) AND each person's project-level
--- governance role (the "People" constraint — see PM Concept Mapping, Section 1).
+-- 3. Project-Stakeholder Association — who's on the team, and in what capacity
 CREATE TABLE project_stakeholders (
     project_id INTEGER NOT NULL,
     stakeholder_id INTEGER NOT NULL,
@@ -73,19 +100,18 @@ CREATE TABLE project_stakeholders (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE CASCADE
 );
--- Enforces "single accountable owner": at most one lead per project.
--- SQLite partial indexes support this directly, no trigger needed.
+-- Guarantees a single accountable owner: at most one lead per project.
 CREATE UNIQUE INDEX idx_one_lead_per_project ON project_stakeholders(project_id) WHERE project_role = 'lead';
 
--- 4. Events Table
+-- 4. Events — the entries that appear on the timeline
 CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     title TEXT NOT NULL,
-    date TEXT NOT NULL, -- Format: YYYY-MM-DD
-    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')), -- milestone/deadline are forward-looking markers, see Section 3
+    date TEXT NOT NULL, -- YYYY-MM-DD
+    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')),
     summary TEXT,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- only meaningful for milestone/deadline, see Section 3.B
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- meaningful only for milestone/deadline
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -93,9 +119,7 @@ CREATE TABLE events (
 CREATE INDEX idx_events_project_id ON events(project_id);
 CREATE INDEX idx_events_date ON events(date);
 
--- 5. Event-Participant Association (Many-to-Many)
--- Application layer must only offer stakeholders present in
--- project_stakeholders for the event's project (not enforced at the DB level).
+-- 5. Event Participants
 CREATE TABLE event_participants (
     event_id INTEGER NOT NULL,
     stakeholder_id INTEGER NOT NULL,
@@ -104,25 +128,25 @@ CREATE TABLE event_participants (
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE CASCADE
 );
 
--- 6. Decisions Table
+-- 6. Decisions — what got agreed, and who's accountable for the call
 CREATE TABLE decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
     text TEXT NOT NULL,
-    decided_by INTEGER, -- Links to Stakeholders; who owns/made the call
+    decided_by INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (decided_by) REFERENCES stakeholders(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_decisions_event_id ON decisions(event_id);
 
--- 7. Action Items Table
+-- 7. Action Items
 CREATE TABLE action_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
     text TEXT NOT NULL,
-    assignee_id INTEGER, -- Links to Stakeholders
-    done INTEGER NOT NULL DEFAULT 0, -- 0 for false, 1 for true
+    assignee_id INTEGER,
+    done INTEGER NOT NULL DEFAULT 0,
     due_date TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
@@ -131,15 +155,15 @@ CREATE TABLE action_items (
 CREATE INDEX idx_action_items_event_id ON action_items(event_id);
 CREATE INDEX idx_action_items_assignee_id ON action_items(assignee_id);
 
--- 8. Pain Points Table
+-- 8. Pain Points — the Quality signal
 CREATE TABLE pain_points (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id INTEGER NOT NULL,
     text TEXT NOT NULL,
     severity TEXT NOT NULL CHECK(severity IN ('Low', 'Medium', 'High')),
-    owner_id INTEGER, -- Links to Stakeholders; who is accountable for resolving it
-    resolved INTEGER NOT NULL DEFAULT 0, -- 0 for false, 1 for true
-    resolved_at TEXT, -- set by the server when `resolved` flips to 1, cleared if flipped back
+    owner_id INTEGER,
+    resolved INTEGER NOT NULL DEFAULT 0,
+    resolved_at TEXT, -- set when resolved flips to true, cleared if flipped back
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (owner_id) REFERENCES stakeholders(id) ON DELETE SET NULL
@@ -147,22 +171,16 @@ CREATE TABLE pain_points (
 CREATE INDEX idx_pain_points_event_id ON pain_points(event_id);
 CREATE INDEX idx_pain_points_owner_id ON pain_points(owner_id);
 
--- 9. Members Table
--- Deliberately separate from Stakeholders: a member is a notification subscriber, not
--- necessarily a person doing project work. stakeholder_id is an optional link to a
--- Stakeholder identity — only members linked this way can receive "assigned to you"
--- notifications, since assignee_id/owner_id/decided_by all point at stakeholders. A
--- member with no stakeholder_id can still subscribe to project digests (see below).
--- password_hash is nullable: a member is a notification subscriber first and a
--- login account only once someone sets a password for them (Section 3.G). Never
--- select/return this column to a client — see the members endpoints in Section 4.
+-- 9. Members — login + notification subscribers, separate from Stakeholders
+-- (a member is a notification subscriber first, a login account only once
+-- someone sets a password for them; stakeholder_id optionally links the two)
 CREATE TABLE members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     stakeholder_id INTEGER,
     password_hash TEXT,
-    role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin','member')), -- see Section 3.H
+    role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('admin','member')),
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
@@ -171,8 +189,7 @@ CREATE TABLE members (
 );
 CREATE INDEX idx_members_stakeholder_id ON members(stakeholder_id);
 
--- 9b. Sessions — backs the login cookie (Section 3.G). No sliding expiry or
--- cleanup job in this prototype; a session is valid until expires_at, full stop.
+-- 9b. Sessions — backs the login cookie
 CREATE TABLE sessions (
     token TEXT PRIMARY KEY,
     member_id INTEGER NOT NULL,
@@ -182,8 +199,7 @@ CREATE TABLE sessions (
 );
 CREATE INDEX idx_sessions_member_id ON sessions(member_id);
 
--- 10. Member-Project Subscriptions (digest scope) — independent of project_stakeholders,
--- since a member doesn't have to be doing work on a project to want its digests.
+-- 10. Member-Project Subscriptions — digest scope, independent of team membership
 CREATE TABLE member_projects (
     member_id INTEGER NOT NULL,
     project_id INTEGER NOT NULL,
@@ -192,11 +208,7 @@ CREATE TABLE member_projects (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
--- 11. Notifications Table — stub outbox. Real sending needs an external provider
--- (SMTP/SendGrid/Postmark/etc.) with credentials this project doesn't have yet, so a
--- row here stands in for an actual send. Swapping in a real provider later means
--- replacing the insert in server/utils/notify.js with an actual send call using the
--- same (member, subject, body) shape — the trigger logic itself doesn't change.
+-- 11. Notifications — stub outbox until a real email provider is wired in
 CREATE TABLE notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id INTEGER NOT NULL,
@@ -209,248 +221,151 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_member_id ON notifications(member_id);
 ```
 
----
+</details>
 
-## 3. UI/UX & Layout Structure
+## 6. Feature Walkthrough
 
-### A. Sidebar / Sidebar Controller
-*   **Project Selector:** A checklist of `status = 'active'` projects in the database. Each project row shows: the colored checkbox (using `color_hex`), the project name, the **Lead's** initials/avatar (their `project_role = 'lead'` stakeholder — every project has exactly one, see Section 2), and the three RAG scorecard dots from Section 3.E. **[stretch]** A "Show archived/completed" toggle at the bottom of the list reveals projects in those states (still viewable/selectable, visually muted) — this keeps the list usable once a real project history accumulates instead of growing forever. Archiving/completing a project is a status change only, not a delete — no cascade.
-*   **Project Create/Edit Form:** name, description, color, `start_date`, `target_end_date`, `budget_planned`, `budget_spent`, and a required **Lead** selector (dropdown of stakeholders). Creating a project without a lead is not allowed — see `POST /api/projects` in Section 4. Additional team members, the sponsor, and other stakeholders are assigned afterward via the project's people list (role dropdown: sponsor / member / stakeholder — `lead` is reassigned only through the dedicated "Change lead" action, never the generic role dropdown, so the app can never end up with zero or two leads).
-*   **Overlay Toggle:** Checking multiple projects immediately merges their events onto the active timeline view. **Zero-selection state:** when no projects are checked, the timeline and dashboard tabs show an explicit empty state ("Select a project to see its timeline") rather than an empty or all-projects view.
-*   **Stakeholder Directory Button:** Opens a **modal** (not a routed page — see Section 1) to manage the global database of Stakeholders: list, create, edit, delete. **[stretch]** Selecting a stakeholder in this modal expands a rollup — projects they're assigned to, open action items assigned to them, and upcoming milestones/deadlines on their projects — computed across *all* their projects regardless of the sidebar's current selection. This is the one view in the app that answers "what is this person on the hook for" rather than "what is this project's history."
-*   **Portfolio Health Badge:** A small persistent indicator in the header (independent of sidebar selection) showing counts across all active projects: overdue action items and open high-severity pain points. See Section 3.D — this is the one signal always visible even before selecting anything.
+### A. Sidebar
+A checklist of active projects, each showing its color, name, lead's initials, and RAG scorecard dots (Section 6.E). Checking projects overlays their events on the timeline; unchecking clears them. A "show archived/completed" toggle keeps the list usable once project history piles up — archiving is just a status change, never a delete.
 
-### B. View 1: Multi-Project Overlay Timeline
-*   **Timeline Track:** A chronological horizontal line divided visually into **Past**, **Present (Today)**, and **Future**. "Today" is computed from the browser's local date (`YYYY-MM-DD`); since `events.date` has no time component, comparisons are date-only string comparisons, not timezone-aware timestamps.
-*   **Event Bubbles:**
-    *   Represented by a bubble containing the event-type icon. Fixed icon mapping (Lucide Vue):
-        | type | icon | shape |
-        |---|---|---|
-        | kickoff | `Rocket` | circle |
-        | sync | `RefreshCw` | circle |
-        | workshop | `Users` | circle |
-        | review | `ClipboardCheck` | circle |
-        | decision | `GitBranch` | circle |
-        | retro | `History` | circle |
-        | milestone | `Flag` | diamond |
-        | deadline | `AlarmClock` | diamond |
-    *   **Milestone / Deadline events** are forward-looking markers, not meeting records: `milestone` marks a target the project is working toward (e.g., "Design freeze"); `deadline` marks a hard external due date. Both render as a diamond (vs. the circular bubble used for meeting-type events) so the "history vs. plan" distinction is visible without reading the icon. Participants are optional and typically empty for these two types — the Participants section on the detail card may be omitted for them, but Decisions/Action Items/Pain Points remain available since a deadline slip often produces exactly those.
-    *   **Status** applies only to `milestone`/`deadline` — the other six types are historical records with nothing to track. `status` (`pending`/`achieved`/`missed`) drives the bubble's icon and fill independently of its border: the border always stays the project color (identifies *whose* event it is on the shared overlay), while icon/fill communicate whether it was hit. `achieved` → green check-circle icon, light green fill. `missed` → red X-circle icon, light red fill. `pending` with a past date (nobody marked it either way) → the original type icon in amber, light amber fill, flagging it as needing attention. `pending` with a future date renders normally (white fill, slate icon) — it just hasn't happened yet.
-    *   **Overlay Treatment:** The outer ring/border of the bubble must match the parent project's `color_hex` (e.g., `border-2` using inline style `borderColor: project.color_hex`). This allows users to immediately tell which project an event belongs to on a shared timeline.
-    *   **Collision handling:** Cluster by *rendered pixel distance*, not just shared calendar date — two events a few days apart can still collide once dates are compressed into pixels, especially at low zoom. Sort events by date, walk them in order, and start a new cluster whenever the pixel gap to the previous event exceeds a fixed threshold (~90px, matched to the ~88px truncated title label width); each event within a cluster stacks vertically as its own independently clickable bubble+title (no intermediate picker popup — every item is directly visible and clickable). Recomputes whenever the zoom level changes.
-    *   **Zoom:** Zoom in/out controls (buttons, not a slider) scale pixels-per-day directly, which is also the fix for label collisions — zooming in gives close-together events enough pixel distance to separate into their own bubbles instead of stacking. Re-centers the horizontal scroll position on whatever was in the middle of the viewport before the zoom, so a zoom click doesn't jump the view. A reset control returns to 100% and re-scrolls to center on "Today" — also the default scroll position on first load, so the timeline doesn't open scrolled to its earliest (usually oldest-past) date.
-    *   Clicking a bubble opens the detail card.
-*   **Event Detail Slide-over / Modal:**
-    *   Displays the source Project Name with its colored badge and the project Lead's name.
-    *   Title, Date, Type, Summary — editable in place. For `milestone`/`deadline` types, a Status selector (Pending/Achieved/Missed) replaces the Participants field (see Section 2).
-    *   **Participants Section:** Multi-select dropdown scoped to stakeholders assigned to that project (via `project_stakeholders`), backed by `event_participants`.
-    *   **Action Items:** Task checklist with dropdown assignee selectors pulling from the project's assigned Stakeholders; add/edit/delete individual items. Overdue items (`due_date` in the past and `done = 0`) render with a red due-date treatment.
-    *   **Decisions & Pain Points:** Interactive lists allowing additions, inline edits, and deletion. Each decision has a "Decided by" stakeholder selector (`decided_by`); each pain point has an "Owner" stakeholder selector (`owner_id`) — both scoped to the project's assigned Stakeholders and optional. This is what makes these lists actionable rather than a text log: every open item has someone accountable for it.
-*   **Destructive actions:** Deleting a project or event cascades to all nested records (events, decisions, action items, pain points). The UI must show a confirmation dialog before either delete, naming what will be removed (e.g., "This will also delete 12 events").
+Creating a project requires picking a Lead up front — you cannot create a project without one. Everyone else (sponsor, additional members, other stakeholders) gets added afterward from the project's own team list.
 
-### C. View 2: Aggregated Views (Tab Switcher)
-These dashboards aggregate data across *only* the currently selected (checked) projects, rendered as tabs within the same page (no route change):
-*   **Action Items Tab:** List of tasks assigned to stakeholders. Displays the Task, Assignee Name, Project (with color badge), and Due Date (overdue items highlighted). Filterable by "My Tasks" or by Project.
-*   **Pain Points Tab:** Grouped list of pain points sorted by severity. Displays the Owner and Project context for each item.
-*   **Decisions Tab:** Chronological logs of all key agreements made, showing which event, project, and decision-maker they originated from.
+A small persistent badge in the header always shows portfolio-wide health — overdue action items and open high-severity pain points across every active project — regardless of what's currently selected in the sidebar, so you get a signal even before choosing anything.
 
-### D. At-a-Glance Health Summary
-A summary strip above the timeline, computed across the currently selected projects (recomputes on selection change):
-*   **Overdue Action Items** — count, click to jump to the filtered Action Items tab.
-*   **Open High-Severity Pain Points** — count of `severity = 'High' AND resolved = 0`.
-*   **Upcoming Deadlines/Milestones** — count of `type IN ('milestone','deadline')` with `date` within the next 14 days.
+### B. The Overlay Timeline
+The core view: a horizontal chronological track split into Past / Present / Future, with "today" computed from the browser's local date.
 
-This exists because a raw timeline and three list tabs answer "what happened," not "is this okay" — a PM opening the tool should be able to tell project health at a glance without reading every item. The portfolio-wide badge in Section 3.A reuses the same three numbers but computed across all active projects regardless of selection.
+Each event renders as a bubble with an icon and a border in its project's color, so on a shared timeline you can always tell which project an event belongs to:
 
-### E. Project Scorecard (RAG Status)
-Every project gets three traffic-light indicators — **Schedule, Cost, Quality** — the exact three things the project Lead is accountable for (PM Concept Mapping, Section 1). Computed server-side (see `GET /api/projects` in Section 4), not stored:
-*   **Schedule:** `red` if `target_end_date` has passed and `status != 'completed'`; `amber` if `target_end_date` is within 14 days and `status != 'completed'`; `green` otherwise (or no `target_end_date` set → shown as `n/a`).
-*   **Cost:** `red` if `budget_spent > budget_planned`; `amber` if `budget_spent >= 90%` of `budget_planned`; `green` otherwise (or `n/a` if `budget_planned` is unset).
-*   **Quality:** based on open high-severity pain points — `red` at 3+, `amber` at 1–2, `green` at 0.
+| type | icon | shape |
+|---|---|---|
+| kickoff | Rocket | circle |
+| sync | Refresh | circle |
+| workshop | Users | circle |
+| review | Clipboard check | circle |
+| decision | Git branch | circle |
+| retro | History | circle |
+| milestone | Flag | diamond |
+| deadline | Alarm clock | diamond |
 
-These three dots appear next to each project in the sidebar (Section 3.A) and expanded, with labels, at the top of the timeline for the currently selected project(s). This is intentionally a lightweight heuristic, not Earned Value Management — see the non-goals in Section 1's PM Concept Mapping.
+Milestones and deadlines are forward-looking markers rather than meeting records — a milestone marks a target ("design freeze"), a deadline marks a hard external date. Both render as diamonds so the "history vs. plan" distinction reads at a glance. They carry a status — pending, achieved, or missed — which drives the bubble's fill and icon independently of its border (border always stays the project color; fill/icon communicate whether it was hit). A past-dated item nobody has marked either way shows up in amber as a nudge that it needs attention.
+
+Events that land close together — even a few days apart, once compressed into pixels — cluster and stack vertically as their own clickable bubbles rather than hiding behind a picker popup. Zoom controls change the pixel-per-day density, which both spreads out cramped clusters and lets you focus on a narrower window; a reset control snaps back to 100% and re-centers on today.
+
+Clicking a bubble opens its detail view: project + lead context, editable title/date/type/summary, a participants list (scoped to that project's team), and three actionable sub-lists — Action Items (with assignee and due date, overdue ones flagged), Decisions (with a "decided by" owner), and Pain Points (with severity and an owner). Every open item has someone accountable for it — that's what makes these lists worth having instead of a plain notes field.
+
+Deleting a project or event cascades to everything nested under it, so both actions get a confirmation dialog that names what's about to disappear (e.g. "this will also delete 12 events").
+
+### C. Aggregated Views
+Three cross-project tabs, scoped to whatever's currently selected in the sidebar:
+- **Action Items** — task, assignee, project, due date; overdue ones highlighted; filterable by "my tasks" or by project.
+- **Pain Points** — grouped by severity, with owner and project context.
+- **Decisions** — a chronological log of what's been agreed, with the originating event, project, and decision-maker.
+
+### D. Health Summary
+A strip above the timeline, recomputed whenever the selection changes: overdue action items, open high-severity pain points, and milestones/deadlines coming up in the next 14 days. This exists because a raw timeline and three list tabs tell you what happened, not whether things are okay — this strip is the "is this okay" answer. The portfolio badge in the sidebar reuses the same three numbers, just computed across everything active rather than just the current selection.
+
+### E. Project Scorecard (RAG status)
+Three traffic-light dots per project — Schedule, Cost, Quality — the exact three things the lead is accountable for. Computed on the fly, not stored:
+- **Schedule** — red if the target date has passed and the project isn't marked complete; amber if it's within 14 days; green otherwise.
+- **Cost** — red if spend has exceeded the plan; amber at 90%+ of plan; green otherwise.
+- **Quality** — red at 3+ open high-severity pain points, amber at 1–2, green at 0.
+
+Deliberately a rough heuristic, not a formal earned-value calculation — good enough to flag "look here," not precise enough to defend in a budget review.
 
 ### F. Members & Notifications
-Closes the loop between "the data exists in the tool" and "the right person actually saw it" — useful for anyone who isn't in the app day-to-day. Deliberately a separate concept from Stakeholders (Section 2's `members` table), reachable from two sidebar entry points:
-*   **Members button:** Opens a modal to manage the global list of notification subscribers — create/edit/delete, an optional dropdown to link a member to their Stakeholder identity (required for the "assigned to you" trigger), three toggles (`notify_assigned` / `notify_overdue_action_items` / `notify_upcoming_deadlines`), and a per-member project checklist controlling digest scope (`member_projects`) — independent of that person's `project_stakeholders` assignments, since wanting visibility into a project and doing work on it are different things.
-*   **Notification bell (with count) next to the portfolio health badge:** Opens a log of every notification the system has generated — subject, recipient, body, timestamp — since sending is stubbed (Section 2's `notifications` table comment) rather than wired to a real provider. Includes a **"Run Digest Now"** button, since there's no background scheduler in this prototype; in production this computation would run on a cron schedule (e.g. nightly) instead of on demand.
-*   **Triggers:** (1) *Assigned to you* — real-time, fires when an action item's `assignee_id`, a pain point's `owner_id`, or a decision's `decided_by` is set to a stakeholder linked to a notify-enabled member. (2) *Overdue action items* — digest, one row per subscribed member listing their overdue items across their subscribed projects. (3) *Upcoming deadlines/milestones* — digest, same shape, for `milestone`/`deadline` events within 14 days. A broader "a decision was logged on one of your projects" broadcast (to every subscriber, not just the decision-maker) was considered and deliberately not built — only these three triggers exist (see Phase 8 in Section 5).
-*   **Live delivery:** A WebSocket connection (server: `ws` library attached to the same HTTP server as Express, path `/ws`; client: reconnecting connection opened once on app load) pushes every newly generated notification to connected clients the instant it's written, instead of requiring a manual refresh or poll. Broadcasts are **targeted to the specific member the notification is for** — the WS upgrade request carries the session cookie, so the server knows which member each connected socket belongs to (see Section 3.G) and only sends a notification to sockets for the member it names; a member with several tabs open gets it on all of them. The Notifications *log* (the modal, `GET /api/notifications`) still shows every notification to anyone logged in, regardless of member — this only changed what triggers the live push/sound. Receiving one plays a short two-tone chime (generated client-side via the Web Audio API, no audio file asset) and prepends the notification into the log in real time; a mute toggle next to the bell persists to `localStorage`.
+Closes the loop between "the data exists in the tool" and "the right person actually saw it" — useful for anyone who isn't opening the app every day. Kept as a separate concept from Stakeholders on purpose: a Member is a notification subscriber, who may or may not also be someone doing project work.
+
+- A **Members** panel manages the list of subscribers: create/edit/delete, an optional link to a Stakeholder identity (needed for "assigned to you" alerts), three notification toggles, and a per-member project checklist controlling which projects' digests they get — independent of whether they're actually on that project's team.
+- A **notification bell** opens a log of everything the system has generated, plus a "Run Digest Now" button standing in for what would be a nightly job in a production deployment.
+- Three triggers: something gets assigned to you (real-time), your action items are overdue (digest), or a deadline/milestone on one of your projects is coming up in 14 days (digest).
+- Live delivery runs over a WebSocket connection targeted at the specific member a notification is for — open the app in two tabs and both get it. A short chime plays on arrival (generated in-browser, no audio asset), with a mute toggle that remembers your preference.
 
 ### G. Login
-Required to use the app at all — every `/api/*` route except `/api/auth/*` is gated server-side (Section 4), not just hidden in the UI, so this is real authentication, not cosmetic. On its own this section is *authentication only*; Section 3.H layers a two-role authorization model on top of it.
-*   **Login accounts live on `members`** (Section 2's `password_hash`, nullable), not a separate Users table and not Stakeholders. A member becomes login-capable the moment someone sets a password for them via the Members modal (Section 3.F) — until then they're notification-only, exactly as before this feature existed. This means the same person-record that already tracks notification preferences is the one that logs in, instead of adding a fourth overlapping "person" concept alongside Stakeholder and Member.
-*   **Flow:** app loads → `GET /api/auth/me` → a valid session shows the app, anything else (no cookie, expired, unknown) shows a full-screen login form (email + password) → successful `POST /api/auth/login` sets an httpOnly session cookie and reveals the app. A "Signed in as {name}" line (with an "Admin" badge when applicable) and a logout button sit in the sidebar header; logout calls `POST /api/auth/logout` and reloads the page, which is the simplest correct way to tear down the WebSocket connection and all in-memory state at once.
-*   **Sessions:** an opaque random token (Section 2's `sessions` table) in an httpOnly, `SameSite=Lax` cookie, 7-day fixed expiry (no sliding renewal). Passwords hashed with Node's built-in `crypto.scrypt` (salted, `timingSafeEqual` comparison) — no bcrypt/argon2 dependency for what's explicitly a basic implementation.
-*   **One small UX payoff from knowing who's logged in:** the Action Items tab's "My Tasks" filter (Section 3.C) now defaults to the current member's linked Stakeholder, when they have one, instead of always starting on "all assignees." Still just a starting point — the dropdown stays fully editable.
-*   **Explicitly out of scope:** password reset/forgot-password, self-service registration (accounts are provisioned through the Members modal, not a signup flow), CSRF tokens (relying on `SameSite=Lax` for this prototype), login rate-limiting/brute-force protection, and session cleanup for expired rows (they just sit unused) — see Phase 10 in Section 5 for the full list.
+Real authentication, not a cosmetic gate — every API route except login itself requires a valid session. Accounts live on the `members` table (the same record that already tracks notification preferences) rather than a separate Users concept; a member becomes login-capable the moment someone sets a password for them. Sessions are a random token in an httpOnly cookie, valid 7 days with no sliding renewal; passwords are hashed with Node's built-in `scrypt`. Deliberately out of scope for now: password reset, self-service signup, CSRF tokens, login rate-limiting, and cleanup of expired sessions.
 
-### H. Roles & Access Control
-Two roles, no more: `admin` and `member` (Section 2's `members.role`). Not a permission matrix — there's no third role, no custom permission grants, no per-action toggles. Enforced server-side on every route that touches project-scoped data, not just hidden client-side controls (`server/utils/access.js`, applied consistently across `projects`/`events`/`decisions`/`action-items`/`pain-points`/`dashboard`), so this is a real boundary, not a UI convenience — verified by driving it with curl and a real WebSocket client (Phase 11 in Section 5), not just code review.
-*   **Admin** sees and can modify every project, and is the only role that can create or delete a project, or reach the Stakeholder Directory and Members management (both entire routers admin-gated at the mount point in `index.js`, not per-route).
-*   **Member (non-admin)** only sees projects they're **committed to** — meaning their linked Stakeholder identity has a `project_stakeholders` row for that project (any role: lead/sponsor/member/stakeholder). This is deliberately the *stronger* of the two existing person-relationships, not the `member_projects` digest subscription — someone who only subscribes to a project's digests (the Grace case, Section 3.F) is not thereby granted access to it. A member with no `stakeholder_id` at all is committed to nothing and sees an empty project list.
-*   **What "committed" does *not* restrict:** creating/editing/deleting events, decisions, action items, and pain points on a project a member IS committed to — that's available to any committed member, not gated further to (e.g.) just the project's lead. There's no within-project role hierarchy here, only the binary "committed or not."
-*   **404, not 403, for inaccessible projects.** A non-admin requesting a project (or its events, or a resource nested under one of its events) they're not committed to gets the same `404` as if it didn't exist, so probing an ID can't distinguish "wrong ID" from "real project you can't see."
-*   **Read endpoints re-filter server-side regardless of what the client asked for** — e.g. `GET /api/events?project_ids=1,2,3` silently drops any ids the caller can't access rather than erroring, so a non-admin can never pull another project's data by constructing the request differently than the UI would, even though the UI itself would never offer those ids in the first place.
-*   **Known gap, left open on purpose:** the Notifications log (`GET /api/notifications`) is *not* scoped by project. `notifications` rows don't carry a `project_id` — the project context only exists as free text inside `subject`/`body` — so a non-admin could see a log line referencing a project they otherwise can't access. Closing this would mean adding a `project_id` column and threading it through `notifyAssigned()` and the digest generator; not done here since it wasn't part of what was asked and the data model doesn't have a clean hook for it yet.
+### H. Roles & Access
+Two roles, nothing fancier: **admin** sees and manages everything, including the Stakeholder Directory and Member management, and is the only one who can create or delete a project. **Member** only sees projects they're actually committed to — meaning their linked Stakeholder identity has a team role on that project, not just a digest subscription. Access is enforced on the server on every route, not just hidden in the UI, and a project you can't access returns a plain 404 rather than a 403 — so you can't tell the difference between "wrong ID" and "real project you're not on." One known, accepted gap: the notification log isn't filtered by project, so in principle a non-admin could see a log line mentioning a project they can't otherwise open. Not worth the schema change yet.
 
----
+## 7. API Surface (Reference)
 
-## 4. API Endpoints (Express Backend)
+Conventions: JSON bodies, `400` for validation errors, `404` for missing/inaccessible resources, `401` for no/expired session, `403` for an admin-only route hit by a non-admin. Multi-step writes (an event plus its decisions/action items/pain points, a project plus its lead assignment) happen inside a single transaction so they can't partially land.
 
-Conventions: JSON bodies; validation errors return `400 { error: string }`; missing resources return `404 { error: string }`; all nested-write endpoints run inside a single `better-sqlite3` transaction. **Every route below requires a valid session** (Section 3.G) — mounted after the `requireAuth` gate, which returns `401 { error: string }` for a missing/invalid/expired session. `/api/auth/*` is the only unprotected prefix, for the obvious reason that logging in can't require already being logged in. **Beyond that, most routes are further gated by role/commitment** (Section 3.H): `[admin-only]` marks a route (or, for Stakeholders/Members, an entire router) reachable only by `role = 'admin'`, returning `403`; `[committed]` marks a route scoped to projects the member is committed to, returning `404` (not `403`) for one they aren't — see Section 3.H for why `404`.
-
-**Auth** (unprotected)
-*   `POST /api/auth/login` — `{ email, password }`. `400` if either is missing, `401` on a wrong email/password or a member with no password set at all. On success, sets the session cookie and returns `{ id, name, email, stakeholder_id, role }` — never the password hash.
-*   `POST /api/auth/logout` — clears the session (idempotent — succeeds even with no session to clear) and the cookie.
-*   `GET /api/auth/me` — returns the current member (including `role`) from the session cookie, or `401` if not logged in. This is what the client calls on load to decide whether to show the login screen or the app, and what it uses to decide which admin-only UI to render.
+**Auth**
+- `POST /api/auth/login` — `{ email, password }` → sets the session cookie, returns the member (never the password hash)
+- `POST /api/auth/logout`
+- `GET /api/auth/me` — current member + role, or 401
 
 **Projects**
-*   `GET /api/projects?status=active` — Get projects, optionally filtered by status (`active`/`archived`/`completed`); omit to get all. **Filtered to committed projects for a non-admin** — not a separate route variant, the same endpoint just returns less. Each project object includes `lead: { id, name }` and `scorecard: { schedule, cost, quality }` (Section 3.E), computed on read. [stretch: `status` param and non-`active` values]
-*   `POST /api/projects` `[admin-only]` — Create a project. Body requires `{ name, ..., lead_stakeholder_id }`; the project row and the `project_stakeholders` row with `project_role = 'lead'` are created in one transaction — a project cannot exist without a lead. `400` if `lead_stakeholder_id` is missing or doesn't reference an existing stakeholder.
-*   `PUT /api/projects/:id` `[committed]` — Update project (name, description, color_hex, status, start_date, target_end_date, budget_planned, budget_spent). If `status` changes to `completed` and `actual_end_date` is null, the server sets `actual_end_date = date('now')`. This endpoint does not accept lead changes — use the dedicated endpoint below.
-*   `PUT /api/projects/:id/lead` `[committed]` — Reassign the project lead (`{ stakeholder_id }`). Atomically demotes the current lead's `project_role` to `member` and promotes the given stakeholder to `lead` in one transaction, so there is never a moment with zero or two leads. `400` if `stakeholder_id` is not already assigned to the project (assign them first via the endpoint below). Available to any committed member, not just the current lead or an admin — see Section 3.H's note on there being no within-project role hierarchy.
-*   `DELETE /api/projects/:id` `[admin-only]` — Delete project (cascades to events/decisions/action items/pain points). Note: prefer `PUT .../status=archived` over delete for a project with real history — delete is for mistakes, archive is for lifecycle.
-*   `GET /api/projects/:id/stakeholders` `[committed]` — List stakeholders assigned to the project with their `project_role`, ordered lead first. This is what scopes the participant/assignee/decided-by/owner dropdowns in Section 3 to the right people — without it those dropdowns have no data source. Deliberately *not* admin-gated like the global Stakeholder Directory below — a committed non-admin still needs this to work.
-*   `POST /api/projects/:id/stakeholders` `[committed]` — Assign an existing stakeholder to the project (`{ stakeholder_id, project_role? }`, defaults to `member`; `lead` is rejected here — use `PUT .../lead`).
-*   `PATCH /api/projects/:id/stakeholders/:stakeholderId` `[committed]` — Change a non-lead assignee's `project_role` (`sponsor`/`member`/`stakeholder`). `400` if attempting to set `lead` here.
-*   `DELETE /api/projects/:id/stakeholders/:stakeholderId` `[committed]` — Unassign a stakeholder from the project. `400` if the target is the current lead — reassign the lead first.
+- `GET /api/projects?status=active` — filtered to committed projects for a non-admin; includes lead and scorecard
+- `POST /api/projects` *(admin)* — requires a lead
+- `PUT /api/projects/:id` — everything except lead reassignment
+- `PUT /api/projects/:id/lead` — atomic demote-old/promote-new
+- `DELETE /api/projects/:id` *(admin)* — cascades
+- `GET/POST/PATCH/DELETE /api/projects/:id/stakeholders...` — manage the project team
 
-**Stakeholders** `[admin-only, whole router]`
-*   `GET /api/stakeholders` — Get all global stakeholders.
-*   `POST /api/stakeholders` — Create a stakeholder.
-*   `PUT /api/stakeholders/:id` — Update a stakeholder.
-*   `DELETE /api/stakeholders/:id` — Delete a stakeholder (cascades to `project_stakeholders` / `event_participants`; `decisions.decided_by`, `pain_points.owner_id`, and `action_items.assignee_id` set NULL). `400` if the stakeholder is the `lead` on any project — the cascade would otherwise silently delete the `project_stakeholders` row that holds the single-accountable-owner guarantee from Section 2, leaving that project with no lead. Reassign the lead first.
-*   `GET /api/stakeholders/:id/summary` — **[stretch]** Rollup across all their projects: assigned projects, open action items, unresolved pain points they own, and upcoming milestones/deadlines. Powers the Section 3.A directory rollup.
+**Stakeholders** *(admin only)*
+- `GET/POST/PUT/DELETE /api/stakeholders` — the global directory
+- `GET /api/stakeholders/:id/summary` — cross-project rollup
 
-**Events** `[committed]`
-*   `GET /api/events?project_ids=1,2,3` — Fetch events for specified project IDs, including nested decisions, action items, pain points, and participants, sorted by `date`. Any requested id the caller isn't committed to is silently dropped, not errored — see Section 3.H.
-*   `POST /api/events` — Create a new event, along with its linked arrays of decisions, action items, pain points, and participants, in a single transaction. `status` defaults to `pending` if omitted. `404` if `project_id` isn't one the caller is committed to.
-*   `PUT /api/events/:id` — Update event's own fields (title, date, type, summary, status) and its `participants` array (diffed against `event_participants`). Nested decisions/action items/pain points are managed through their own endpoints below, not replaced wholesale here.
-*   `DELETE /api/events/:id` — Delete event.
+**Events** *(scoped to committed projects)*
+- `GET /api/events?project_ids=1,2,3` — nested decisions/action items/pain points/participants
+- `POST /api/events` — creates the event and its nested records in one transaction
+- `PUT/DELETE /api/events/:id`
 
-**Decisions** `[committed, via the parent event's project]`
-*   `POST /api/decisions` — Create a decision (`{ event_id, text, decided_by? }`).
-*   `PUT /api/decisions/:id` — Edit decision text/`decided_by`.
-*   `DELETE /api/decisions/:id` — Delete decision.
+**Decisions / Action Items / Pain Points** — standard create/update/delete per item, plus `PATCH` toggles for done/resolved status.
 
-**Action Items** `[committed, via the parent event's project]`
-*   `POST /api/action-items` — Create an action item.
-*   `PUT /api/action-items/:id` — Edit text/assignee/due_date.
-*   `PATCH /api/action-items/:id` — Toggle `done` status.
-*   `DELETE /api/action-items/:id` — Delete action item.
+**Dashboard**
+- `GET /api/dashboard/summary?project_ids=...` — the three health-summary counts, scoped or portfolio-wide
 
-**Pain Points** `[committed, via the parent event's project]`
-*   `POST /api/pain-points` — Create a pain point (`{ event_id, text, severity, owner_id? }`).
-*   `PUT /api/pain-points/:id` — Edit text/severity/`owner_id`.
-*   `PATCH /api/pain-points/:id` — Toggle `resolved` status; server sets `resolved_at = datetime('now')` when flipping to `1`, clears it when flipping back to `0`.
-*   `DELETE /api/pain-points/:id` — Delete pain point.
+**Members** *(admin only)*
+- `GET/POST/PUT/DELETE /api/members`
+- `GET/POST/DELETE /api/members/:id/projects` — digest subscriptions
 
-**Dashboard** `[committed]`
-*   `GET /api/dashboard/summary?project_ids=1,2,3` — Returns the three counts from Section 3.D (overdue action items, open high-severity pain points, upcoming milestones/deadlines within 14 days) for the given projects, filtered to ones the caller is committed to. Omit `project_ids` to compute across all `status = 'active'` *and committed* projects — this is what powers the portfolio badge in Section 3.A, now scoped per-viewer rather than portfolio-wide for a non-admin.
+**Notifications**
+- `GET /api/notifications?limit=50`
+- `POST /api/notifications/run-digest` — the on-demand stand-in for a scheduled job
 
-**Members** `[admin-only, whole router]`
-*   `GET /api/members` — Get all members, including `stakeholder_name` (joined) when linked and `has_password` (a boolean, not the hash — the only signal the client gets about whether a member can log in).
-*   `POST /api/members` — Create a member (`{ name, email, stakeholder_id?, password?, role?, notify_assigned?, notify_overdue_action_items?, notify_upcoming_deadlines? }`, all three notify flags default `true`, `role` defaults to `member`). `400` on a duplicate email, a `stakeholder_id` that doesn't exist, or a `password` under 6 characters. Omitting `password` creates a notification-only member with no login capability, same as before this field existed.
-*   `PUT /api/members/:id` — Update a member's own fields (same shape as create). An omitted or blank `password` leaves the existing one (or lack thereof) unchanged — there's no way to *clear* a password back to null through this endpoint, only to set or replace one.
-*   `DELETE /api/members/:id` — Delete a member (cascades to `member_projects`, their `notifications`, and their `sessions` — deleting a currently-logged-in member's account invalidates their session immediately on their next request).
-*   `GET /api/members/:id/projects` — List a member's subscribed projects.
-*   `POST /api/members/:id/projects` — Subscribe to a project (`{ project_id }`). `400` if already subscribed.
-*   `DELETE /api/members/:id/projects/:projectId` — Unsubscribe.
+## 8. Delivery Plan
 
-**Notifications** (login required, not otherwise scoped — see Section 3.H's known gap)
-*   `GET /api/notifications?limit=50` — Most recent stub log entries first, joined with member name/email, capped at 200. Shows every notification to anyone logged in, admin or not — not filtered by project commitment.
-*   `POST /api/notifications/run-digest` — Computes overdue-action-item and upcoming-deadline digests for every member across their subscribed projects and logs one row per non-empty digest per member. Returns `{ generated: <count> }`. Stands in for a scheduled job — see Section 3.F.
+Rough milestone sequence. Milestones 1–5 are the MVP — the tool isn't usable as a real PM aid without them. 6 is a genuine but deferrable stretch. 7–9 layer on notifications, live delivery, and login/roles once the core is proven out.
 
----
+**Milestone 1 — Foundations**
+Get the two-workspace project running end to end: Express API talking to a seeded SQLite database, Vue app hitting it through the Vite dev proxy. Deliverable: `npm run dev` boots both, and a health-check request round-trips.
 
-## 5. Implementation Steps for the AI Coding Agent
+**Milestone 2 — Data layer & API**
+Build out the schema and the full CRUD API for projects, stakeholders, events, decisions, action items, and pain points. Seed realistic sample data: at least two projects with different schedule/budget health, a handful of stakeholders split across them with one lead each, and a spread of events across past/present/future — including overlapping same-day events and at least one of each milestone status (achieved/missed/pending/overdue) so every visual state in the timeline actually gets exercised. Deliverable: the API is fully testable via curl/Postman before any UI exists on top of it.
 
-Phases 0–5 are **MVP** — the tool isn't usable as a PM tool without them. Phase 6 is **stretch** — real, but deferrable without making the MVP feel broken. Phase 7 verifies both.
+**Milestone 3 — Core timeline UI**
+Sidebar with project selection, the overlay timeline itself (icons, shapes, project-color borders, clustering, zoom/reset, today marker), and the project create/edit form including the required lead selector. Deliverable: you can create a project, select it, and see its events on the timeline.
 
-### Phase 0: Scaffolding (MVP)
-1. Create `/server` and `/client` workspaces per Section 1. Add root scripts to run both concurrently in dev (e.g. `concurrently`).
-2. Configure Vite dev proxy so `/client` calls to `/api/*` reach `http://localhost:3001` without CORS issues; still enable `cors` in Express for direct-port access during debugging.
+**Milestone 4 — Event detail & interactivity**
+The event detail view with editable fields, participants, and the three actionable sub-lists (decisions/action items/pain points) with owner/assignee pickers scoped correctly to the project's team. Confirmation dialogs on delete. Deliverable: full CRUD on an event and everything nested under it, from the UI.
 
-### Phase 1: SQLite Database Setup & Express API (MVP)
-1. Initialize the Node.js project in `/server`. Installs: `express`, `cors`, `better-sqlite3`.
-2. Write a database initializer script using the schema in Section 2, including `PRAGMA foreign_keys = ON;`.
-3. Seed the database with at least 2 projects (e.g., "Website Redesign" - Blue, "Marketing Campaign" - Green), each with `start_date`, `target_end_date`, and `budget_planned`/`budget_spent` set; 4 stakeholders (e.g., "Alice", "Bob", "Carol", "Dave") assigned across both projects with a mix of `project_role`s — each project needs exactly one `lead`, and at least one project should also have a `sponsor` — and 7+ events spanning past, present, and future dates — including: at least one same-day pair (to exercise timeline collision handling); at least one event with a decision (with `decided_by` set), an action item, and a pain point (with `owner_id` set) attached (to exercise all detail-card sections and ownership fields without manual data entry); at least one overdue action item (past `due_date`, `done = 0`); and at least one `milestone` or `deadline` event in the future (to exercise the diamond marker and the health summary's upcoming-deadlines count), one in the past with `status = 'achieved'`, one in the past with `status = 'missed'`, and one in the past left at the default `status = 'pending'` (to exercise all four timeline visual states from Section 3.B — upcoming, achieved, missed, and overdue-but-unmarked). Set one project's numbers so its scorecard (Section 3.E) comes out all-green and the other's so at least one dot comes out amber or red — this is the only way to verify the RAG thresholds actually render three distinct states.
-4. Implement all Express endpoints from Section 4 with the stated validation/error conventions (MVP endpoints only — skip the `[stretch]`-tagged ones for now).
+**Milestone 5 — Dashboards & health**
+The three aggregated tabs, the health summary strip, the portfolio badge, and the scorecard dots. Deliverable: opening the app answers "is anything on fire" without reading every event individually.
 
-### Phase 2: Vue 3 Frontend & Pinia Store (MVP)
-1. Initialize a Vue 3 SPA with Tailwind CSS and Pinia.
-2. Build a Pinia store (`useProjectStore.js`) to handle API calls:
-    *   `projects`: State list of projects.
-    *   `selectedProjectIds`: Array of IDs representing checked projects.
-    *   `stakeholders`: State list of stakeholders.
-    *   `events`: Array of combined events fetched from the API based on `selectedProjectIds` (refetch on change; empty array — and empty-state UI — when `selectedProjectIds` is empty).
-3. Create the layout with a Sidebar (Project Selector checklist, lead avatar, scorecard dots, and Stakeholder manager) and a main content area.
-4. Build the Project Create/Edit form from Section 3.A, including the required Lead selector and the time/budget fields — this form is what turns the schema's `lead`/`start_date`/`target_end_date`/`budget_*` fields into something a user actually sets.
+*→ MVP acceptance pass: walk the golden path end to end — create a project (confirm it's rejected without a lead), select projects, view the overlay timeline including a diamond marker, open an event and add/edit/delete a decision, action item, and pain point with owners set, toggle statuses from both the detail view and the aggregated tabs, delete an event and a project and confirm the cascades. Confirm the empty-selection state, same-day clustering, overdue highlighting, and both scoped and portfolio health counts all look right, and that all three scorecard colors actually show up somewhere in the seed data.*
 
-### Phase 3: Interactive Timeline Component (MVP)
-1. Build a responsive timeline component that takes the filtered `events` array and sorts them chronologically.
-2. Render each event bubble with the icon mapping, shape (circle vs. diamond), and border color rules from Section 3, including pixel-distance clustering/offset (not just same-day) so bubbles and their title labels never overlap.
-3. Add a visually distinct vertical line indicating "Today", and scroll to center on it by default rather than opening on the earliest date.
-4. Add the zoom in/out/reset controls from Section 3.B — pixel-per-day density is the single source of truth both the label-collision fix and the zoom feature depend on, so they should be implemented together rather than as separate mechanisms.
+**Milestone 6 — Stretch: lifecycle & rollups**
+Project status lifecycle (archive/complete) with the sidebar filter toggle, and the stakeholder rollup view (their assignments/open items/upcoming deadlines across all their projects). Not required for MVP sign-off.
 
-### Phase 4: Event Detail Drawer & Interactivity (MVP)
-1. Build an expanded view modal when an event bubble is clicked.
-2. Wire up forms to let the user add, edit, or delete an event, using the granular decisions/action-items/pain-points endpoints from Section 4 rather than a full-event replace, including the `decided_by`/`owner_id` selectors.
-3. Ensure dropdowns for participants, action item assignees, decision-makers, and pain point owners query only stakeholders assigned to that event's project (`project_stakeholders`), not the full global list.
-4. Add confirmation dialogs for event and project deletion per Section 3.
+**Milestone 7 — Members & notifications**
+The members/subscriptions/notifications tables and endpoints, the three notification triggers wired into the relevant create/update paths (fired only after the write commits, never inside the transaction), the Members panel, and the notification log with its manual "run digest" button. Seed at least one member linked to a stakeholder (to demonstrate a real assigned-notification) and one subscribed-but-unlinked member (the case that justifies keeping this separate from Stakeholders at all).
 
-### Phase 5: Global Dashboard Tabs & Health Summary (MVP)
-1. Build the Aggregated Tabs: **Action Items**, **Pain Points**, and **Decisions**, as in-page tabs (no routing), including overdue highlighting and owner/decision-maker columns.
-2. Write computed properties in Vue to query the state and group items across all active (selected) projects.
-3. Ensure toggling a task as "Done" or a pain point as "Resolved" in the global list fires a `PATCH` request to update the SQLite database and updates local state optimistically.
-4. Build the Section 3.D health summary strip and wire it to `GET /api/dashboard/summary`, plus the portfolio badge in the header (fetches the same endpoint without `project_ids`).
-5. Render the Section 3.E scorecard dots (Schedule/Cost/Quality) from the `scorecard` field already included in `GET /api/projects` — no extra request needed — both in the sidebar project rows and expanded above the timeline for the selected project(s).
+**Milestone 8 — Live delivery**
+WebSocket server broadcasting new notifications to connected clients, a reconnecting client-side connection, the in-browser chime, and a mute toggle. Ships first as broadcast-to-everyone (there's no login yet to target by), then gets retrofitted to per-member targeting in the next milestone.
 
-### Phase 6: Stretch Goals (Post-MVP)
-1. **Project lifecycle:** add the status dropdown to the project edit form, the archived/completed filter toggle in the sidebar, and the `status` query param handling on `GET /api/projects`.
-2. **Stakeholder rollup:** implement `GET /api/stakeholders/:id/summary` and the expandable rollup panel in the Stakeholder Directory modal.
-3. Treat these as separate follow-up work — don't block the Phase 7 verification of the MVP on them.
+**Milestone 9 — Login & roles**
+Password hashing, sessions, the login screen, and the two-role access model layered on top of everything built so far — including retrofitting the WebSocket layer to authenticate connections and target notifications per member. This is the milestone where "who is this for" becomes a real, server-enforced question rather than an open tool.
 
-### Phase 7: Verification
-1. Manually exercise the golden path in a browser: create a project through the form (confirm it's rejected without a Lead selected), select projects, view overlay timeline (including a diamond milestone/deadline marker), open an event, add/edit/delete a decision/action item/pain point with owners set, toggle statuses from both the detail card and the aggregated tabs, delete an event and a project and confirm cascades.
-2. Confirm the empty-selection state, the same-day-cluster rendering, the overdue-item highlighting, and the health summary counts (both scoped and portfolio-wide) all look correct.
-3. Confirm the scorecard dots show three distinct RAG states across the seeded projects (not all green — see the Phase 1 seeding note), and that reassigning a project's lead via the UI correctly demotes the old lead and never leaves a project with zero or two leads.
-4. If Phase 6 was implemented, verify archiving a project removes it from the default sidebar list without deleting data, and that the stakeholder rollup shows correct cross-project counts.
+*→ Roles acceptance pass: verify (not just review) that a non-admin only ever sees their committed projects, gets 404 rather than 403 on ones they're not on, gets 403 on the admin-only directories, and that list endpoints silently drop inaccessible IDs rather than erroring.*
 
-### Phase 8: Members & Notifications (stub outbox)
-1. Implement the `members` / `member_projects` / `notifications` tables from Section 2 and the Members/Notifications endpoints from Section 4.
-2. Wire `notifyAssigned()` (a single shared helper, not duplicated per route) into the create/update paths of action-items, pain-points, decisions, and the nested-creation path in `POST /api/events` — every place `assignee_id`/`owner_id`/`decided_by` can be set. Call it after the transaction commits, not inside it, so a rollback never produces a notification for data that didn't actually land.
-3. Implement `POST /api/notifications/run-digest` per Section 4. There is no cron/scheduler in this prototype — this is an on-demand stand-in for what would be a nightly job in production; document that seam clearly rather than pretending it's automatic.
-4. Build the Members modal (Section 3.F): CRUD, the optional Stakeholder link dropdown, the three notify toggles, and a per-member project checklist that calls the subscribe/unsubscribe endpoints immediately (not deferred to a form "Save") — mirrors the existing pattern in the Project edit form's People section.
-5. Build the Notifications log modal: reverse-chronological list of stub rows (subject, recipient, body, timestamp) plus the "Run Digest Now" button, and a bell-plus-count entry point in the sidebar next to the portfolio health badge.
-6. Seed at least one member linked to a stakeholder with `notify_assigned` on (and demonstrate it with real `notifyAssigned()` calls in the seed script itself, since seed data is written directly to SQL and bypasses the route-level hooks), one member *not* linked to any stakeholder but subscribed to project digests (the case that justifies keeping Members separate from Stakeholders at all), and confirm "Run Digest Now" produces at least one overdue-item and one upcoming-deadline row against the seeded data.
-7. **Explicitly out of scope for this phase:** real email delivery (needs provider credentials — swap point is `server/utils/notify.js`), a real cron scheduler, and a "new decision logged" broadcast-to-all-subscribers trigger (considered, not built — see Section 3.F).
+## 9. Known Gaps & Future Considerations
 
-### Phase 9: Live Delivery (WebSocket + sound)
-1. Add the `ws` package to `/server`. Create `server/ws.js`: attach a `WebSocketServer` to the same `http.Server` instance `app.listen()` returns (path `/ws`), track connected clients, and export a `broadcastNotification(notification)`. Originally shipped broadcasting to every connected socket, since there was no login yet and so no "which member is this browser tab" to target by — **superseded by Phase 10**, which retrofits per-member targeting once that identity exists. Implement the two phases in order; don't skip straight to targeted delivery, since that requires the session/cookie plumbing Phase 10 builds.
-2. Call `broadcastNotification()` from `notifyAssigned()` in `server/utils/notify.js` and from the digest loop in `POST /api/notifications/run-digest`, in both cases only after the relevant write has committed (same rule as Phase 8 step 2).
-3. Add a `/ws` entry (`{ target: 'ws://localhost:3001', ws: true }`) next to the existing `/api` entry in the client's Vite dev proxy config, so the client can connect to the same origin as the page in dev without hardcoding a port.
-4. Client: a small reconnecting WebSocket client (opened once on app mount) that calls a callback with each incoming notification; a Web-Audio-based two-tone chime with no audio file dependency, muted by default only if the user has muted it before (persisted to `localStorage`); wire both together so an incoming notification prepends into the store's notification list and plays the chime, and add a mute toggle next to the bell in the sidebar.
-5. **Explicitly out of scope:** push notifications when the browser tab isn't open (would need a service worker + the Push API, a materially different mechanism from a same-tab WebSocket), and any change to the stub-vs-real-email seam from Phase 8 — this phase is purely about *when the browser finds out*, not about *how the email eventually gets sent*.
-
-### Phase 10: Login
-1. Add `password_hash` to `members` and the `sessions` table from Section 2. Add `server/utils/password.js` (`hashPassword`/`verifyPassword` via Node's built-in `crypto.scrypt` — no new dependency for hashing).
-2. Add the `cookie-parser` package. Build `server/middleware/requireAuth.js` (exports `COOKIE_NAME`, `findSession(token)`, and the `requireAuth` middleware) and `server/routes/auth.js` (login/logout/me, Section 4). Mount `/api/auth` unprotected, then `app.use('/api', requireAuth)` before every other `/api/*` router, per Section 4's note.
-3. Retrofit `server/ws.js`: the WS upgrade request bypasses Express's middleware entirely (it's handled at the raw `http.Server` level), so cookie-parser/requireAuth don't run for it — parse the `Cookie` header by hand in the `connection` event, look up the session via the shared `findSession` helper from step 2, close the socket (`4401`) if it's missing/invalid, and stash `socket.memberId` on success. Change `broadcastNotification` to only send to sockets where `client.memberId === notification.member_id`.
-4. Update the members routes to accept an optional `password` on create/update (hash if provided; on update, a falsy password leaves the existing hash untouched), and to never `SELECT m.*` — use an explicit column list that excludes `password_hash` and adds a computed `has_password` boolean instead (Section 4).
-5. Client: `LoginView.vue` (email + password form), `api.auth.{me,login,logout}`, a `currentMember` field and `logout()` action on the Pinia store. In `App.vue`, call `GET /api/auth/me` on mount; show a loading state until that resolves, then the login view if it 401'd or the app if it didn't. `store.init()` and the WebSocket connection only start after a successful login (fresh or from an existing session) — they were previously unconditional in `onMounted`. Logout calls the API then `window.location.reload()`, the simplest correct way to tear down the WS connection and all in-memory state together.
-6. Add a "Signed in as {name}" line + logout button to the sidebar header, a password field to the Members modal's create/edit form (labeled differently for each — "leave blank, can't log in" vs. "leave blank, keep unchanged" — since blank means different things in the two modes), and a Login/Notification-only badge column to that modal's table. Default the Action Items tab's "My Tasks" filter to `store.currentMember.stakeholder_id` when set (Section 3.C/3.G).
-7. Seed three of the four demo members with the same demo password and print it to the console on seed; leave the fourth (Grace) without one, so "a member can exist without login capability" is an exercised state, not just a schema nullable nobody demonstrates.
-8. **Explicitly out of scope:** everything listed at the end of Section 3.G (password reset, self-service registration, CSRF tokens, rate-limiting, session cleanup) — roles/permissions specifically were deferred to Phase 11, not dropped.
-
-### Phase 11: Roles & Access Control
-1. Add `members.role` (Section 2). Add `server/utils/access.js`: `isAdmin(member)`, `getAccessibleProjectIds(member)` (null for admin, else an array from `project_stakeholders` via the member's `stakeholder_id`), `canAccessProject(member, projectId)`, and `canAccessEvent(member, eventId)` (resolves the event's `project_id` first, then delegates). Every route below uses these instead of re-deriving the logic inline.
-2. Extend `requireAuth`'s `SELECT` to include `role`; add a `requireAdmin` middleware next to it (403 if `!isAdmin(req.member)`). Update `/api/auth/login` and `/api/auth/me` to return `role`.
-3. In `index.js`, mount `app.use('/api/stakeholders', requireAdmin, stakeholdersRouter)` and the same for `membersRouter` — whole-router gates, no per-route changes needed inside those two files. Leave every other router mounted without a blanket gate; they get per-route checks instead, since "admin" isn't the only thing that determines access to a project.
-4. Go through `projects.js`, `events.js`, `decisions.js`, `actionItems.js`, `painPoints.js`, `dashboard.js` per the `[admin-only]`/`[committed]` markers in Section 4. The two project-portfolio actions (create, delete) get `requireAdmin` as route middleware; everything else scoped by project gets a `canAccessProject`/`canAccessEvent` check returning `404` (not `403`) on failure — including list endpoints, which filter rather than reject (Section 3.H).
-5. Client: `isAdmin` getter on the Pinia store. Conditionally skip `fetchStakeholders()`/`fetchMembers()` in `store.init()` for a non-admin (they'd 403 and break the `Promise.all` otherwise) — `store.projects` still populates correctly since that endpoint just returns less, not an error. Hide the "New Project" sidebar button, the "Stakeholders"/"Members" sidebar buttons, and the "Delete project" button behind `store.isAdmin`. Add an "Admin" badge next to "Signed in as {name}."
-6. The Action Items tab's "My Tasks" assignee filter (Section 3.C) previously listed `store.stakeholders` — now empty for a non-admin. Rebuild its options from the assignees actually present in the currently-loaded events plus the current member's own entry (from `store.currentMember`, not a stakeholder lookup), so the filter keeps working without needing directory access.
-7. Reseed: mark one demo member (Alice) `role = 'admin'`. Note in the seed console output that Alice is also a stakeholder on both demo projects already, so she isn't a useful *contrast* case for the visibility difference — Bob (Website only) and Dave (Campaign only) are the ones that actually demonstrate a non-admin seeing just one project.
-8. **Verify with more than code review**: log in as an admin and each of the two single-project members via curl, confirm `GET /api/projects` returns the right subset for each; confirm a non-admin gets `404` attempting to `PUT`/`DELETE` a project they're not committed to, and `403` hitting `/api/stakeholders` or `/api/members` at all; confirm `GET /api/events?project_ids=...` silently drops inaccessible ids rather than erroring when a non-admin's request includes one.
-9. **Explicitly out of scope:** more than two roles, custom/configurable permissions, a within-project role hierarchy (e.g. only the lead can edit), and closing the Notifications-log gap noted in Section 3.H.
+Carried over from the non-goals in Section 2, plus one accepted loose end: the notification log isn't scoped by project (Section 6.H). Worth revisiting if this grows beyond a small trusted team:
+- Real email/SMS delivery in place of the in-app stub
+- A real cron scheduler instead of on-demand digests
+- Password reset and self-service account creation
+- A finer permission model if "admin vs. committed member" stops being enough
+- Project-scoping the notification log
