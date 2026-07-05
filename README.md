@@ -33,9 +33,9 @@ This is intentionally lightweight: no formal Work Breakdown Structure, no Earned
 
 **Stakeholder directory** — A global address book of the people referenced across projects, with a rollup view showing everything a given person is on the hook for — their assignments, open action items, and upcoming deadlines — across every project they're part of.
 
-**Members, notifications & live delivery** — A separate "notification subscriber" concept from Stakeholders, since not everyone who wants visibility into a project is doing work on it. Members can subscribe to per-project digests and opt into three triggers: something was assigned to them, an action item is overdue, or a deadline is approaching. Notifications are pushed live over a WebSocket connection to the right person's browser (with a chime and an in-app log), rather than requiring a page refresh.
+**Members, notifications & live delivery** — A separate "notification subscriber" concept from Stakeholders, since not everyone who wants visibility into a project is doing work on it. Members can subscribe to per-project digests and opt into three triggers: something was assigned to them, an action item is overdue, or a deadline is approaching. Every notification is pushed live over a WebSocket connection to the right person's browser (with a chime and an in-app log, filtered to the projects they can access) and emailed via SMTP — logged to the console instead if no mail server is configured, so local dev needs no credentials. Digests also run automatically every night via a cron job, with a "Run Digest Now" button for testing on demand.
 
-**Authentication & roles** — Login is required to use the app at all, enforced server-side. Two roles: `admin`, who can see and manage everything, and `member`, who only sees projects they're actually committed to. Access checks happen on every route, not just in the UI, and inaccessible projects return a plain 404 rather than revealing that they exist.
+**Authentication, roles & permissions** — Login is required to use the app at all, enforced server-side, with self-service signup and password reset. Two account roles: `admin`, who can see and manage everything, and `member`, who only sees projects they're actually committed to. Within a committed project, the existing team role (lead/sponsor/member/stakeholder) also governs write access: everyone but a plain `stakeholder` can contribute to events/decisions/action items/pain points, while project settings and team membership are restricted to the lead, sponsor, or an admin. Access checks happen on every route, not just in the UI, and inaccessible projects return a plain 404 rather than revealing that they exist.
 
 ## Tech Stack
 
@@ -78,7 +78,11 @@ npm run seed
 npm run dev
 ```
 
-This starts both the server (`:3001`) and the client (`:5173`) concurrently. Open the client URL in your browser and log in with one of the seeded demo accounts (printed to the console when you seed).
+This starts both the server (`:3001`) and the client (`:5173`) concurrently. Open the client URL in your browser and log in with one of the seeded demo accounts (printed to the console when you seed), or sign up for a new account from the login screen.
+
+### Optional: real email delivery
+
+By default, notification emails (and password-reset links) are logged to the server console instead of sent. To send real email, digest on a different schedule, or point reset links at a different origin, copy `server/.env.example` to `server/.env` and fill in the SMTP/cron/origin settings you need.
 
 ## Scripts
 
@@ -91,4 +95,4 @@ This starts both the server (`:3001`) and the client (`:5173`) concurrently. Ope
 
 ## Notes on scope
 
-A few things are deliberately left out to keep this a focused prototype rather than a production PM suite: password reset and self-service signup (accounts are provisioned by an admin), real email delivery (notifications are logged in-app rather than sent), a background job scheduler (digests run on demand via a "Run Digest Now" button), and a finer-grained permission model than the two roles above. See [PLAN.md](PLAN.md) for the full technical specification, including the database schema and API reference.
+A few things are deliberately left out to keep this a focused prototype rather than a production PM suite: SMS delivery (email only), SSO, CSRF tokens, login rate-limiting, and cleanup of expired sessions/reset tokens. See [PLAN.md](PLAN.md) for the full technical specification, including the database schema and API reference.
