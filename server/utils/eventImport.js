@@ -13,7 +13,7 @@ export function parseEventsCsv(csvText) {
     const records = parse(csvText, {
       columns: (header) => header.map((h) => h.trim().toLowerCase()),
       skip_empty_lines: true,
-      trim: true
+      trim: true,
     });
     return { records };
   } catch (e) {
@@ -43,7 +43,10 @@ export function validateEventRow(record, stakeholderByName) {
   const participantIds = [];
   const rawParticipants = (record.participants || '').trim();
   if (rawParticipants) {
-    for (const name of rawParticipants.split(';').map((s) => s.trim()).filter(Boolean)) {
+    for (const name of rawParticipants
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean)) {
       const match = stakeholderByName.get(name.toLowerCase());
       if (match) participantIds.push(match.id);
       else warnings.push(`participant "${name}" is not assigned to this project — skipped`);

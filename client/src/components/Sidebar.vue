@@ -1,16 +1,40 @@
 <script setup>
+import {
+  AlertCircle,
+  Bell,
+  CalendarClock,
+  LogOut,
+  Pencil,
+  Plus,
+  ShieldAlert,
+  UserCog,
+  Users,
+  Volume2,
+  VolumeX,
+} from 'lucide-vue-next';
 import { ref } from 'vue';
-import { Users, UserCog, Bell, Plus, Pencil, AlertCircle, ShieldAlert, CalendarClock, Volume2, VolumeX, LogOut } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
 import { isMuted, setMuted } from '../lib/sound.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ScorecardDots from './ScorecardDots.vue';
 
-const emit = defineEmits(['open-stakeholders', 'open-project-form', 'edit-project', 'open-members', 'open-notifications', 'logout']);
+const emit = defineEmits([
+  'open-stakeholders',
+  'open-project-form',
+  'edit-project',
+  'open-members',
+  'open-notifications',
+  'logout',
+]);
 const store = useProjectStore();
 
 const leadInitials = (project) => {
   if (!project.lead) return '?';
-  return project.lead.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  return project.lead.name
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 };
 
 const muted = ref(isMuted());

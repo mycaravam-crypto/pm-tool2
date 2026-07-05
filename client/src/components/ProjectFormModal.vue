@@ -1,9 +1,9 @@
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
-import { Trash2, Plus } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { Plus, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({ project: { type: Object, default: null } });
@@ -15,7 +15,7 @@ const isEdit = computed(() => !!props.project);
 // replaced wholesale after every mutation (see useProjectStore), so Requirements
 // and Goals — delivered nested on the project, like lead/scorecard — must be read
 // from the live store entry or they'd go stale after the first add/toggle/delete.
-const liveProject = computed(() => (isEdit.value ? store.projectById(props.project.id) ?? props.project : null));
+const liveProject = computed(() => (isEdit.value ? (store.projectById(props.project.id) ?? props.project) : null));
 
 const form = reactive({
   name: props.project?.name ?? '',
@@ -26,7 +26,7 @@ const form = reactive({
   target_end_date: props.project?.target_end_date ?? '',
   budget_planned: props.project?.budget_planned ?? '',
   budget_spent: props.project?.budget_spent ?? 0,
-  lead_stakeholder_id: props.project?.lead?.id ?? ''
+  lead_stakeholder_id: props.project?.lead?.id ?? '',
 });
 
 const people = ref([]);
@@ -42,9 +42,7 @@ async function loadPeople() {
 
 onMounted(loadPeople);
 
-const availableToAdd = computed(() =>
-  store.stakeholders.filter(s => !people.value.some(p => p.id === s.id))
-);
+const availableToAdd = computed(() => store.stakeholders.filter((s) => !people.value.some((p) => p.id === s.id)));
 
 async function save() {
   error.value = '';
@@ -52,19 +50,30 @@ async function save() {
   try {
     if (isEdit.value) {
       await store.updateProject(props.project.id, {
-        name: form.name, description: form.description, color_hex: form.color_hex, status: form.status,
-        start_date: form.start_date || null, target_end_date: form.target_end_date || null,
-        budget_planned: form.budget_planned === '' ? null : Number(form.budget_planned),
-        budget_spent: Number(form.budget_spent) || 0
-      });
-    } else {
-      if (!form.lead_stakeholder_id) { error.value = 'A project lead is required.'; saving.value = false; return; }
-      await store.createProject({
-        name: form.name, description: form.description, color_hex: form.color_hex,
-        start_date: form.start_date || null, target_end_date: form.target_end_date || null,
+        name: form.name,
+        description: form.description,
+        color_hex: form.color_hex,
+        status: form.status,
+        start_date: form.start_date || null,
+        target_end_date: form.target_end_date || null,
         budget_planned: form.budget_planned === '' ? null : Number(form.budget_planned),
         budget_spent: Number(form.budget_spent) || 0,
-        lead_stakeholder_id: Number(form.lead_stakeholder_id)
+      });
+    } else {
+      if (!form.lead_stakeholder_id) {
+        error.value = 'A project lead is required.';
+        saving.value = false;
+        return;
+      }
+      await store.createProject({
+        name: form.name,
+        description: form.description,
+        color_hex: form.color_hex,
+        start_date: form.start_date || null,
+        target_end_date: form.target_end_date || null,
+        budget_planned: form.budget_planned === '' ? null : Number(form.budget_planned),
+        budget_spent: Number(form.budget_spent) || 0,
+        lead_stakeholder_id: Number(form.lead_stakeholder_id),
       });
     }
     emit('close');
@@ -76,7 +85,12 @@ async function save() {
 }
 
 async function removeProject() {
-  if (!confirm(`Delete "${props.project.name}"? This also deletes all of its events, decisions, action items, and pain points. This cannot be undone.`)) return;
+  if (
+    !confirm(
+      `Delete "${props.project.name}"? This also deletes all of its events, decisions, action items, and pain points. This cannot be undone.`,
+    )
+  )
+    return;
   await store.deleteProject(props.project.id);
   emit('close');
 }
@@ -110,19 +124,31 @@ async function addRequirement() {
   await store.addRequirement({ project_id: props.project.id, text: newRequirementText.value.trim() });
   newRequirementText.value = '';
 }
-async function toggleRequirement(r) { await store.toggleRequirementDone(r.id, !r.done); }
-async function removeRequirement(id) { await store.deleteRequirement(id); }
+async function toggleRequirement(r) {
+  await store.toggleRequirementDone(r.id, !r.done);
+}
+async function removeRequirement(id) {
+  await store.deleteRequirement(id);
+}
 
 const newGoalText = ref('');
 const newGoalTargetDate = ref('');
 async function addGoal() {
   if (!newGoalText.value.trim()) return;
-  await store.addGoal({ project_id: props.project.id, text: newGoalText.value.trim(), target_date: newGoalTargetDate.value || null });
+  await store.addGoal({
+    project_id: props.project.id,
+    text: newGoalText.value.trim(),
+    target_date: newGoalTargetDate.value || null,
+  });
   newGoalText.value = '';
   newGoalTargetDate.value = '';
 }
-async function toggleGoal(g) { await store.toggleGoalAchieved(g.id, !g.achieved); }
-async function removeGoal(id) { await store.deleteGoal(id); }
+async function toggleGoal(g) {
+  await store.toggleGoalAchieved(g.id, !g.achieved);
+}
+async function removeGoal(id) {
+  await store.deleteGoal(id);
+}
 </script>
 
 <template>

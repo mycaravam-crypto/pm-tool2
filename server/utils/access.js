@@ -4,9 +4,7 @@ export function isAdmin(member) {
   return member?.role === 'admin';
 }
 
-const getProjectIdsForStakeholder = db.prepare(
-  'SELECT project_id FROM project_stakeholders WHERE stakeholder_id = ?'
-);
+const getProjectIdsForStakeholder = db.prepare('SELECT project_id FROM project_stakeholders WHERE stakeholder_id = ?');
 
 // "Committed to a project" means the member's linked Stakeholder identity is
 // actually assigned to it (project_stakeholders), not merely subscribed to its
@@ -18,7 +16,7 @@ const getProjectIdsForStakeholder = db.prepare(
 export function getAccessibleProjectIds(member) {
   if (isAdmin(member)) return null;
   if (!member?.stakeholder_id) return [];
-  return getProjectIdsForStakeholder.all(member.stakeholder_id).map(r => r.project_id);
+  return getProjectIdsForStakeholder.all(member.stakeholder_id).map((r) => r.project_id);
 }
 
 export function canAccessProject(member, projectId) {
@@ -35,3 +33,10 @@ export function canAccessEvent(member, eventId) {
   const row = getEventProjectId.get(eventId);
   return !!row && canAccessProject(member, row.project_id);
 }
+
+// Shared by decisions/action items/pain points to build the "(project — event)"
+// context for their assignment notifications.
+export const getEventContext = db.prepare(`
+  SELECT e.title AS event_title, p.name AS project_name
+  FROM events e JOIN projects p ON p.id = e.project_id WHERE e.id = ?
+`);

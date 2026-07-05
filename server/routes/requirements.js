@@ -14,7 +14,8 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id);
-  if (!existing || !canAccessProject(req.member, existing.project_id)) return res.status(404).json({ error: 'requirement not found' });
+  if (!existing || !canAccessProject(req.member, existing.project_id))
+    return res.status(404).json({ error: 'requirement not found' });
   const { text = existing.text } = req.body;
   db.prepare('UPDATE requirements SET text = ? WHERE id = ?').run(text, req.params.id);
   res.json(db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id));
@@ -22,7 +23,8 @@ router.put('/:id', (req, res) => {
 
 router.patch('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id);
-  if (!existing || !canAccessProject(req.member, existing.project_id)) return res.status(404).json({ error: 'requirement not found' });
+  if (!existing || !canAccessProject(req.member, existing.project_id))
+    return res.status(404).json({ error: 'requirement not found' });
   const done = req.body.done ? 1 : 0;
   db.prepare('UPDATE requirements SET done = ? WHERE id = ?').run(done, req.params.id);
   res.json(db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id));
@@ -30,7 +32,8 @@ router.patch('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id);
-  if (!existing || !canAccessProject(req.member, existing.project_id)) return res.status(404).json({ error: 'requirement not found' });
+  if (!existing || !canAccessProject(req.member, existing.project_id))
+    return res.status(404).json({ error: 'requirement not found' });
   db.prepare('DELETE FROM requirements WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

@@ -1,6 +1,6 @@
 <script setup>
-import { ref, reactive } from 'vue';
-import { Trash2, Pencil, Plus } from 'lucide-vue-next';
+import { Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { reactive, ref } from 'vue';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
@@ -14,14 +14,18 @@ const error = ref('');
 
 function startEdit(s) {
   editingId.value = s.id;
-  form.name = s.name; form.email = s.email ?? ''; form.role = s.role ?? '';
+  form.name = s.name;
+  form.email = s.email ?? '';
+  form.role = s.role ?? '';
   showNewForm.value = false;
   error.value = '';
 }
 
 function startNew() {
   editingId.value = null;
-  form.name = ''; form.email = ''; form.role = '';
+  form.name = '';
+  form.email = '';
+  form.role = '';
   showNewForm.value = true;
   error.value = '';
 }
@@ -48,7 +52,12 @@ async function save() {
 }
 
 async function remove(id) {
-  if (!confirm('Delete this stakeholder? They will be removed from all projects, events, and unassigned from any decisions/action items/pain points they owned.')) return;
+  if (
+    !confirm(
+      'Delete this stakeholder? They will be removed from all projects, events, and unassigned from any decisions/action items/pain points they owned.',
+    )
+  )
+    return;
   try {
     await store.deleteStakeholder(id);
   } catch (e) {

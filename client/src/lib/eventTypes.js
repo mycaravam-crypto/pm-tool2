@@ -1,6 +1,14 @@
 import {
-  Rocket, RefreshCw, Users, ClipboardCheck, GitBranch, History, Flag, AlarmClock,
-  CheckCircle2, XCircle
+  AlarmClock,
+  CheckCircle2,
+  ClipboardCheck,
+  Flag,
+  GitBranch,
+  History,
+  RefreshCw,
+  Rocket,
+  Users,
+  XCircle,
 } from 'lucide-vue-next';
 
 export const EVENT_TYPES = {
@@ -11,7 +19,7 @@ export const EVENT_TYPES = {
   decision: { icon: GitBranch, shape: 'circle', label: 'Decision' },
   retro: { icon: History, shape: 'circle', label: 'Retro' },
   milestone: { icon: Flag, shape: 'diamond', label: 'Milestone' },
-  deadline: { icon: AlarmClock, shape: 'diamond', label: 'Deadline' }
+  deadline: { icon: AlarmClock, shape: 'diamond', label: 'Deadline' },
 };
 
 export const EVENT_TYPE_KEYS = Object.keys(EVENT_TYPES);

@@ -1,11 +1,14 @@
 import { WebSocketServer } from 'ws';
-import { findSession, COOKIE_NAME } from './middleware/requireAuth.js';
+import { COOKIE_NAME, findSession } from './middleware/requireAuth.js';
 
 let wss = null;
 
 function parseCookie(header, name) {
   if (!header) return null;
-  const match = header.split(';').map(s => s.trim()).find(s => s.startsWith(name + '='));
+  const match = header
+    .split(';')
+    .map((s) => s.trim())
+    .find((s) => s.startsWith(`${name}=`));
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 

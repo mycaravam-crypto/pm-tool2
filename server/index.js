@@ -1,22 +1,22 @@
-import express from 'express';
-import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
+import express from 'express';
 import './db/connection.js';
 
-import authRouter from './routes/auth.js';
-import projectsRouter from './routes/projects.js';
-import stakeholdersRouter from './routes/stakeholders.js';
-import eventsRouter from './routes/events.js';
-import decisionsRouter from './routes/decisions.js';
+import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
 import actionItemsRouter from './routes/actionItems.js';
-import painPointsRouter from './routes/painPoints.js';
-import requirementsRouter from './routes/requirements.js';
-import goalsRouter from './routes/goals.js';
+import authRouter from './routes/auth.js';
 import dashboardRouter from './routes/dashboard.js';
+import decisionsRouter from './routes/decisions.js';
+import eventsRouter from './routes/events.js';
+import goalsRouter from './routes/goals.js';
 import membersRouter from './routes/members.js';
 import notificationsRouter from './routes/notifications.js';
+import painPointsRouter from './routes/painPoints.js';
+import projectsRouter from './routes/projects.js';
+import requirementsRouter from './routes/requirements.js';
+import stakeholdersRouter from './routes/stakeholders.js';
 import { initWebSocketServer } from './ws.js';
-import { requireAuth, requireAdmin } from './middleware/requireAuth.js';
 
 const app = express();
 app.use(cors());
@@ -47,7 +47,7 @@ app.use('/api/goals', goalsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/notifications', notificationsRouter);
 
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'internal server error' });
 });

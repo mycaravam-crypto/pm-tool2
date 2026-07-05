@@ -1,16 +1,16 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { Trash2, Plus, FileDown } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { FileDown, Plus, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
-import { EVENT_TYPES, EVENT_TYPE_KEYS, STATUS_LABELS, STATUS_KEYS } from '../lib/eventTypes.js';
-import { todayStr as getTodayStr, formatDate } from '../lib/dateFormat.js';
+import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
+import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS } from '../lib/eventTypes.js';
 import { generateEventProtocolPdf } from '../lib/pdfReports.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({
   event: { type: Object, default: null },
-  defaultProjectId: { type: Number, default: null }
+  defaultProjectId: { type: Number, default: null },
 });
 const emit = defineEmits(['close']);
 const store = useProjectStore();
@@ -22,7 +22,7 @@ const todayStr = getTodayStr();
 // from the live store entry or the modal goes stale after the first add/toggle/delete.
 const liveEvent = computed(() => {
   if (!isEdit.value) return null;
-  return store.events.find(e => e.id === props.event.id) ?? props.event;
+  return store.events.find((e) => e.id === props.event.id) ?? props.event;
 });
 
 const form = reactive({
@@ -32,14 +32,17 @@ const form = reactive({
   type: props.event?.type ?? 'sync',
   summary: props.event?.summary ?? '',
   status: props.event?.status ?? 'pending',
-  participants: props.event?.participants?.map(p => p.id) ?? []
+  participants: props.event?.participants?.map((p) => p.id) ?? [],
 });
 
 const isForwardType = computed(() => EVENT_TYPES[form.type].shape === 'diamond');
 
 const projectPeople = ref([]);
 async function loadPeople() {
-  if (!form.project_id) { projectPeople.value = []; return; }
+  if (!form.project_id) {
+    projectPeople.value = [];
+    return;
+  }
   projectPeople.value = await api.projects.stakeholders(form.project_id);
 }
 onMounted(loadPeople);
@@ -50,9 +53,14 @@ const stagedDecisions = ref([]);
 const stagedActionItems = ref([]);
 const stagedPainPoints = ref([]);
 
-const newDecisionText = ref(''); const newDecisionBy = ref('');
-const newActionText = ref(''); const newActionAssignee = ref(''); const newActionDue = ref('');
-const newPainText = ref(''); const newPainSeverity = ref('Medium'); const newPainOwner = ref('');
+const newDecisionText = ref('');
+const newDecisionBy = ref('');
+const newActionText = ref('');
+const newActionAssignee = ref('');
+const newActionDue = ref('');
+const newPainText = ref('');
+const newPainSeverity = ref('Medium');
+const newPainOwner = ref('');
 
 function isOverdue(item) {
   return item.due_date && !item.done && item.due_date < todayStr;
@@ -61,21 +69,32 @@ function isOverdue(item) {
 async function addDecision() {
   if (!newDecisionText.value) return;
   if (isEdit.value) {
-    await store.addDecision({ event_id: props.event.id, text: newDecisionText.value, decided_by: newDecisionBy.value || null });
+    await store.addDecision({
+      event_id: props.event.id,
+      text: newDecisionText.value,
+      decided_by: newDecisionBy.value || null,
+    });
   } else {
     stagedDecisions.value.push({ text: newDecisionText.value, decided_by: newDecisionBy.value || null });
   }
-  newDecisionText.value = ''; newDecisionBy.value = '';
+  newDecisionText.value = '';
+  newDecisionBy.value = '';
 }
 async function addActionItem() {
   if (!newActionText.value) return;
-  const payload = { text: newActionText.value, assignee_id: newActionAssignee.value || null, due_date: newActionDue.value || null };
+  const payload = {
+    text: newActionText.value,
+    assignee_id: newActionAssignee.value || null,
+    due_date: newActionDue.value || null,
+  };
   if (isEdit.value) {
     await store.addActionItem({ event_id: props.event.id, ...payload });
   } else {
     stagedActionItems.value.push(payload);
   }
-  newActionText.value = ''; newActionAssignee.value = ''; newActionDue.value = '';
+  newActionText.value = '';
+  newActionAssignee.value = '';
+  newActionDue.value = '';
 }
 async function addPainPoint() {
   if (!newPainText.value) return;
@@ -85,7 +104,9 @@ async function addPainPoint() {
   } else {
     stagedPainPoints.value.push(payload);
   }
-  newPainText.value = ''; newPainSeverity.value = 'Medium'; newPainOwner.value = '';
+  newPainText.value = '';
+  newPainSeverity.value = 'Medium';
+  newPainOwner.value = '';
 }
 
 const saving = ref(false);
@@ -93,19 +114,33 @@ const error = ref('');
 
 async function save() {
   error.value = '';
-  if (!form.project_id) { error.value = 'Choose a project.'; return; }
+  if (!form.project_id) {
+    error.value = 'Choose a project.';
+    return;
+  }
   saving.value = true;
   try {
     if (isEdit.value) {
       await store.updateEvent(props.event.id, {
-        title: form.title, date: form.date, type: form.type, summary: form.summary, status: form.status,
-        participants: form.participants
+        title: form.title,
+        date: form.date,
+        type: form.type,
+        summary: form.summary,
+        status: form.status,
+        participants: form.participants,
       });
     } else {
       await store.createEvent({
-        project_id: form.project_id, title: form.title, date: form.date, type: form.type, summary: form.summary,
-        status: form.status, participants: form.participants, decisions: stagedDecisions.value,
-        action_items: stagedActionItems.value, pain_points: stagedPainPoints.value
+        project_id: form.project_id,
+        title: form.title,
+        date: form.date,
+        type: form.type,
+        summary: form.summary,
+        status: form.status,
+        participants: form.participants,
+        decisions: stagedDecisions.value,
+        action_items: stagedActionItems.value,
+        pain_points: stagedPainPoints.value,
       });
     }
     emit('close');
@@ -121,7 +156,8 @@ function exportProtocol() {
 }
 
 async function removeEvent() {
-  if (!confirm(`Delete "${props.event.title}"? This also deletes its decisions, action items, and pain points.`)) return;
+  if (!confirm(`Delete "${props.event.title}"? This also deletes its decisions, action items, and pain points.`))
+    return;
   await store.deleteEvent(props.event.id);
   emit('close');
 }
@@ -132,12 +168,24 @@ async function toggleDone(item) {
 async function toggleResolved(pp) {
   await store.togglePainPointResolved(pp.id, !pp.resolved);
 }
-async function removeDecision(id) { await store.deleteDecision(id); }
-async function removeActionItem(id) { await store.deleteActionItem(id); }
-async function removePainPoint(id) { await store.deletePainPoint(id); }
-function removeStagedDecision(idx) { stagedDecisions.value.splice(idx, 1); }
-function removeStagedAction(idx) { stagedActionItems.value.splice(idx, 1); }
-function removeStagedPain(idx) { stagedPainPoints.value.splice(idx, 1); }
+async function removeDecision(id) {
+  await store.deleteDecision(id);
+}
+async function removeActionItem(id) {
+  await store.deleteActionItem(id);
+}
+async function removePainPoint(id) {
+  await store.deletePainPoint(id);
+}
+function removeStagedDecision(idx) {
+  stagedDecisions.value.splice(idx, 1);
+}
+function removeStagedAction(idx) {
+  stagedActionItems.value.splice(idx, 1);
+}
+function removeStagedPain(idx) {
+  stagedPainPoints.value.splice(idx, 1);
+}
 </script>
 
 <template>

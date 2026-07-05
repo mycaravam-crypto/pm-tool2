@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { notifyAssigned } from '../utils/notify.js';
-import { getAccessibleProjectIds, canAccessProject } from '../utils/access.js';
+import { canAccessProject, getAccessibleProjectIds } from '../utils/access.js';
 import { parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
+import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
 
@@ -36,7 +36,7 @@ function serializeEvent(event) {
     participants: getParticipantsStmt.all(event.id),
     decisions: getDecisionsStmt.all(event.id),
     action_items: getActionItemsStmt.all(event.id),
-    pain_points: getPainPointsStmt.all(event.id)
+    pain_points: getPainPointsStmt.all(event.id),
   };
 }
 
@@ -48,7 +48,7 @@ router.get('/', (req, res) => {
   // client asked for, so a direct API call with someone else's project_ids can't
   // pull their events even if the UI would never construct such a request.
   const accessibleIds = getAccessibleProjectIds(req.member);
-  if (accessibleIds !== null) ids = ids.filter(id => accessibleIds.includes(id));
+  if (accessibleIds !== null) ids = ids.filter((id) => accessibleIds.includes(id));
   if (ids.length === 0) return res.json([]);
   const placeholders = ids.map(() => '?').join(',');
   const events = db.prepare(`SELECT * FROM events WHERE project_id IN (${placeholders}) ORDER BY date`).all(...ids);
@@ -56,31 +56,56 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { project_id, title, date, type, summary, status = 'pending', participants = [], decisions = [], action_items = [], pain_points = [] } = req.body;
+  const {
+    project_id,
+    title,
+    date,
+    type,
+    summary,
+    status = 'pending',
+    participants = [],
+    decisions = [],
+    action_items = [],
+    pain_points = [],
+  } = req.body;
   if (!project_id || !title || !date || !type) {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
   }
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
 
   const create = db.transaction(() => {
-    const info = db.prepare(`
+    const info = db
+      .prepare(`
       INSERT INTO events (project_id, title, date, type, summary, status) VALUES (?, ?, ?, ?, ?, ?)
-    `).run(project_id, title, date, type, summary ?? null, status);
+    `)
+      .run(project_id, title, date, type, summary ?? null, status);
     const eventId = info.lastInsertRowid;
 
     for (const stakeholderId of participants) {
       db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(eventId, stakeholderId);
     }
     for (const d of decisions) {
-      db.prepare('INSERT INTO decisions (event_id, text, decided_by) VALUES (?, ?, ?)').run(eventId, d.text, d.decided_by ?? null);
+      db.prepare('INSERT INTO decisions (event_id, text, decided_by) VALUES (?, ?, ?)').run(
+        eventId,
+        d.text,
+        d.decided_by ?? null,
+      );
     }
     for (const a of action_items) {
-      db.prepare('INSERT INTO action_items (event_id, text, assignee_id, due_date) VALUES (?, ?, ?, ?)')
-        .run(eventId, a.text, a.assignee_id ?? null, a.due_date ?? null);
+      db.prepare('INSERT INTO action_items (event_id, text, assignee_id, due_date) VALUES (?, ?, ?, ?)').run(
+        eventId,
+        a.text,
+        a.assignee_id ?? null,
+        a.due_date ?? null,
+      );
     }
     for (const p of pain_points) {
-      db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)')
-        .run(eventId, p.text, p.severity, p.owner_id ?? null);
+      db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)').run(
+        eventId,
+        p.text,
+        p.severity,
+        p.owner_id ?? null,
+      );
     }
     return eventId;
   });
@@ -91,13 +116,24 @@ router.post('/', (req, res) => {
   // a "you were assigned" notification for data that never actually landed.
   const projectName = getProjectStmt.get(project_id)?.name ?? '';
   for (const d of decisions) {
-    if (d.decided_by) notifyAssigned(d.decided_by, 'A decision was logged under your name', `"${d.text}" (${projectName} — ${title})`);
+    if (d.decided_by)
+      notifyAssigned(d.decided_by, 'A decision was logged under your name', `"${d.text}" (${projectName} — ${title})`);
   }
   for (const a of action_items) {
-    if (a.assignee_id) notifyAssigned(a.assignee_id, 'New action item assigned to you', `"${a.text}" (${projectName} — ${title})${a.due_date ? ` — due ${a.due_date}` : ''}`);
+    if (a.assignee_id)
+      notifyAssigned(
+        a.assignee_id,
+        'New action item assigned to you',
+        `"${a.text}" (${projectName} — ${title})${a.due_date ? ` — due ${a.due_date}` : ''}`,
+      );
   }
   for (const p of pain_points) {
-    if (p.owner_id) notifyAssigned(p.owner_id, 'New pain point assigned to you', `"${p.text}" (${p.severity} severity — ${projectName} — ${title})`);
+    if (p.owner_id)
+      notifyAssigned(
+        p.owner_id,
+        'New pain point assigned to you',
+        `"${p.text}" (${p.severity} severity — ${projectName} — ${title})`,
+      );
   }
 
   res.status(201).json(serializeEvent(getEventStmt.get(id)));
@@ -127,7 +163,7 @@ router.post('/import', (req, res) => {
   if (records.length === 0) return res.status(400).json({ error: 'CSV has no data rows' });
 
   const stakeholderByName = new Map(
-    getProjectStakeholdersForImportStmt.all(project_id).map((s) => [s.name.toLowerCase(), s])
+    getProjectStakeholdersForImportStmt.all(project_id).map((s) => [s.name.toLowerCase(), s]),
   );
 
   const rows = records.map((record, i) => ({ row: i + 2, ...validateEventRow(record, stakeholderByName) }));
@@ -139,8 +175,13 @@ router.post('/import', (req, res) => {
       totalRows: rows.length,
       validCount: validRows.length,
       rows: rows.map(({ title, date, type, summary, status, participantIds, ...rest }) => ({
-        title, date, type, summary, status, ...rest
-      }))
+        title,
+        date,
+        type,
+        summary,
+        status,
+        ...rest,
+      })),
     });
   }
 
@@ -159,13 +200,14 @@ router.post('/import', (req, res) => {
 
   res.status(201).json({
     imported: validRows.length,
-    skipped: rows.filter((r) => r.errors.length > 0).map(({ row, errors }) => ({ row, errors }))
+    skipped: rows.filter((r) => r.errors.length > 0).map(({ row, errors }) => ({ row, errors })),
   });
 });
 
 router.put('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
-  if (!event || !canAccessProject(req.member, event.project_id)) return res.status(404).json({ error: 'event not found' });
+  if (!event || !canAccessProject(req.member, event.project_id))
+    return res.status(404).json({ error: 'event not found' });
 
   const {
     title = event.title,
@@ -173,7 +215,7 @@ router.put('/:id', (req, res) => {
     type = event.type,
     summary = event.summary,
     status = event.status,
-    participants
+    participants,
   } = req.body;
 
   const update = db.transaction(() => {
@@ -184,7 +226,10 @@ router.put('/:id', (req, res) => {
     if (Array.isArray(participants)) {
       db.prepare('DELETE FROM event_participants WHERE event_id = ?').run(req.params.id);
       for (const stakeholderId of participants) {
-        db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(req.params.id, stakeholderId);
+        db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(
+          req.params.id,
+          stakeholderId,
+        );
       }
     }
   });
@@ -195,7 +240,8 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
-  if (!event || !canAccessProject(req.member, event.project_id)) return res.status(404).json({ error: 'event not found' });
+  if (!event || !canAccessProject(req.member, event.project_id))
+    return res.status(404).json({ error: 'event not found' });
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

@@ -3,7 +3,7 @@ import { RAG_COLORS, RAG_LABELS } from '../lib/rag.js';
 
 defineProps({
   scorecard: { type: Object, required: true },
-  size: { type: String, default: 'sm' }
+  size: { type: String, default: 'sm' },
 });
 
 const LABELS = { schedule: 'Schedule', cost: 'Cost', quality: 'Quality' };

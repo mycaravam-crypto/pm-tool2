@@ -16,7 +16,9 @@ export function requireAuth(req, res, next) {
   const session = token ? findSession(token) : null;
   if (!session) return res.status(401).json({ error: 'authentication required' });
 
-  const member = db.prepare('SELECT id, name, email, stakeholder_id, role FROM members WHERE id = ?').get(session.member_id);
+  const member = db
+    .prepare('SELECT id, name, email, stakeholder_id, role FROM members WHERE id = ?')
+    .get(session.member_id);
   if (!member) return res.status(401).json({ error: 'authentication required' });
 
   req.member = member;

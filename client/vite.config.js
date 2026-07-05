@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from '@tailwindcss/vite';
+import vue from '@vitejs/plugin-vue';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': 'http://localhost:3001',
-      '/ws': { target: 'ws://localhost:3001', ws: true }
-    }
-  }
-})
+      '/ws': { target: 'ws://localhost:3001', ws: true },
+    },
+  },
+});

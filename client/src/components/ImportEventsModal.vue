@@ -1,9 +1,9 @@
 <script setup>
+import { CircleAlert, Download, Upload } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { Upload, Download, CircleAlert } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -25,7 +25,9 @@ function onFileChange(e) {
   result.value = null;
   error.value = '';
   const reader = new FileReader();
-  reader.onload = () => { csvText.value = reader.result; };
+  reader.onload = () => {
+    csvText.value = reader.result;
+  };
   reader.readAsText(file);
 }
 
@@ -60,7 +62,7 @@ function downloadTemplate() {
   const template = [
     'title,date,type,summary,status,participants',
     'Design freeze,2026-08-15,milestone,,pending,',
-    'Sprint review,2026-07-10,review,Walkthrough of sprint deliverables,,Alice;Bob'
+    'Sprint review,2026-07-10,review,Walkthrough of sprint deliverables,,Alice;Bob',
   ].join('\n');
   const blob = new Blob([template], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);

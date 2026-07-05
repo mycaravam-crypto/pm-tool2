@@ -18,7 +18,7 @@ const ACCENT = {
   action: [2, 132, 199], // sky-600
   pain: [217, 119, 6], // amber-600
   requirement: [8, 145, 178], // cyan-600
-  goal: [192, 38, 211] // fuchsia-600
+  goal: [192, 38, 211], // fuchsia-600
 };
 
 const SLATE_50 = [248, 250, 252];
@@ -130,7 +130,7 @@ function sectionTable(doc, y, title, head, rows, emptyLabel, accentKey = 'neutra
     theme: 'striped',
     styles: { fontSize: 9, cellPadding: 2.3, textColor: [30, 41, 59] },
     headStyles: { fillColor: accent, textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
-    alternateRowStyles: { fillColor: SLATE_50 }
+    alternateRowStyles: { fillColor: SLATE_50 },
   });
   return doc.lastAutoTable.finalY + 10;
 }
@@ -183,19 +183,36 @@ export function generateEventProtocolPdf(event) {
   y += 8;
 
   y = sectionTable(
-    doc, y, 'Decisions', ['Decision', 'Decided by'],
+    doc,
+    y,
+    'Decisions',
+    ['Decision', 'Decided by'],
     (event.decisions || []).map((d) => [d.text, d.decided_by_name || '—']),
-    'No decisions logged.', 'decision'
+    'No decisions logged.',
+    'decision',
   );
   y = sectionTable(
-    doc, y, 'Action Items', ['Task', 'Assignee', 'Due date', 'Done'],
-    (event.action_items || []).map((a) => [a.text, a.assignee_name || '—', formatDate(a.due_date), a.done ? 'Yes' : 'No']),
-    'No action items.', 'action'
+    doc,
+    y,
+    'Action Items',
+    ['Task', 'Assignee', 'Due date', 'Done'],
+    (event.action_items || []).map((a) => [
+      a.text,
+      a.assignee_name || '—',
+      formatDate(a.due_date),
+      a.done ? 'Yes' : 'No',
+    ]),
+    'No action items.',
+    'action',
   );
   y = sectionTable(
-    doc, y, 'Pain Points', ['Pain Point', 'Severity', 'Owner', 'Resolved'],
+    doc,
+    y,
+    'Pain Points',
+    ['Pain Point', 'Severity', 'Owner', 'Resolved'],
     (event.pain_points || []).map((p) => [p.text, p.severity, p.owner_name || '—', p.resolved ? 'Yes' : 'No']),
-    'No pain points.', 'pain'
+    'No pain points.',
+    'pain',
   );
 
   addFooter(doc);
@@ -228,14 +245,27 @@ export function generateSituationReportPdf({ projects, events, summary }) {
   autoTable(doc, {
     startY: y,
     margin: { left: MARGIN, right: MARGIN },
-    head: [['Overdue action items', 'Open high-severity pain points', 'Upcoming milestones/deadlines (14d)', 'Requirements fulfilled', 'Goals achieved']],
-    body: [[
-      summary.overdue_action_items, summary.open_high_severity_pain_points, summary.upcoming_deadlines,
-      `${doneRequirements}/${totalRequirements}`, `${achievedGoals}/${totalGoals}`
-    ]],
+    head: [
+      [
+        'Overdue action items',
+        'Open high-severity pain points',
+        'Upcoming milestones/deadlines (14d)',
+        'Requirements fulfilled',
+        'Goals achieved',
+      ],
+    ],
+    body: [
+      [
+        summary.overdue_action_items,
+        summary.open_high_severity_pain_points,
+        summary.upcoming_deadlines,
+        `${doneRequirements}/${totalRequirements}`,
+        `${achievedGoals}/${totalGoals}`,
+      ],
+    ],
     theme: 'grid',
     styles: { fontSize: 9, halign: 'center', textColor: [30, 41, 59] },
-    headStyles: { fillColor: ACCENT.neutral, fontSize: 8 }
+    headStyles: { fillColor: ACCENT.neutral, fontSize: 8 },
   });
   y = doc.lastAutoTable.finalY + 14;
 
@@ -262,7 +292,8 @@ export function generateSituationReportPdf({ projects, events, summary }) {
     doc.setTextColor(...SLATE_500);
     doc.text(
       `Lead: ${project.lead?.name ?? '—'}   ·   Start: ${formatDate(project.start_date)}   ·   Target end: ${formatDate(project.target_end_date)}   ·   Budget: ${project.budget_spent ?? 0} / ${project.budget_planned ?? '—'}`,
-      MARGIN, y
+      MARGIN,
+      y,
     );
     y += 6;
 
@@ -287,26 +318,58 @@ export function generateSituationReportPdf({ projects, events, summary }) {
     const projectRequirements = project.requirements ?? [];
     const openRequirements = projectRequirements.filter((r) => !r.done).map((r) => [r.text]);
     y = sectionTable(
-      doc, y, `Requirements (${projectRequirements.length - openRequirements.length}/${projectRequirements.length} fulfilled)`,
-      ['Outstanding Requirement'], openRequirements,
-      projectRequirements.length === 0 ? 'No requirements defined.' : 'All requirements fulfilled.', 'requirement'
+      doc,
+      y,
+      `Requirements (${projectRequirements.length - openRequirements.length}/${projectRequirements.length} fulfilled)`,
+      ['Outstanding Requirement'],
+      openRequirements,
+      projectRequirements.length === 0 ? 'No requirements defined.' : 'All requirements fulfilled.',
+      'requirement',
     );
 
     const projectGoals = project.goals ?? [];
-    const openGoals = projectGoals.filter((g) => !g.achieved).map((g) => [g.text, g.target_date ? formatDate(g.target_date) : '—']);
+    const openGoals = projectGoals
+      .filter((g) => !g.achieved)
+      .map((g) => [g.text, g.target_date ? formatDate(g.target_date) : '—']);
     y = sectionTable(
-      doc, y, `Goals (${projectGoals.length - openGoals.length}/${projectGoals.length} achieved)`,
-      ['Outstanding Goal', 'Target Date'], openGoals,
-      projectGoals.length === 0 ? 'No goals defined.' : 'All goals achieved.', 'goal'
+      doc,
+      y,
+      `Goals (${projectGoals.length - openGoals.length}/${projectGoals.length} achieved)`,
+      ['Outstanding Goal', 'Target Date'],
+      openGoals,
+      projectGoals.length === 0 ? 'No goals defined.' : 'All goals achieved.',
+      'goal',
     );
 
     const projectEvents = events.filter((e) => e.project_id === project.id);
-    const openActions = projectEvents.flatMap((e) => e.action_items.filter((a) => !a.done).map((a) => [a.text, a.assignee_name || '—', formatDate(a.due_date)]));
-    const openPain = projectEvents.flatMap((e) => e.pain_points.filter((p) => !p.resolved).map((p) => [p.text, p.severity, p.owner_name || '—']));
-    const decisions = projectEvents.flatMap((e) => e.decisions.map((d) => [d.text, d.decided_by_name || '—', formatDate(e.date)]));
+    const openActions = projectEvents.flatMap((e) =>
+      e.action_items.filter((a) => !a.done).map((a) => [a.text, a.assignee_name || '—', formatDate(a.due_date)]),
+    );
+    const openPain = projectEvents.flatMap((e) =>
+      e.pain_points.filter((p) => !p.resolved).map((p) => [p.text, p.severity, p.owner_name || '—']),
+    );
+    const decisions = projectEvents.flatMap((e) =>
+      e.decisions.map((d) => [d.text, d.decided_by_name || '—', formatDate(e.date)]),
+    );
 
-    y = sectionTable(doc, y, 'Open Action Items', ['Task', 'Assignee', 'Due date'], openActions, 'None open.', 'action');
-    y = sectionTable(doc, y, 'Unresolved Pain Points', ['Pain Point', 'Severity', 'Owner'], openPain, 'None open.', 'pain');
+    y = sectionTable(
+      doc,
+      y,
+      'Open Action Items',
+      ['Task', 'Assignee', 'Due date'],
+      openActions,
+      'None open.',
+      'action',
+    );
+    y = sectionTable(
+      doc,
+      y,
+      'Unresolved Pain Points',
+      ['Pain Point', 'Severity', 'Owner'],
+      openPain,
+      'None open.',
+      'pain',
+    );
     y = sectionTable(doc, y, 'Decisions', ['Decision', 'Decided by', 'Date'], decisions, 'None logged.', 'decision');
 
     // Divider between projects, only when another one follows.

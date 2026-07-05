@@ -13,15 +13,15 @@ export const useProjectStore = defineStore('project', {
     scopedSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
     portfolioSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
     loading: false,
-    error: null
+    error: null,
   }),
 
   getters: {
-    selectedProjects: (state) => state.projects.filter(p => state.selectedProjectIds.includes(p.id)),
-    projectById: (state) => (id) => state.projects.find(p => p.id === id),
-    stakeholderById: (state) => (id) => state.stakeholders.find(s => s.id === id),
+    selectedProjects: (state) => state.projects.filter((p) => state.selectedProjectIds.includes(p.id)),
+    projectById: (state) => (id) => state.projects.find((p) => p.id === id),
+    stakeholderById: (state) => (id) => state.stakeholders.find((s) => s.id === id),
     sortedEvents: (state) => [...state.events].sort((a, b) => a.date.localeCompare(b.date)),
-    isAdmin: (state) => state.currentMember?.role === 'admin'
+    isAdmin: (state) => state.currentMember?.role === 'admin',
   },
 
   actions: {
@@ -105,7 +105,7 @@ export const useProjectStore = defineStore('project', {
 
     async toggleProjectSelection(projectId) {
       if (this.selectedProjectIds.includes(projectId)) {
-        this.selectedProjectIds = this.selectedProjectIds.filter(id => id !== projectId);
+        this.selectedProjectIds = this.selectedProjectIds.filter((id) => id !== projectId);
       } else {
         this.selectedProjectIds = [...this.selectedProjectIds, projectId];
       }
@@ -127,8 +127,11 @@ export const useProjectStore = defineStore('project', {
 
     async refreshAll() {
       await Promise.all([
-        this.fetchProjects(), this.fetchEvents(), this.fetchScopedSummary(),
-        this.fetchPortfolioSummary(), this.fetchNotifications()
+        this.fetchProjects(),
+        this.fetchEvents(),
+        this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(),
+        this.fetchNotifications(),
       ]);
     },
 
@@ -149,7 +152,7 @@ export const useProjectStore = defineStore('project', {
 
     async deleteProject(id) {
       await api.projects.remove(id);
-      this.selectedProjectIds = this.selectedProjectIds.filter(pid => pid !== id);
+      this.selectedProjectIds = this.selectedProjectIds.filter((pid) => pid !== id);
       await this.refreshAll();
     },
 
@@ -207,7 +210,12 @@ export const useProjectStore = defineStore('project', {
 
     async addActionItem(data) {
       await api.actionItems.create(data);
-      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchNotifications()]);
+      await Promise.all([
+        this.fetchEvents(),
+        this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(),
+        this.fetchNotifications(),
+      ]);
     },
     async updateActionItem(id, data) {
       await api.actionItems.update(id, data);
@@ -225,8 +233,11 @@ export const useProjectStore = defineStore('project', {
     async addPainPoint(data) {
       await api.painPoints.create(data);
       await Promise.all([
-        this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(),
-        this.fetchProjects(), this.fetchNotifications()
+        this.fetchEvents(),
+        this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(),
+        this.fetchProjects(),
+        this.fetchNotifications(),
       ]);
     },
     async updatePainPoint(id, data) {
@@ -235,11 +246,21 @@ export const useProjectStore = defineStore('project', {
     },
     async togglePainPointResolved(id, resolved) {
       await api.painPoints.toggleResolved(id, resolved);
-      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchProjects()]);
+      await Promise.all([
+        this.fetchEvents(),
+        this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(),
+        this.fetchProjects(),
+      ]);
     },
     async deletePainPoint(id) {
       await api.painPoints.remove(id);
-      await Promise.all([this.fetchEvents(), this.fetchScopedSummary(), this.fetchPortfolioSummary(), this.fetchProjects()]);
+      await Promise.all([
+        this.fetchEvents(),
+        this.fetchScopedSummary(),
+        this.fetchPortfolioSummary(),
+        this.fetchProjects(),
+      ]);
     },
 
     // Requirements/goals are project-scoped, not event-scoped, and are delivered
@@ -277,6 +298,6 @@ export const useProjectStore = defineStore('project', {
     async deleteGoal(id) {
       await api.goals.remove(id);
       await this.fetchProjects();
-    }
-  }
+    },
+  },
 });

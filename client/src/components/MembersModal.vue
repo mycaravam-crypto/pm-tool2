@@ -1,8 +1,8 @@
 <script setup>
-import { ref, reactive } from 'vue';
-import { Trash2, Pencil, Plus } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -11,8 +11,13 @@ const store = useProjectStore();
 const editingId = ref(null);
 const showForm = ref(false);
 const form = reactive({
-  name: '', email: '', stakeholder_id: '', password: '',
-  notify_assigned: true, notify_overdue_action_items: true, notify_upcoming_deadlines: true
+  name: '',
+  email: '',
+  stakeholder_id: '',
+  password: '',
+  notify_assigned: true,
+  notify_overdue_action_items: true,
+  notify_upcoming_deadlines: true,
 });
 const error = ref('');
 const subscribedProjects = ref([]);
@@ -25,8 +30,13 @@ function startNew() {
   editingId.value = null;
   showForm.value = true;
   error.value = '';
-  form.name = ''; form.email = ''; form.stakeholder_id = ''; form.password = '';
-  form.notify_assigned = true; form.notify_overdue_action_items = true; form.notify_upcoming_deadlines = true;
+  form.name = '';
+  form.email = '';
+  form.stakeholder_id = '';
+  form.password = '';
+  form.notify_assigned = true;
+  form.notify_overdue_action_items = true;
+  form.notify_upcoming_deadlines = true;
   subscribedProjects.value = [];
 }
 
@@ -34,7 +44,10 @@ async function startEdit(m) {
   editingId.value = m.id;
   showForm.value = true;
   error.value = '';
-  form.name = m.name; form.email = m.email; form.stakeholder_id = m.stakeholder_id ?? ''; form.password = '';
+  form.name = m.name;
+  form.email = m.email;
+  form.stakeholder_id = m.stakeholder_id ?? '';
+  form.password = '';
   form.notify_assigned = !!m.notify_assigned;
   form.notify_overdue_action_items = !!m.notify_overdue_action_items;
   form.notify_upcoming_deadlines = !!m.notify_upcoming_deadlines;
@@ -51,9 +64,13 @@ async function save() {
   if (!form.name || !form.email) return;
   error.value = '';
   const payload = {
-    name: form.name, email: form.email, stakeholder_id: form.stakeholder_id || null, password: form.password,
-    notify_assigned: form.notify_assigned, notify_overdue_action_items: form.notify_overdue_action_items,
-    notify_upcoming_deadlines: form.notify_upcoming_deadlines
+    name: form.name,
+    email: form.email,
+    stakeholder_id: form.stakeholder_id || null,
+    password: form.password,
+    notify_assigned: form.notify_assigned,
+    notify_overdue_action_items: form.notify_overdue_action_items,
+    notify_upcoming_deadlines: form.notify_upcoming_deadlines,
   };
   try {
     if (editingId.value) {
@@ -62,7 +79,7 @@ async function save() {
       await store.createMember(payload);
       // Stay open in edit mode so project subscriptions can be added right away —
       // subscriptions need an existing member id, which we only just got.
-      const created = store.members.find(m => m.email === form.email);
+      const created = store.members.find((m) => m.email === form.email);
       if (created) await startEdit(created);
       return;
     }
@@ -78,7 +95,7 @@ async function remove(id) {
   if (editingId.value === id) cancel();
 }
 
-const isSubscribed = (projectId) => subscribedProjects.value.some(p => p.id === projectId);
+const isSubscribed = (projectId) => subscribedProjects.value.some((p) => p.id === projectId);
 
 async function toggleSubscription(project) {
   if (isSubscribed(project.id)) {

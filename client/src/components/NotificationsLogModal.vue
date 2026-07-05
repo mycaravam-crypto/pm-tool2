@@ -1,8 +1,8 @@
 <script setup>
-import { ref } from 'vue';
 import { Mail, PlayCircle } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { ref } from 'vue';
 import { formatDateTime } from '../lib/dateFormat.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -10,11 +10,15 @@ const store = useProjectStore();
 const running = ref(false);
 const lastRun = ref(null);
 
-const TYPE_LABELS = { assigned: 'Assigned to you', overdue_digest: 'Overdue digest', deadline_digest: 'Deadline digest' };
+const TYPE_LABELS = {
+  assigned: 'Assigned to you',
+  overdue_digest: 'Overdue digest',
+  deadline_digest: 'Deadline digest',
+};
 const TYPE_COLORS = {
   assigned: 'bg-indigo-100 text-indigo-700',
   overdue_digest: 'bg-rose-100 text-rose-700',
-  deadline_digest: 'bg-amber-100 text-amber-700'
+  deadline_digest: 'bg-amber-100 text-amber-700',
 };
 
 async function runDigest() {

@@ -1,9 +1,9 @@
 <script setup>
-import { computed, ref, nextTick, onMounted } from 'vue';
-import { ZoomIn, ZoomOut, RotateCcw, CalendarSearch } from 'lucide-vue-next';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { CalendarSearch, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { computed, nextTick, onMounted, ref } from 'vue';
+import { formatDate, formatMonthYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
-import { todayStr as getTodayStr, formatDate, formatMonthYear } from '../lib/dateFormat.js';
+import { useProjectStore } from '../stores/useProjectStore.js';
 
 const emit = defineEmits(['select-event']);
 const store = useProjectStore();
@@ -33,7 +33,7 @@ const zoomLevel = ref(1);
 const scrollContainer = ref(null);
 
 const range = computed(() => {
-  const dates = store.events.map(e => e.date);
+  const dates = store.events.map((e) => e.date);
   dates.push(todayStr);
   if (dates.length === 1) {
     const only = new Date(dates[0]);
@@ -98,8 +98,8 @@ const clusters = computed(() => {
 // removes events — the nested cluster/event structure above is still what
 // decides each bubble's position, just re-shaped into one list here.
 const positionedEvents = computed(() => {
-  return clusters.value.flatMap(cluster =>
-    cluster.events.map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx }))
+  return clusters.value.flatMap((cluster) =>
+    cluster.events.map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx })),
   );
 });
 
@@ -114,7 +114,7 @@ const monthMarkers = computed(() => {
     markers.push({
       key: dateStr,
       leftPercent: leftPercent(dateStr),
-      label: formatMonthYear(cursor)
+      label: formatMonthYear(cursor),
     });
     cursor.setMonth(cursor.getMonth() + 1);
   }
@@ -142,9 +142,7 @@ function jumpToDate() {
 function zoomBy(factor) {
   const container = scrollContainer.value;
   const oldWidth = trackWidth.value;
-  const oldCenterRatio = container
-    ? (container.scrollLeft + container.clientWidth / 2) / oldWidth
-    : 0.5;
+  const oldCenterRatio = container ? (container.scrollLeft + container.clientWidth / 2) / oldWidth : 0.5;
 
   zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(zoomLevel.value * factor).toFixed(2)));
 
@@ -154,8 +152,12 @@ function zoomBy(factor) {
     container.scrollLeft = Math.max(0, oldCenterRatio * newWidth - container.clientWidth / 2);
   });
 }
-function zoomIn() { zoomBy(ZOOM_STEP); }
-function zoomOut() { zoomBy(1 / ZOOM_STEP); }
+function zoomIn() {
+  zoomBy(ZOOM_STEP);
+}
+function zoomOut() {
+  zoomBy(1 / ZOOM_STEP);
+}
 function resetZoom() {
   zoomLevel.value = 1;
   nextTick(scrollToToday);

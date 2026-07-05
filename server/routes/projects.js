@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { computeScorecard } from '../utils/scorecard.js';
 import { requireAdmin } from '../middleware/requireAuth.js';
-import { getAccessibleProjectIds, canAccessProject } from '../utils/access.js';
+import { canAccessProject, getAccessibleProjectIds } from '../utils/access.js';
+import { computeScorecard } from '../utils/scorecard.js';
 
 const router = Router();
 
@@ -22,7 +22,7 @@ function serializeProject(project) {
     lead,
     scorecard: computeScorecard(project),
     requirements: getRequirementsStmt.all(project.id),
-    goals: getGoalsStmt.all(project.id)
+    goals: getGoalsStmt.all(project.id),
   };
 }
 
@@ -45,7 +45,7 @@ router.get('/', (req, res) => {
     : db.prepare('SELECT * FROM projects ORDER BY name').all();
 
   const accessibleIds = getAccessibleProjectIds(req.member);
-  if (accessibleIds !== null) projects = projects.filter(p => accessibleIds.includes(p.id));
+  if (accessibleIds !== null) projects = projects.filter((p) => accessibleIds.includes(p.id));
 
   res.json(projects.map(serializeProject));
 });
@@ -54,23 +54,39 @@ router.get('/', (req, res) => {
 // project-participation — admin-only, unlike everything else in this router
 // which is gated by commitment to the specific project instead.
 router.post('/', requireAdmin, (req, res) => {
-  const { name, description, color_hex, start_date, target_end_date, budget_planned, budget_spent, lead_stakeholder_id } = req.body;
+  const {
+    name,
+    description,
+    color_hex,
+    start_date,
+    target_end_date,
+    budget_planned,
+    budget_spent,
+    lead_stakeholder_id,
+  } = req.body;
 
   if (!name) return res.status(400).json({ error: 'name is required' });
   if (!lead_stakeholder_id) return res.status(400).json({ error: 'lead_stakeholder_id is required' });
 
   const stakeholder = db.prepare('SELECT id FROM stakeholders WHERE id = ?').get(lead_stakeholder_id);
-  if (!stakeholder) return res.status(400).json({ error: 'lead_stakeholder_id does not reference an existing stakeholder' });
+  if (!stakeholder)
+    return res.status(400).json({ error: 'lead_stakeholder_id does not reference an existing stakeholder' });
 
   const create = db.transaction(() => {
-    const info = db.prepare(`
+    const info = db
+      .prepare(`
       INSERT INTO projects (name, description, color_hex, start_date, target_end_date, budget_planned, budget_spent)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      name, description ?? null, color_hex ?? '#3B82F6',
-      start_date ?? null, target_end_date ?? null,
-      budget_planned ?? null, budget_spent ?? 0
-    );
+    `)
+      .run(
+        name,
+        description ?? null,
+        color_hex ?? '#3B82F6',
+        start_date ?? null,
+        target_end_date ?? null,
+        budget_planned ?? null,
+        budget_spent ?? 0,
+      );
     db.prepare(`
       INSERT INTO project_stakeholders (project_id, stakeholder_id, project_role)
       VALUES (?, ?, 'lead')
@@ -94,7 +110,7 @@ router.put('/:id', (req, res) => {
     start_date = project.start_date,
     target_end_date = project.target_end_date,
     budget_planned = project.budget_planned,
-    budget_spent = project.budget_spent
+    budget_spent = project.budget_spent,
   } = req.body;
 
   let actual_end_date = project.actual_end_date;
@@ -106,7 +122,18 @@ router.put('/:id', (req, res) => {
     UPDATE projects SET name = ?, description = ?, color_hex = ?, status = ?,
       start_date = ?, target_end_date = ?, budget_planned = ?, budget_spent = ?, actual_end_date = ?
     WHERE id = ?
-  `).run(name, description, color_hex, status, start_date, target_end_date, budget_planned, budget_spent, actual_end_date, req.params.id);
+  `).run(
+    name,
+    description,
+    color_hex,
+    status,
+    start_date,
+    target_end_date,
+    budget_planned,
+    budget_spent,
+    actual_end_date,
+    req.params.id,
+  );
 
   res.json(serializeProject(getProjectStmt.get(req.params.id)));
 });
@@ -116,9 +143,9 @@ router.put('/:id/lead', (req, res) => {
   if (!project) return;
 
   const { stakeholder_id } = req.body;
-  const membership = db.prepare(
-    'SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?'
-  ).get(req.params.id, stakeholder_id);
+  const membership = db
+    .prepare('SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?')
+    .get(req.params.id, stakeholder_id);
   if (!membership) return res.status(400).json({ error: 'stakeholder must already be assigned to the project' });
 
   const reassign = db.transaction(() => {
@@ -146,13 +173,15 @@ router.delete('/:id', requireAdmin, (req, res) => {
 router.get('/:id/stakeholders', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(`
     SELECT s.id, s.name, s.email, s.role, ps.project_role
     FROM project_stakeholders ps
     JOIN stakeholders s ON s.id = ps.stakeholder_id
     WHERE ps.project_id = ?
     ORDER BY CASE ps.project_role WHEN 'lead' THEN 0 WHEN 'sponsor' THEN 1 WHEN 'member' THEN 2 ELSE 3 END, s.name
-  `).all(req.params.id);
+  `)
+    .all(req.params.id);
   res.json(rows);
 });
 
@@ -186,9 +215,11 @@ router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {
   if (!['sponsor', 'member', 'stakeholder'].includes(project_role)) {
     return res.status(400).json({ error: 'invalid project_role' });
   }
-  const info = db.prepare(`
+  const info = db
+    .prepare(`
     UPDATE project_stakeholders SET project_role = ? WHERE project_id = ? AND stakeholder_id = ?
-  `).run(project_role, req.params.id, req.params.stakeholderId);
+  `)
+    .run(project_role, req.params.id, req.params.stakeholderId);
   if (info.changes === 0) return res.status(404).json({ error: 'assignment not found' });
   res.json({ project_id: Number(req.params.id), stakeholder_id: Number(req.params.stakeholderId), project_role });
 });
@@ -197,15 +228,17 @@ router.delete('/:id/stakeholders/:stakeholderId', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
 
-  const membership = db.prepare(
-    'SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?'
-  ).get(req.params.id, req.params.stakeholderId);
+  const membership = db
+    .prepare('SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?')
+    .get(req.params.id, req.params.stakeholderId);
   if (!membership) return res.status(404).json({ error: 'assignment not found' });
   if (membership.project_role === 'lead') {
     return res.status(400).json({ error: 'cannot remove the lead — reassign the lead first' });
   }
-  db.prepare('DELETE FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?')
-    .run(req.params.id, req.params.stakeholderId);
+  db.prepare('DELETE FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?').run(
+    req.params.id,
+    req.params.stakeholderId,
+  );
   res.status(204).end();
 });
 
