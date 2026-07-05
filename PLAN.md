@@ -84,6 +84,8 @@ CREATE TABLE projects (
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived','completed')),
     start_date TEXT, -- YYYY-MM-DD
     target_end_date TEXT, -- YYYY-MM-DD — the Time constraint
+    original_target_end_date TEXT, -- snapshotted once at creation, never touched again — makes
+        -- schedule slip (current vs. originally planned) visible (Section 10)
     actual_end_date TEXT, -- set when status flips to 'completed'; null while active
     budget_planned REAL, -- the Cost constraint; single implicit currency
     budget_spent REAL NOT NULL DEFAULT 0, -- a running total, not a line-item ledger
@@ -160,6 +162,8 @@ CREATE TABLE pain_points (
     event_id INTEGER NOT NULL,
     text TEXT NOT NULL,
     severity TEXT NOT NULL CHECK(severity IN ('Low', 'Medium', 'High')),
+    kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk')), -- issue: already
+        -- happened; risk: might happen — same shape, just a forward-looking lens (Section 10)
     owner_id INTEGER,
     resolved INTEGER NOT NULL DEFAULT 0,
     resolved_at TEXT, -- set when resolved flips to true, cleared if flipped back
@@ -258,7 +262,7 @@ Deleting a project or event cascades to everything nested under it, so both acti
 ### C. Aggregated Views
 Three cross-project tabs, scoped to whatever's currently selected in the sidebar:
 - **Action Items** — task, assignee, project, due date; overdue ones highlighted; filterable by "my tasks" or by project.
-- **Pain Points** — grouped by severity, with owner and project context.
+- **Pain Points** — grouped by severity, with owner and project context; filterable by risk vs. issue (Section 10).
 - **Decisions** — a chronological log of what's been agreed, with the originating event, project, and decision-maker.
 
 ### D. Health Summary
@@ -277,12 +281,12 @@ Closes the loop between "the data exists in the tool" and "the right person actu
 
 - A **Members** panel manages the list of subscribers: create/edit/delete, an optional link to a Stakeholder identity (needed for "assigned to you" alerts), three notification toggles, and a per-member project checklist controlling which projects' digests they get — independent of whether they're actually on that project's team.
 - A **notification bell** opens a log of everything the system has generated, each row tagged with the project it's about (Section 9) so a non-admin only sees rows for projects they're committed to. A "Run Digest Now" button supplements the automatic nightly run (Section 9) for demos/testing.
-- Three triggers: something gets assigned to you (real-time), your action items are overdue (digest), or a deadline/milestone on one of your projects is coming up in 14 days (digest).
+- Three triggers: something gets assigned to you (real-time), your action items are overdue (digest), or a deadline/milestone on one of your projects is coming up in 14 days — or has already passed and is still unmarked (digest; Section 10).
 - Live delivery runs over a WebSocket connection targeted at the specific member a notification is for — open the app in two tabs and both get it. A short chime plays on arrival (generated in-browser, no audio asset), with a mute toggle that remembers your preference.
 - Every notification is also emailed to its recipient (Section 9) — logged to the server console instead if no SMTP provider is configured, so local dev needs no credentials.
 
 ### G. Login
-Real authentication, not a cosmetic gate — every API route except login/register/password-reset requires a valid session. Accounts live on the `members` table (the same record that already tracks notification preferences) rather than a separate Users concept; a member becomes login-capable the moment someone sets a password for them (via the Members panel, self-service signup, or a password reset). Sessions are a random token in an httpOnly cookie, valid 7 days with no sliding renewal; passwords are hashed with Node's built-in `scrypt`. Self-service signup and password reset are covered in Section 9. Deliberately still out of scope: CSRF tokens, login rate-limiting, SSO, and cleanup of expired sessions/reset tokens.
+Real authentication, not a cosmetic gate — every API route except login/register/password-reset requires a valid session. Accounts live on the `members` table (the same record that already tracks notification preferences) rather than a separate Users concept; a member becomes login-capable the moment someone sets a password for them (via the Members panel, self-service signup, or a password reset). Sessions are a random token in an httpOnly cookie, valid 7 days with no sliding renewal; passwords are hashed with Node's built-in `scrypt`. Self-service signup and password reset are covered in Section 9. Rate limiting on the whole auth surface is covered in Section 10. Deliberately still out of scope: CSRF tokens, SSO, and cleanup of expired sessions/reset tokens.
 
 ### H. Roles & Access
 Two account roles: **admin** sees and manages everything, including the Stakeholder Directory and Member management, and is the only one who can create or delete a project. **Member** only sees projects they're actually committed to — meaning their linked Stakeholder identity has a team role on that project, not just a digest subscription. Access is enforced on the server on every route, not just hidden in the UI, and a project you can't access returns a plain 404 rather than a 403 — so you can't tell the difference between "wrong ID" and "real project you're not on."
@@ -381,4 +385,23 @@ The five items originally tracked here as future work are now built:
 - **A finer permission model.** Covered in Section 6.H — the existing project-level role (lead/sponsor/member/stakeholder) now gates write access within a committed project, not just display.
 - **Project-scoped notification log.** `notifications.project_id` is now populated on every row (digests changed from one combined row per member to one row per member per project, specifically so each can carry a real project id), and `GET /api/notifications` filters by project access for non-admins the same way the events list endpoint does.
 
-**Still open, deliberately:** SMS delivery, CSRF tokens, login rate-limiting, SSO, and cleanup of expired sessions/reset tokens (Section 6.G).
+**Still open, deliberately:** SMS delivery, CSRF tokens, SSO, and cleanup of expired sessions/reset tokens (Section 6.G) — rate limiting itself has since been added (Section 10).
+
+## 10. PM-Domain Enhancements & Production Hardening (implemented)
+
+Two further rounds of work landed after Section 9: closing specific project-management gaps identified in a domain review, then hardening the app for an actual go-live rather than local/demo use.
+
+**PM-domain gaps closed**, each by extending an existing pattern rather than adding a new subsystem:
+- **Schedule baseline.** `projects.original_target_end_date` is snapshotted once at creation and never touched again, mirroring the existing budget planned-vs-actual idiom — the project edit form now shows how far the current target date has slipped (or moved up) from what was originally planned.
+- **Risk vs. issue split.** `pain_points.kind` (`'issue' | 'risk'`) reuses the existing severity/owner/resolved shape instead of a parallel risk-register table — a risk is just a pain point that hasn't happened yet. The event detail view and the aggregated Pain Points tab both tag and filter by kind.
+- **Resource overload signal.** `GET /api/stakeholders` now returns `active_project_count`, `open_item_count`, and a derived `overloaded` flag (lead on 2+ active projects, or 5+ open items across projects), computed on the fly in a handful of grouped queries — the same "computed, not stored" philosophy as the RAG scorecard (Section 6.E). Surfaced as a "Load" column in the Stakeholder Directory.
+- **Missed-milestone/deadline notification.** The nightly digest (Section 9) now also flags pending milestones/deadlines whose date has already passed, reusing the existing `notify_upcoming_deadlines` toggle and `deadline_digest` type — previously this only showed up as a passive amber nudge on the timeline (Section 6.B), easy to miss if nobody opens the app.
+
+**Production hardening**, scoped to what a single-container go-live needs rather than a full ops buildout:
+- **Rate limiting.** The whole `/api/auth` router (login/register/forgot-password/reset-password) is limited to 20 requests per 15 minutes per IP (`server/middleware/rateLimit.js`), closing what was previously an open brute-force/enumeration surface.
+- **CORS and cookie hardening.** `cors()` is now locked to `CLIENT_ORIGIN` (was wide open) with `credentials: true`, and the session cookie gets `secure: true` whenever `NODE_ENV=production`.
+- **Single-container deployment.** `server/index.js` now serves the built client (`client/dist`) directly with an SPA fallback, so the whole app is one process/one port. A `Dockerfile` (multi-stage, `node:20-slim` for native-module compatibility with `better-sqlite3`) and `docker-compose.yml` (named volume for the SQLite data directory, `restart: unless-stopped`) package this up; `GET /healthz` backs the container's `HEALTHCHECK`.
+- **Backups.** `npm run backup` (`server/scripts/backup.js`) snapshots the live database via `better-sqlite3`'s own `.backup()` API — safe to run against a database that's actively being written to, unlike a raw file copy.
+- **Help tooltips.** Longer explanatory paragraphs that used to sit inline in forms/modals (the Members-vs-Stakeholders distinction, what a milestone's status means, the CSV import column reference, etc.) are now behind a small `(?)` popover (`client/src/components/HelpTooltip.vue`) — same information, less permanent visual clutter on forms people use daily.
+
+**Still open, deliberately:** automated tests, security headers (helmet/CSP), a health-check-informed monitoring/alerting setup, cleanup of expired sessions/reset tokens, SQLite WAL mode, and CSRF tokens (the existing `sameSite: 'lax'` cookie already blocks most cross-site abuse).

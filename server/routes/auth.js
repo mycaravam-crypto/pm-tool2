@@ -1,11 +1,16 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { db } from '../db/connection.js';
+import { authLimiter } from '../middleware/rateLimit.js';
 import { COOKIE_NAME, findSession } from '../middleware/requireAuth.js';
 import { sendEmail } from '../utils/mailer.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 
 const router = Router();
+// Applied to the whole router, not just /login — register and forgot-password
+// are just as exploitable for brute-forcing/enumeration, and /me and /logout
+// don't need protecting but don't need excluding either (nobody hammers those).
+router.use(authLimiter);
 const SESSION_DAYS = 7;
 const RESET_TOKEN_HOURS = 1;
 
@@ -29,6 +34,9 @@ function setSessionCookie(res, token, expiresAt) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
+    // Only forced in production, not dev — the Vite dev server proxies over
+    // plain http on localhost, where a `secure` cookie would just never be sent.
+    secure: process.env.NODE_ENV === 'production',
     expires: new Date(expiresAt),
     path: '/',
   });
