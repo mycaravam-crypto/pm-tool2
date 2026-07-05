@@ -4,6 +4,7 @@ import { reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -110,11 +111,9 @@ async function toggleSubscription(project) {
 
 <template>
   <ModalShell title="Members &amp; Notifications" wide @close="emit('close')">
-    <p class="text-sm text-slate-500 mb-3">
-      People who receive email notifications. Separate from the Stakeholder directory — a member can
-      (optionally) link to their Stakeholder identity to get "assigned to you" alerts, and subscribes to
-      projects independently to get overdue/deadline digests. Sending is stubbed for now — see the
-      Notifications log.
+    <p class="flex items-center gap-1 text-sm text-slate-500 mb-3">
+      People who receive email notifications.
+      <HelpTooltip text="Separate from the Stakeholder directory — a member can (optionally) link to their Stakeholder identity to get 'assigned to you' alerts, and subscribes to projects independently to get overdue/deadline digests. Sending is stubbed for now — see the Notifications log." />
     </p>
 
     <div class="flex justify-end mb-3">

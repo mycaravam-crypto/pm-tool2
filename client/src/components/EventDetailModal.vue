@@ -6,6 +6,7 @@ import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS } from '../lib/eventTypes.js';
 import { generateEventProtocolPdf } from '../lib/pdfReports.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({
@@ -246,11 +247,13 @@ function removeStagedPain(idx) {
           </select>
         </div>
         <div v-else>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+          <label class="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
+            Status
+            <HelpTooltip :text="`Was this ${form.type} hit or missed once its date passed?`" />
+          </label>
           <select v-model="form.status" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
             <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
-          <p class="text-xs text-slate-400 mt-1">Was this {{ form.type }} hit or missed once its date passed?</p>
         </div>
       </div>
 

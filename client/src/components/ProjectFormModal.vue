@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
 
 const props = defineProps({ project: { type: Object, default: null } });
@@ -222,12 +223,14 @@ async function removeGoal(id) {
         </div>
 
         <div v-if="!isEdit" class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Lead <span class="text-rose-500">*</span></label>
+          <label class="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
+            Lead <span class="text-rose-500">*</span>
+            <HelpTooltip text="Every project must have exactly one accountable lead — the person responsible for schedule, budget, and quality outcomes." />
+          </label>
           <select v-model="form.lead_stakeholder_id" required class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
             <option value="" disabled>Select a lead…</option>
             <option v-for="s in store.stakeholders" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <p class="text-xs text-slate-400 mt-1">Every project must have exactly one accountable lead.</p>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
 
 const emit = defineEmits(['close']);
@@ -89,6 +90,7 @@ function downloadTemplate() {
         <div class="flex items-center gap-2 text-slate-600">
           <Upload class="w-4 h-4 shrink-0" />
           <span>{{ fileName || 'Choose a CSV file to import' }}</span>
+          <HelpTooltip text="Columns: title, date (YYYY-MM-DD), type (kickoff/sync/workshop/review/decision/retro/milestone/deadline), summary, status (pending/achieved/missed, optional), participants (optional, stakeholder names separated by ;)." />
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <button type="button" class="text-indigo-600 hover:underline flex items-center gap-1" @click="downloadTemplate">
@@ -100,11 +102,6 @@ function downloadTemplate() {
           </label>
         </div>
       </div>
-
-      <p class="text-xs text-slate-500">
-        Columns: <code>title</code>, <code>date</code> (YYYY-MM-DD), <code>type</code> (kickoff/sync/workshop/review/decision/retro/milestone/deadline),
-        <code>summary</code>, <code>status</code> (pending/achieved/missed, optional), <code>participants</code> (optional, stakeholder names separated by <code>;</code>).
-      </p>
 
       <div v-if="error" class="text-rose-600 flex items-center gap-1.5">
         <CircleAlert class="w-4 h-4" /> {{ error }}
