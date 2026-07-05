@@ -319,7 +319,7 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'overview'" class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Type</th><th class="py-1.5">Text</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Person</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Type</th><th class="py-1.5">Text</th><th class="py-1.5">Event</th><th class="py-1.5">Person</th><th class="py-1.5">Project</th><th class="py-1.5">Status</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
@@ -349,12 +349,12 @@ async function toggleGoal(g) {
               >{{ r.event.title }}</button>
               <span v-else class="text-slate-400">—</span>
             </td>
+            <td class="py-1.5 text-slate-500">{{ r.person || '—' }}</td>
             <td class="py-1.5">
               <span class="inline-flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: r.project.color_hex }" />{{ r.project.name }}
               </span>
             </td>
-            <td class="py-1.5 text-slate-500">{{ r.person || '—' }}</td>
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded" :class="r.statusClass">{{ r.statusLabel }}</span></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.date) }}</td>
           </tr>
@@ -365,7 +365,7 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'actions'" class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Task</th><th class="py-1.5">Assignee</th><th class="py-1.5">Project</th><th class="py-1.5">Due date</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Action Item</th><th class="py-1.5">Assignee</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Due date</th>
           </tr>
         </thead>
         <tbody>
@@ -373,6 +373,13 @@ async function toggleGoal(g) {
             <td class="py-1.5"><input type="checkbox" :checked="!!a.done" @change="toggleDone(a)" /></td>
             <td class="py-1.5" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</td>
             <td class="py-1.5 text-slate-500">{{ a.assignee_name || '—' }}</td>
+            <td class="py-1.5">
+              <button
+                type="button" class="text-indigo-600 hover:underline text-left"
+                :title="`Open ${a.event.title} (${formatDate(a.event.date)})`"
+                @click="emit('select-event', a.event)"
+              >{{ a.event.title }}</button>
+            </td>
             <td class="py-1.5">
               <span class="inline-flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: a.event.project.color_hex }" />{{ a.event.project.name }}
@@ -393,7 +400,7 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'pain'" class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Pain Point</th><th class="py-1.5">Severity</th><th class="py-1.5">Owner</th><th class="py-1.5">Project</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Pain Point</th><th class="py-1.5">Severity</th><th class="py-1.5">Owner</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
@@ -408,10 +415,18 @@ async function toggleGoal(g) {
             </td>
             <td class="py-1.5 text-slate-500">{{ p.owner_name || '—' }}</td>
             <td class="py-1.5">
+              <button
+                type="button" class="text-indigo-600 hover:underline text-left"
+                :title="`Open ${p.event.title} (${formatDate(p.event.date)})`"
+                @click="emit('select-event', p.event)"
+              >{{ p.event.title }}</button>
+            </td>
+            <td class="py-1.5">
               <span class="inline-flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.event.project.color_hex }" />{{ p.event.project.name }}
               </span>
             </td>
+            <td class="py-1.5 text-slate-500">{{ formatDate(p.event.date) }}</td>
           </tr>
         </tbody>
       </table>
@@ -433,7 +448,13 @@ async function toggleGoal(g) {
           <tr v-for="d in decisions" :key="d.id" class="border-b border-slate-100">
             <td class="py-1.5">{{ d.text }}</td>
             <td class="py-1.5 text-slate-500">{{ d.decided_by_name || '—' }}</td>
-            <td class="py-1.5 text-slate-500">{{ d.event.title }}</td>
+            <td class="py-1.5">
+              <button
+                type="button" class="text-indigo-600 hover:underline text-left"
+                :title="`Open ${d.event.title} (${formatDate(d.event.date)})`"
+                @click="emit('select-event', d.event)"
+              >{{ d.event.title }}</button>
+            </td>
             <td class="py-1.5">
               <span class="inline-flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: d.event.project.color_hex }" />{{ d.event.project.name }}
