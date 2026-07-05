@@ -35,10 +35,10 @@ async function runDigest() {
 <template>
   <ModalShell title="Notifications" wide @close="emit('close')">
     <p class="text-sm text-slate-500 mb-3">
-      Sending is stubbed — no real email goes out. Each row below is what would have been sent,
-      to whom, and why. Real-time rows appear as soon as someone is assigned an action item, pain
-      point, or decision. Digest rows only appear after running the digest below (in production
-      this would run on a nightly schedule instead of on demand).
+      Each row below was also emailed to its recipient (or logged to the server console if SMTP
+      isn't configured). Real-time rows appear as soon as someone is assigned an action item, pain
+      point, or decision. Digest rows are generated automatically every night — use the button
+      below to also trigger one on demand.
     </p>
 
     <div class="flex items-center gap-3 mb-4">
@@ -57,6 +57,10 @@ async function runDigest() {
         <div class="flex items-center gap-2 mb-1">
           <Mail class="w-3.5 h-3.5 text-slate-400" />
           <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="TYPE_COLORS[n.type]">{{ TYPE_LABELS[n.type] }}</span>
+          <span v-if="n.project_id && store.projectById(n.project_id)" class="flex items-center gap-1 text-xs text-slate-500">
+            <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: store.projectById(n.project_id).color_hex }" />
+            {{ store.projectById(n.project_id).name }}
+          </span>
           <span class="text-sm font-medium">{{ n.subject }}</span>
           <span class="text-xs text-slate-400 ml-auto">{{ formatDateTime(n.created_at) }}</span>
         </div>

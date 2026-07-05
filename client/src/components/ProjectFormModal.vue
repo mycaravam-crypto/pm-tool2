@@ -44,6 +44,20 @@ onMounted(loadPeople);
 
 const availableToAdd = computed(() => store.stakeholders.filter((s) => !people.value.some((p) => p.id === s.id)));
 
+// Only reachable in edit mode — creating a project is already admin-only,
+// gated at the "New Project" button. Mirrors the server-side canManageProject/
+// canContribute checks in server/utils/access.js: settings/team changes need
+// lead/sponsor/admin, while Requirements/Goals follow the wider contribute tier.
+const myRole = computed(
+  () => people.value.find((p) => p.id === store.currentMember?.stakeholder_id)?.project_role ?? null,
+);
+const canManage = computed(
+  () => !isEdit.value || store.isAdmin || myRole.value === 'lead' || myRole.value === 'sponsor',
+);
+const canContribute = computed(
+  () => !isEdit.value || store.isAdmin || (myRole.value !== null && myRole.value !== 'stakeholder'),
+);
+
 async function save() {
   error.value = '';
   saving.value = true;
@@ -157,19 +171,19 @@ async function removeGoal(id) {
       <div class="grid grid-cols-2 gap-4">
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
-          <input v-model="form.name" required class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.name" required :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Description (Scope)</label>
-          <textarea v-model="form.description" rows="2" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <textarea v-model="form.description" rows="2" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Color</label>
-          <input v-model="form.color_hex" type="color" class="w-full h-9 border border-slate-300 rounded-md" />
+          <input v-model="form.color_hex" type="color" :disabled="!canManage" class="w-full h-9 border border-slate-300 rounded-md disabled:opacity-50" />
         </div>
         <div v-if="isEdit">
           <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-          <select v-model="form.status" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+          <select v-model="form.status" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
             <option value="active">Active</option>
             <option value="archived">Archived</option>
             <option value="completed">Completed</option>
@@ -177,19 +191,19 @@ async function removeGoal(id) {
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Start date</label>
-          <input v-model="form.start_date" type="date" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.start_date" type="date" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Target end date</label>
-          <input v-model="form.target_end_date" type="date" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.target_end_date" type="date" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Budget planned</label>
-          <input v-model="form.budget_planned" type="number" step="0.01" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.budget_planned" type="number" step="0.01" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Budget spent</label>
-          <input v-model="form.budget_spent" type="number" step="0.01" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.budget_spent" type="number" step="0.01" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
 
         <div v-if="!isEdit" class="col-span-2">
@@ -208,7 +222,7 @@ async function removeGoal(id) {
           <li v-for="p in people" :key="p.id" class="flex items-center gap-2 text-sm">
             <span class="flex-1">{{ p.name }}</span>
             <select
-              v-if="p.project_role !== 'lead'"
+              v-if="p.project_role !== 'lead' && canManage"
               :value="p.project_role"
               class="border border-slate-300 rounded px-1.5 py-0.5 text-xs"
               @change="changeRole(p.id, $event.target.value)"
@@ -217,20 +231,21 @@ async function removeGoal(id) {
               <option value="member">Member</option>
               <option value="stakeholder">Stakeholder</option>
             </select>
-            <span v-else class="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">Lead</span>
+            <span v-else-if="p.project_role === 'lead'" class="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">Lead</span>
+            <span v-else class="text-xs text-slate-500 capitalize">{{ p.project_role }}</span>
             <button
-              v-if="p.project_role !== 'lead'"
+              v-if="p.project_role !== 'lead' && canManage"
               type="button" class="text-xs text-indigo-600 hover:underline"
               @click="makeLead(p.id)"
             >Make lead</button>
             <button
-              v-if="p.project_role !== 'lead'"
+              v-if="p.project_role !== 'lead' && canManage"
               type="button" class="text-slate-400 hover:text-rose-600"
               @click="removePerson(p.id)"
             ><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
         </ul>
-        <div class="flex items-center gap-2">
+        <div v-if="canManage" class="flex items-center gap-2">
           <select v-model="newPersonId" class="flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
             <option value="" disabled>Add stakeholder…</option>
             <option v-for="s in availableToAdd" :key="s.id" :value="s.id">{{ s.name }}</option>
@@ -248,13 +263,13 @@ async function removeGoal(id) {
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Requirements</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="flex items-center gap-2 text-sm">
-            <input type="checkbox" :checked="!!r.done" @change="toggleRequirement(r)" />
+            <input type="checkbox" :checked="!!r.done" :disabled="!canContribute" @change="toggleRequirement(r)" />
             <span class="flex-1" :class="r.done ? 'line-through text-slate-400' : ''">{{ r.text }}</span>
-            <button type="button" class="text-slate-400 hover:text-rose-600" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-400">No requirements yet.</li>
         </ul>
-        <div class="flex gap-2">
+        <div v-if="canContribute" class="flex gap-2">
           <input v-model="newRequirementText" placeholder="New requirement…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addRequirement" />
           <button type="button" class="text-indigo-600" @click="addRequirement"><Plus class="w-4 h-4" /></button>
         </div>
@@ -264,14 +279,14 @@ async function removeGoal(id) {
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Goals</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="flex items-center gap-2 text-sm">
-            <input type="checkbox" :checked="!!g.achieved" @change="toggleGoal(g)" />
+            <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
             <span class="flex-1" :class="g.achieved ? 'line-through text-slate-400' : ''">{{ g.text }}</span>
             <span v-if="g.target_date" class="text-xs text-slate-400 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
-            <button type="button" class="text-slate-400 hover:text-rose-600" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="!liveProject?.goals?.length" class="text-sm text-slate-400">No goals yet.</li>
         </ul>
-        <div class="flex gap-2">
+        <div v-if="canContribute" class="flex gap-2">
           <input v-model="newGoalText" placeholder="New goal…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
           <input v-model="newGoalTargetDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
           <button type="button" class="text-indigo-600" @click="addGoal"><Plus class="w-4 h-4" /></button>
@@ -287,7 +302,7 @@ async function removeGoal(id) {
         <span v-else />
         <div class="flex gap-2">
           <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
-          <button type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
+          <button v-if="canManage" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>

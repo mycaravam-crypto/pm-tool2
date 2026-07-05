@@ -1,8 +1,10 @@
+import 'dotenv/config';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import './db/connection.js';
 
+import { startDigestCron } from './cron.js';
 import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
 import actionItemsRouter from './routes/actionItems.js';
 import authRouter from './routes/auth.js';
@@ -55,3 +57,4 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
 initWebSocketServer(server);
+startDigestCron();

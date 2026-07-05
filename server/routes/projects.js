@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { requireAdmin } from '../middleware/requireAuth.js';
-import { canAccessProject, getAccessibleProjectIds } from '../utils/access.js';
+import { canAccessProject, canManageProject, getAccessibleProjectIds } from '../utils/access.js';
 import { computeScorecard } from '../utils/scorecard.js';
 
 const router = Router();
@@ -36,6 +36,18 @@ function requireProjectAccess(req, res) {
     return null;
   }
   return project;
+}
+
+// Project settings (budget/dates/status/lead) and team membership are
+// restricted to the roles accountable for them — lead/sponsor/admin — not
+// every committed member. Call after requireProjectAccess has already
+// confirmed the project exists and is visible to this member.
+function requireProjectManage(req, res, project) {
+  if (!canManageProject(req.member, project.id)) {
+    res.status(403).json({ error: 'lead/sponsor access required for this action' });
+    return false;
+  }
+  return true;
 }
 
 router.get('/', (req, res) => {
@@ -101,6 +113,7 @@ router.post('/', requireAdmin, (req, res) => {
 router.put('/:id', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
+  if (!requireProjectManage(req, res, project)) return;
 
   const {
     name = project.name,
@@ -141,6 +154,7 @@ router.put('/:id', (req, res) => {
 router.put('/:id/lead', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
+  if (!requireProjectManage(req, res, project)) return;
 
   const { stakeholder_id } = req.body;
   const membership = db
@@ -188,6 +202,7 @@ router.get('/:id/stakeholders', (req, res) => {
 router.post('/:id/stakeholders', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
+  if (!requireProjectManage(req, res, project)) return;
 
   const { stakeholder_id, project_role = 'member' } = req.body;
   if (project_role === 'lead') {
@@ -207,6 +222,7 @@ router.post('/:id/stakeholders', (req, res) => {
 router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
+  if (!requireProjectManage(req, res, project)) return;
 
   const { project_role } = req.body;
   if (project_role === 'lead') {
@@ -227,6 +243,7 @@ router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {
 router.delete('/:id/stakeholders/:stakeholderId', (req, res) => {
   const project = requireProjectAccess(req, res);
   if (!project) return;
+  if (!requireProjectManage(req, res, project)) return;
 
   const membership = db
     .prepare('SELECT * FROM project_stakeholders WHERE project_id = ? AND stakeholder_id = ?')

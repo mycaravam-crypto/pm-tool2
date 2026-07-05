@@ -119,10 +119,23 @@ CREATE TABLE IF NOT EXISTS members (
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
+    email_verified INTEGER NOT NULL DEFAULT 1, -- defaults true; only meaningful if verification is ever enforced later
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_members_stakeholder_id ON members(stakeholder_id);
+
+-- 9c. Password resets — short-lived tokens backing the forgot-password flow.
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_member_id ON password_resets(member_id);
 
 -- 9b. Sessions — backs the login cookie. No sliding expiry or cleanup job in this
 -- prototype; a session is just valid until expires_at, full stop.
@@ -154,10 +167,13 @@ CREATE TABLE IF NOT EXISTS notifications (
     type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest')),
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
+    project_id INTEGER, -- nullable: lets the notification log be filtered by project access; losing the project shouldn't delete history
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_member_id ON notifications(member_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id);
 
 -- 12. Requirements — what the project must deliver. Project-scoped (not event-scoped
 -- like decisions/action_items/pain_points), since a requirement isn't tied to a

@@ -23,10 +23,9 @@ This document is our working plan for the app: what it does, how it's structured
 - Earned Value Management (EV/PV/AC/CPI/SPI) — full cost/schedule performance indices are overkill here
 - Per-task RACI assignment — we use a simpler project-level role instead (see below)
 - Multi-currency budgeting or a line-item cost ledger — budget is a single planned-vs-actual number, not a transaction log
-- Real email/SMS delivery for notifications — v1 logs notifications in-app and pushes them live to open browser tabs; wiring an actual provider is a later swap-in, not part of this build
-- A background job scheduler — anything that would run nightly (digests) is triggered on demand for now
-- A fine-grained permission matrix — two roles (admin/member) is enough for the team size we're building for
-- Password reset, self-service signup, SSO — accounts are provisioned by an admin by hand
+- SMS delivery — email is wired up (Section 9); SMS stays a documented future seam, not built
+- SSO — email/password login is enough for the team size we're building for
+- A full custom permission matrix — the finer permission tier (Section 6.H) reuses the existing project-level role instead of inventing configurable per-action grants
 
 We can revisit any of these once the core tool proves useful — they're deferred, not rejected.
 
@@ -277,15 +276,22 @@ Deliberately a rough heuristic, not a formal earned-value calculation — good e
 Closes the loop between "the data exists in the tool" and "the right person actually saw it" — useful for anyone who isn't opening the app every day. Kept as a separate concept from Stakeholders on purpose: a Member is a notification subscriber, who may or may not also be someone doing project work.
 
 - A **Members** panel manages the list of subscribers: create/edit/delete, an optional link to a Stakeholder identity (needed for "assigned to you" alerts), three notification toggles, and a per-member project checklist controlling which projects' digests they get — independent of whether they're actually on that project's team.
-- A **notification bell** opens a log of everything the system has generated, plus a "Run Digest Now" button standing in for what would be a nightly job in a production deployment.
+- A **notification bell** opens a log of everything the system has generated, each row tagged with the project it's about (Section 9) so a non-admin only sees rows for projects they're committed to. A "Run Digest Now" button supplements the automatic nightly run (Section 9) for demos/testing.
 - Three triggers: something gets assigned to you (real-time), your action items are overdue (digest), or a deadline/milestone on one of your projects is coming up in 14 days (digest).
 - Live delivery runs over a WebSocket connection targeted at the specific member a notification is for — open the app in two tabs and both get it. A short chime plays on arrival (generated in-browser, no audio asset), with a mute toggle that remembers your preference.
+- Every notification is also emailed to its recipient (Section 9) — logged to the server console instead if no SMTP provider is configured, so local dev needs no credentials.
 
 ### G. Login
-Real authentication, not a cosmetic gate — every API route except login itself requires a valid session. Accounts live on the `members` table (the same record that already tracks notification preferences) rather than a separate Users concept; a member becomes login-capable the moment someone sets a password for them. Sessions are a random token in an httpOnly cookie, valid 7 days with no sliding renewal; passwords are hashed with Node's built-in `scrypt`. Deliberately out of scope for now: password reset, self-service signup, CSRF tokens, login rate-limiting, and cleanup of expired sessions.
+Real authentication, not a cosmetic gate — every API route except login/register/password-reset requires a valid session. Accounts live on the `members` table (the same record that already tracks notification preferences) rather than a separate Users concept; a member becomes login-capable the moment someone sets a password for them (via the Members panel, self-service signup, or a password reset). Sessions are a random token in an httpOnly cookie, valid 7 days with no sliding renewal; passwords are hashed with Node's built-in `scrypt`. Self-service signup and password reset are covered in Section 9. Deliberately still out of scope: CSRF tokens, login rate-limiting, SSO, and cleanup of expired sessions/reset tokens.
 
 ### H. Roles & Access
-Two roles, nothing fancier: **admin** sees and manages everything, including the Stakeholder Directory and Member management, and is the only one who can create or delete a project. **Member** only sees projects they're actually committed to — meaning their linked Stakeholder identity has a team role on that project, not just a digest subscription. Access is enforced on the server on every route, not just hidden in the UI, and a project you can't access returns a plain 404 rather than a 403 — so you can't tell the difference between "wrong ID" and "real project you're not on." One known, accepted gap: the notification log isn't filtered by project, so in principle a non-admin could see a log line mentioning a project they can't otherwise open. Not worth the schema change yet.
+Two account roles: **admin** sees and manages everything, including the Stakeholder Directory and Member management, and is the only one who can create or delete a project. **Member** only sees projects they're actually committed to — meaning their linked Stakeholder identity has a team role on that project, not just a digest subscription. Access is enforced on the server on every route, not just hidden in the UI, and a project you can't access returns a plain 404 rather than a 403 — so you can't tell the difference between "wrong ID" and "real project you're not on."
+
+Within a committed project, the existing project-level role (lead/sponsor/member/stakeholder) now also gates *write* access, not just display — reusing the role that was already there instead of adding a separate permission system:
+- **Contribute** (create/edit/delete events, decisions, action items, pain points, requirements, goals): every committed role except `stakeholder` — the RACI "Informed" tier is read-only by design.
+- **Manage** (project settings — name/dates/budget/status, lead reassignment, team membership): `lead`, `sponsor`, or admin only.
+
+A `stakeholder`-only viewer can still open and read everything on a project they're committed to; they just can't change it. This is enforced server-side (`403` on a disallowed write) and mirrored in the client by disabling/hiding the relevant controls.
 
 ## 7. API Surface (Reference)
 
@@ -293,27 +299,31 @@ Conventions: JSON bodies, `400` for validation errors, `404` for missing/inacces
 
 **Auth**
 - `POST /api/auth/login` — `{ email, password }` → sets the session cookie, returns the member (never the password hash)
+- `POST /api/auth/register` — `{ name, email, password }` → creates a member (no stakeholder link) and logs them in immediately
+- `POST /api/auth/forgot-password` — `{ email }` → always `200`; emails a reset link if the address matches an account
+- `POST /api/auth/reset-password` — `{ token, password }` → sets a new password and invalidates existing sessions for that member
 - `POST /api/auth/logout`
 - `GET /api/auth/me` — current member + role, or 401
 
 **Projects**
 - `GET /api/projects?status=active` — filtered to committed projects for a non-admin; includes lead and scorecard
 - `POST /api/projects` *(admin)* — requires a lead
-- `PUT /api/projects/:id` — everything except lead reassignment
-- `PUT /api/projects/:id/lead` — atomic demote-old/promote-new
+- `PUT /api/projects/:id` *(lead/sponsor/admin)* — everything except lead reassignment
+- `PUT /api/projects/:id/lead` *(lead/sponsor/admin)* — atomic demote-old/promote-new
 - `DELETE /api/projects/:id` *(admin)* — cascades
-- `GET/POST/PATCH/DELETE /api/projects/:id/stakeholders...` — manage the project team
+- `GET /api/projects/:id/stakeholders` — read-only, any committed role
+- `POST/PATCH/DELETE /api/projects/:id/stakeholders...` *(lead/sponsor/admin)* — manage the project team
 
 **Stakeholders** *(admin only)*
 - `GET/POST/PUT/DELETE /api/stakeholders` — the global directory
 - `GET /api/stakeholders/:id/summary` — cross-project rollup
 
-**Events** *(scoped to committed projects)*
+**Events** *(scoped to committed projects; writes require the contribute tier — Section 6.H)*
 - `GET /api/events?project_ids=1,2,3` — nested decisions/action items/pain points/participants
 - `POST /api/events` — creates the event and its nested records in one transaction
 - `PUT/DELETE /api/events/:id`
 
-**Decisions / Action Items / Pain Points** — standard create/update/delete per item, plus `PATCH` toggles for done/resolved status.
+**Decisions / Action Items / Pain Points / Requirements / Goals** — standard create/update/delete per item, plus `PATCH` toggles for done/resolved/achieved status; all require the contribute tier (Section 6.H) on the parent project.
 
 **Dashboard**
 - `GET /api/dashboard/summary?project_ids=...` — the three health-summary counts, scoped or portfolio-wide
@@ -323,8 +333,8 @@ Conventions: JSON bodies, `400` for validation errors, `404` for missing/inacces
 - `GET/POST/DELETE /api/members/:id/projects` — digest subscriptions
 
 **Notifications**
-- `GET /api/notifications?limit=50`
-- `POST /api/notifications/run-digest` — the on-demand stand-in for a scheduled job
+- `GET /api/notifications?limit=50` — project-tagged rows filtered to a non-admin's accessible projects (Section 9)
+- `POST /api/notifications/run-digest` — on-demand trigger, supplementing the nightly cron job (Section 9)
 
 ## 8. Delivery Plan
 
@@ -361,11 +371,14 @@ Password hashing, sessions, the login screen, and the two-role access model laye
 
 *→ Roles acceptance pass: verify (not just review) that a non-admin only ever sees their committed projects, gets 404 rather than 403 on ones they're not on, gets 403 on the admin-only directories, and that list endpoints silently drop inaccessible IDs rather than erroring.*
 
-## 9. Known Gaps & Future Considerations
+## 9. Notifications, Access & Self-Service (implemented)
 
-Carried over from the non-goals in Section 2, plus one accepted loose end: the notification log isn't scoped by project (Section 6.H). Worth revisiting if this grows beyond a small trusted team:
-- Real email/SMS delivery in place of the in-app stub
-- A real cron scheduler instead of on-demand digests
-- Password reset and self-service account creation
-- A finer permission model if "admin vs. committed member" stops being enough
-- Project-scoping the notification log
+The five items originally tracked here as future work are now built:
+
+- **Real email delivery.** `server/utils/mailer.js` sends via SMTP (`nodemailer`), configured through the `SMTP_*` env vars (see `server/.env.example`). With no `SMTP_HOST` set, it logs the message to the console instead of throwing — local dev and CI need no credentials. SMS remains a documented future seam, not built.
+- **A real cron scheduler.** `server/cron.js` runs the digest job automatically (`node-cron`, nightly at 7am by default, configurable via `CRON_SCHEDULE`). The digest logic itself lives in `server/utils/digest.js`, shared by both the cron job and the manual "Run Digest Now" button, which is now a supplement for demos/testing rather than the only way digests run.
+- **Password reset & self-service signup.** `POST /api/auth/register` creates an account and logs the user in immediately — safe because a fresh member has no `stakeholder_id`, so they're committed to zero projects (Section 6.H) until an admin adds them to one. `POST /api/auth/forgot-password` / `POST /api/auth/reset-password` back a standard reset-link flow (`password_resets` table, 1-hour token expiry, all existing sessions invalidated on reset).
+- **A finer permission model.** Covered in Section 6.H — the existing project-level role (lead/sponsor/member/stakeholder) now gates write access within a committed project, not just display.
+- **Project-scoped notification log.** `notifications.project_id` is now populated on every row (digests changed from one combined row per member to one row per member per project, specifically so each can carry a real project id), and `GET /api/notifications` filters by project access for non-admins the same way the events list endpoint does.
+
+**Still open, deliberately:** SMS delivery, CSRF tokens, login rate-limiting, SSO, and cleanup of expired sessions/reset tokens (Section 6.G).

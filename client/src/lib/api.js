@@ -24,6 +24,9 @@ export const api = {
     me: () => get('/auth/me'),
     login: (email, password) => post('/auth/login', { email, password }),
     logout: () => post('/auth/logout', {}),
+    register: (name, email, password) => post('/auth/register', { name, email, password }),
+    forgotPassword: (email) => post('/auth/forgot-password', { email }),
+    resetPassword: (token, password) => post('/auth/reset-password', { token, password }),
   },
   projects: {
     list: (status) => get(`/projects${status ? `?status=${status}` : ''}`),

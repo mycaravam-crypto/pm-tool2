@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { canAccessEvent, getEventContext } from '../utils/access.js';
+import { canAccessEvent, canContribute, getEventContext, getProjectIdForEvent } from '../utils/access.js';
 import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
@@ -9,15 +9,18 @@ router.post('/', (req, res) => {
   const { event_id, text, assignee_id, due_date } = req.body;
   if (!event_id || !text) return res.status(400).json({ error: 'event_id and text are required' });
   if (!canAccessEvent(req.member, event_id)) return res.status(404).json({ error: 'event not found' });
+  const ctx = getEventContext.get(event_id);
+  if (!canContribute(req.member, ctx.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
   const info = db
     .prepare('INSERT INTO action_items (event_id, text, assignee_id, due_date) VALUES (?, ?, ?, ?)')
     .run(event_id, text, assignee_id ?? null, due_date ?? null);
   if (assignee_id) {
-    const ctx = getEventContext.get(event_id);
     notifyAssigned(
       assignee_id,
       'New action item assigned to you',
       `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${due_date}` : ''}`,
+      ctx.project_id,
     );
   }
   res.status(201).json(db.prepare('SELECT * FROM action_items WHERE id = ?').get(info.lastInsertRowid));
@@ -27,6 +30,8 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'action item not found' });
+  const projectId = getProjectIdForEvent(existing.event_id);
+  if (!canContribute(req.member, projectId)) return res.status(403).json({ error: 'read-only access to this project' });
   const { text = existing.text, assignee_id = existing.assignee_id, due_date = existing.due_date } = req.body;
   db.prepare('UPDATE action_items SET text = ?, assignee_id = ?, due_date = ? WHERE id = ?').run(
     text,
@@ -40,6 +45,7 @@ router.put('/:id', (req, res) => {
       assignee_id,
       'Action item assigned to you',
       `"${text}" (${ctx.project_name} — ${ctx.event_title})${due_date ? ` — due ${due_date}` : ''}`,
+      ctx.project_id,
     );
   }
   res.json(db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id));
@@ -49,6 +55,8 @@ router.patch('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'action item not found' });
+  if (!canContribute(req.member, getProjectIdForEvent(existing.event_id)))
+    return res.status(403).json({ error: 'read-only access to this project' });
   const done = req.body.done ? 1 : 0;
   db.prepare('UPDATE action_items SET done = ? WHERE id = ?').run(done, req.params.id);
   res.json(db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id));
@@ -58,6 +66,8 @@ router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'action item not found' });
+  if (!canContribute(req.member, getProjectIdForEvent(existing.event_id)))
+    return res.status(403).json({ error: 'read-only access to this project' });
   db.prepare('DELETE FROM action_items WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

@@ -9,6 +9,7 @@ import LoginView from './components/LoginView.vue';
 import MembersModal from './components/MembersModal.vue';
 import NotificationsLogModal from './components/NotificationsLogModal.vue';
 import ProjectFormModal from './components/ProjectFormModal.vue';
+import ResetPasswordView from './components/ResetPasswordView.vue';
 import Sidebar from './components/Sidebar.vue';
 import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vue';
 import Timeline from './components/Timeline.vue';
@@ -32,6 +33,15 @@ const editingEvent = ref(null);
 const showImportEvents = ref(false);
 const authChecked = ref(false);
 const dashboardFocus = ref(null);
+
+// Handled before the normal login/app branch below, since there's no router
+// to give this its own page — a reset link just lands on / with a query
+// string (see routes/auth.js's forgot-password email).
+const resetToken = ref(new URLSearchParams(window.location.search).get('reset_token'));
+function clearResetToken() {
+  resetToken.value = null;
+  window.history.replaceState({}, '', window.location.pathname);
+}
 
 onMounted(async () => {
   try {
@@ -106,7 +116,8 @@ function focusUpcoming() {
 </script>
 
 <template>
-  <div v-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-400">
+  <ResetPasswordView v-if="resetToken" :token="resetToken" @done="clearResetToken" />
+  <div v-else-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-400">
     Loading…
   </div>
   <LoginView v-else-if="!store.currentMember" @login="handleLogin" />

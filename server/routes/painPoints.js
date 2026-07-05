@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { canAccessEvent, getEventContext } from '../utils/access.js';
+import { canAccessEvent, canContribute, getEventContext, getProjectIdForEvent } from '../utils/access.js';
 import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
@@ -10,15 +10,18 @@ router.post('/', (req, res) => {
   if (!event_id || !text || !severity)
     return res.status(400).json({ error: 'event_id, text, and severity are required' });
   if (!canAccessEvent(req.member, event_id)) return res.status(404).json({ error: 'event not found' });
+  const ctx = getEventContext.get(event_id);
+  if (!canContribute(req.member, ctx.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
   const info = db
     .prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)')
     .run(event_id, text, severity, owner_id ?? null);
   if (owner_id) {
-    const ctx = getEventContext.get(event_id);
     notifyAssigned(
       owner_id,
       'New pain point assigned to you',
       `"${text}" (${severity} severity — ${ctx.project_name} — ${ctx.event_title})`,
+      ctx.project_id,
     );
   }
   res.status(201).json(db.prepare('SELECT * FROM pain_points WHERE id = ?').get(info.lastInsertRowid));
@@ -28,6 +31,8 @@ router.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'pain point not found' });
+  const projectId = getProjectIdForEvent(existing.event_id);
+  if (!canContribute(req.member, projectId)) return res.status(403).json({ error: 'read-only access to this project' });
   const { text = existing.text, severity = existing.severity, owner_id = existing.owner_id } = req.body;
   db.prepare('UPDATE pain_points SET text = ?, severity = ?, owner_id = ? WHERE id = ?').run(
     text,
@@ -41,6 +46,7 @@ router.put('/:id', (req, res) => {
       owner_id,
       'Pain point assigned to you',
       `"${text}" (${severity} severity — ${ctx.project_name} — ${ctx.event_title})`,
+      ctx.project_id,
     );
   }
   res.json(db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id));
@@ -50,6 +56,8 @@ router.patch('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'pain point not found' });
+  if (!canContribute(req.member, getProjectIdForEvent(existing.event_id)))
+    return res.status(403).json({ error: 'read-only access to this project' });
   const resolved = req.body.resolved ? 1 : 0;
   const resolved_at = resolved ? new Date().toISOString() : null;
   db.prepare('UPDATE pain_points SET resolved = ?, resolved_at = ? WHERE id = ?').run(
@@ -64,6 +72,8 @@ router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'pain point not found' });
+  if (!canContribute(req.member, getProjectIdForEvent(existing.event_id)))
+    return res.status(403).json({ error: 'read-only access to this project' });
   db.prepare('DELETE FROM pain_points WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

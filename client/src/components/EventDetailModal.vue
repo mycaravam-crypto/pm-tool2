@@ -48,6 +48,14 @@ async function loadPeople() {
 onMounted(loadPeople);
 watch(() => form.project_id, loadPeople);
 
+// A 'stakeholder' (the RACI "Informed" tier) can view this project's events but
+// not edit them — mirrors the server-side canContribute check in
+// server/utils/access.js. Admins and every other committed role can contribute.
+const myRole = computed(
+  () => projectPeople.value.find((p) => p.id === store.currentMember?.stakeholder_id)?.project_role ?? null,
+);
+const canContribute = computed(() => store.isAdmin || (myRole.value !== null && myRole.value !== 'stakeholder'));
+
 // --- create-mode staged nested items ---
 const stagedDecisions = ref([]);
 const stagedActionItems = ref([]);
@@ -208,31 +216,31 @@ function removeStagedPain(idx) {
         <div class="col-span-2" v-else />
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Title</label>
-          <input v-model="form.title" required class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.title" required :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
-          <input v-model="form.date" type="date" required class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <input v-model="form.date" type="date" required :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
-          <select v-model="form.type" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+          <select v-model="form.type" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
             <option v-for="key in EVENT_TYPE_KEYS" :key="key" :value="key">{{ EVENT_TYPES[key].label }}</option>
           </select>
         </div>
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-600 mb-1">Summary</label>
-          <textarea v-model="form.summary" rows="2" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          <textarea v-model="form.summary" rows="2" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
         </div>
         <div class="col-span-2" v-if="!isForwardType">
           <label class="block text-xs font-medium text-slate-600 mb-1">Participants</label>
-          <select v-model="form.participants" multiple class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm h-24">
+          <select v-model="form.participants" multiple :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm h-24 disabled:bg-slate-50 disabled:text-slate-400">
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }} ({{ p.project_role }})</option>
           </select>
         </div>
         <div v-else>
           <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-          <select v-model="form.status" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+          <select v-model="form.status" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
             <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
           <p class="text-xs text-slate-400 mt-1">Was this {{ form.type }} hit or missed once its date passed?</p>
@@ -246,11 +254,11 @@ function removeStagedPain(idx) {
           <li v-for="(d, idx) in (isEdit ? liveEvent.decisions : stagedDecisions)" :key="d.id ?? idx" class="flex items-center gap-2 text-sm">
             <span class="flex-1">{{ d.text }}</span>
             <span class="text-xs text-slate-400">{{ d.decided_by_name || (d.decided_by && projectPeople.find(p => p.id === d.decided_by)?.name) || 'unassigned' }}</span>
-            <button type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.decisions.length : stagedDecisions.length) === 0" class="text-sm text-slate-400">No decisions yet.</li>
         </ul>
-        <div class="flex gap-2">
+        <div v-if="canContribute" class="flex gap-2">
           <input v-model="newDecisionText" placeholder="New decision…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision" />
           <select v-model="newDecisionBy" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision">
             <option value="">Decided by…</option>
@@ -265,15 +273,15 @@ function removeStagedPain(idx) {
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Action Items</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="(a, idx) in (isEdit ? liveEvent.action_items : stagedActionItems)" :key="a.id ?? idx" class="flex items-center gap-2 text-sm">
-            <input v-if="isEdit" type="checkbox" :checked="!!a.done" @change="toggleDone(a)" />
+            <input v-if="isEdit" type="checkbox" :checked="!!a.done" :disabled="!canContribute" @change="toggleDone(a)" />
             <span class="flex-1" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</span>
             <span class="text-xs text-slate-400">{{ a.assignee_name || (a.assignee_id && projectPeople.find(p => p.id === a.assignee_id)?.name) || 'unassigned' }}</span>
             <span class="text-xs" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-400'">{{ a.due_date ? formatDate(a.due_date) : 'no due date' }}</span>
-            <button type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-400">No action items yet.</li>
         </ul>
-        <div class="flex gap-2">
+        <div v-if="canContribute" class="flex gap-2">
           <input v-model="newActionText" placeholder="New action item…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
           <select v-model="newActionAssignee" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem">
             <option value="">Assignee…</option>
@@ -289,18 +297,18 @@ function removeStagedPain(idx) {
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Pain Points</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="(p, idx) in (isEdit ? liveEvent.pain_points : stagedPainPoints)" :key="p.id ?? idx" class="flex items-center gap-2 text-sm">
-            <input v-if="isEdit" type="checkbox" :checked="!!p.resolved" @change="toggleResolved(p)" />
+            <input v-if="isEdit" type="checkbox" :checked="!!p.resolved" :disabled="!canContribute" @change="toggleResolved(p)" />
             <span class="flex-1" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
               :class="{ High: 'bg-rose-100 text-rose-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-slate-100 text-slate-600' }[p.severity]"
             >{{ p.severity }}</span>
             <span class="text-xs text-slate-400">{{ p.owner_name || (p.owner_id && projectPeople.find(pp => pp.id === p.owner_id)?.name) || 'unowned' }}</span>
-            <button type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.pain_points.length : stagedPainPoints.length) === 0" class="text-sm text-slate-400">No pain points yet.</li>
         </ul>
-        <div class="flex gap-2">
+        <div v-if="canContribute" class="flex gap-2">
           <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" />
           <select v-model="newPainSeverity" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option>Low</option><option>Medium</option><option>High</option>
@@ -316,7 +324,7 @@ function removeStagedPain(idx) {
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-200">
-        <button v-if="isEdit" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeEvent">
+        <button v-if="isEdit && canContribute" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeEvent">
           <Trash2 class="w-4 h-4" /> Delete event
         </button>
         <span v-else />
@@ -327,7 +335,7 @@ function removeStagedPain(idx) {
             @click="exportProtocol"
           ><FileDown class="w-4 h-4" /> Export PDF</button>
           <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
-          <button type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
+          <button v-if="canContribute" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>

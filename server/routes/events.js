@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { canAccessProject, getAccessibleProjectIds } from '../utils/access.js';
+import { canAccessProject, canContribute, getAccessibleProjectIds } from '../utils/access.js';
 import { parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
 import { notifyAssigned } from '../utils/notify.js';
 
@@ -72,6 +72,8 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
   }
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
+  if (!canContribute(req.member, project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
 
   const create = db.transaction(() => {
     const info = db
@@ -117,7 +119,12 @@ router.post('/', (req, res) => {
   const projectName = getProjectStmt.get(project_id)?.name ?? '';
   for (const d of decisions) {
     if (d.decided_by)
-      notifyAssigned(d.decided_by, 'A decision was logged under your name', `"${d.text}" (${projectName} — ${title})`);
+      notifyAssigned(
+        d.decided_by,
+        'A decision was logged under your name',
+        `"${d.text}" (${projectName} — ${title})`,
+        project_id,
+      );
   }
   for (const a of action_items) {
     if (a.assignee_id)
@@ -125,6 +132,7 @@ router.post('/', (req, res) => {
         a.assignee_id,
         'New action item assigned to you',
         `"${a.text}" (${projectName} — ${title})${a.due_date ? ` — due ${a.due_date}` : ''}`,
+        project_id,
       );
   }
   for (const p of pain_points) {
@@ -133,6 +141,7 @@ router.post('/', (req, res) => {
         p.owner_id,
         'New pain point assigned to you',
         `"${p.text}" (${p.severity} severity — ${projectName} — ${title})`,
+        project_id,
       );
   }
 
@@ -157,6 +166,8 @@ router.post('/import', (req, res) => {
   const { project_id, csv, commit = false } = req.body;
   if (!project_id || !csv) return res.status(400).json({ error: 'project_id and csv are required' });
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
+  if (!canContribute(req.member, project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
 
   const { records, error } = parseEventsCsv(csv);
   if (error) return res.status(400).json({ error });
@@ -208,6 +219,8 @@ router.put('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
   if (!event || !canAccessProject(req.member, event.project_id))
     return res.status(404).json({ error: 'event not found' });
+  if (!canContribute(req.member, event.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
 
   const {
     title = event.title,
@@ -242,6 +255,8 @@ router.delete('/:id', (req, res) => {
   const event = getEventStmt.get(req.params.id);
   if (!event || !canAccessProject(req.member, event.project_id))
     return res.status(404).json({ error: 'event not found' });
+  if (!canContribute(req.member, event.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });
