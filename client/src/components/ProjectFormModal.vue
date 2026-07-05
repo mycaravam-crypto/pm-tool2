@@ -17,6 +17,17 @@ const isEdit = computed(() => !!props.project);
 // from the live store entry or they'd go stale after the first add/toggle/delete.
 const liveProject = computed(() => (isEdit.value ? (store.projectById(props.project.id) ?? props.project) : null));
 
+// original_target_end_date is snapshotted once at creation and never updated
+// (see POST /api/projects) — comparing it to the current target_end_date is
+// what makes schedule slip visible instead of silently overwritten.
+const scheduleSlip = computed(() => {
+  const proj = liveProject.value;
+  if (!proj?.original_target_end_date || !proj?.target_end_date) return null;
+  if (proj.original_target_end_date === proj.target_end_date) return null;
+  const days = Math.round((new Date(proj.target_end_date) - new Date(proj.original_target_end_date)) / 86400000);
+  return { originalDate: proj.original_target_end_date, days };
+});
+
 const form = reactive({
   name: props.project?.name ?? '',
   description: props.project?.description ?? '',
@@ -196,6 +207,10 @@ async function removeGoal(id) {
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Target end date</label>
           <input v-model="form.target_end_date" type="date" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <p v-if="scheduleSlip" class="text-xs mt-1" :class="scheduleSlip.days > 0 ? 'text-amber-600' : 'text-slate-400'">
+            Originally planned: {{ formatDate(scheduleSlip.originalDate) }}
+            ({{ scheduleSlip.days > 0 ? `slipped ${scheduleSlip.days}d` : `moved up ${-scheduleSlip.days}d` }})
+          </p>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Budget planned</label>

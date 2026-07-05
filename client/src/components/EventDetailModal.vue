@@ -69,6 +69,7 @@ const newActionDue = ref('');
 const newPainText = ref('');
 const newPainSeverity = ref('Medium');
 const newPainOwner = ref('');
+const newPainKind = ref('issue');
 
 function isOverdue(item) {
   return item.due_date && !item.done && item.due_date < todayStr;
@@ -106,7 +107,12 @@ async function addActionItem() {
 }
 async function addPainPoint() {
   if (!newPainText.value) return;
-  const payload = { text: newPainText.value, severity: newPainSeverity.value, owner_id: newPainOwner.value || null };
+  const payload = {
+    text: newPainText.value,
+    severity: newPainSeverity.value,
+    owner_id: newPainOwner.value || null,
+    kind: newPainKind.value,
+  };
   if (isEdit.value) {
     await store.addPainPoint({ event_id: props.event.id, ...payload });
   } else {
@@ -115,6 +121,7 @@ async function addPainPoint() {
   newPainText.value = '';
   newPainSeverity.value = 'Medium';
   newPainOwner.value = '';
+  newPainKind.value = 'issue';
 }
 
 const saving = ref(false);
@@ -301,6 +308,10 @@ function removeStagedPain(idx) {
             <span class="flex-1" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
+              :class="p.kind === 'risk' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'"
+            >{{ p.kind === 'risk' ? 'Risk' : 'Issue' }}</span>
+            <span
+              class="text-xs px-1.5 py-0.5 rounded"
               :class="{ High: 'bg-rose-100 text-rose-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-slate-100 text-slate-600' }[p.severity]"
             >{{ p.severity }}</span>
             <span class="text-xs text-slate-400">{{ p.owner_name || (p.owner_id && projectPeople.find(pp => pp.id === p.owner_id)?.name) || 'unowned' }}</span>
@@ -310,6 +321,10 @@ function removeStagedPain(idx) {
         </ul>
         <div v-if="canContribute" class="flex gap-2">
           <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" />
+          <select v-model="newPainKind" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" title="Issue: already happened. Risk: might happen.">
+            <option value="issue">Issue</option>
+            <option value="risk">Risk</option>
+          </select>
           <select v-model="newPainSeverity" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option>Low</option><option>Medium</option><option>High</option>
           </select>

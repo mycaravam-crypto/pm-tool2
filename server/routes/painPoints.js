@@ -6,7 +6,7 @@ import { notifyAssigned } from '../utils/notify.js';
 const router = Router();
 
 router.post('/', (req, res) => {
-  const { event_id, text, severity, owner_id } = req.body;
+  const { event_id, text, severity, owner_id, kind = 'issue' } = req.body;
   if (!event_id || !text || !severity)
     return res.status(400).json({ error: 'event_id, text, and severity are required' });
   if (!canAccessEvent(req.member, event_id)) return res.status(404).json({ error: 'event not found' });
@@ -14,8 +14,8 @@ router.post('/', (req, res) => {
   if (!canContribute(req.member, ctx.project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
   const info = db
-    .prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)')
-    .run(event_id, text, severity, owner_id ?? null);
+    .prepare('INSERT INTO pain_points (event_id, text, severity, owner_id, kind) VALUES (?, ?, ?, ?, ?)')
+    .run(event_id, text, severity, owner_id ?? null, kind);
   if (owner_id) {
     notifyAssigned(
       owner_id,
@@ -33,11 +33,17 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'pain point not found' });
   const projectId = getProjectIdForEvent(existing.event_id);
   if (!canContribute(req.member, projectId)) return res.status(403).json({ error: 'read-only access to this project' });
-  const { text = existing.text, severity = existing.severity, owner_id = existing.owner_id } = req.body;
-  db.prepare('UPDATE pain_points SET text = ?, severity = ?, owner_id = ? WHERE id = ?').run(
+  const {
+    text = existing.text,
+    severity = existing.severity,
+    owner_id = existing.owner_id,
+    kind = existing.kind,
+  } = req.body;
+  db.prepare('UPDATE pain_points SET text = ?, severity = ?, owner_id = ?, kind = ? WHERE id = ?').run(
     text,
     severity,
     owner_id,
+    kind,
     req.params.id,
   );
   if (owner_id && owner_id !== existing.owner_id) {

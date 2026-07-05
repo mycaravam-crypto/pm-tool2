@@ -98,6 +98,7 @@ async function remove(id) {
           <th class="py-1.5">Name</th>
           <th class="py-1.5">Role</th>
           <th class="py-1.5">Email</th>
+          <th class="py-1.5">Load</th>
           <th class="py-1.5"></th>
         </tr>
       </thead>
@@ -106,6 +107,13 @@ async function remove(id) {
           <td class="py-1.5">{{ s.name }}</td>
           <td class="py-1.5 text-slate-500">{{ s.role || '—' }}</td>
           <td class="py-1.5 text-slate-500">{{ s.email || '—' }}</td>
+          <td class="py-1.5">
+            <span
+              class="text-xs px-1.5 py-0.5 rounded"
+              :class="s.overloaded ? 'bg-rose-100 text-rose-700 font-medium' : 'bg-slate-100 text-slate-500'"
+              :title="`${s.active_project_count} active project(s), ${s.open_item_count} open item(s) across them`"
+            >{{ s.overloaded ? 'Overloaded' : `${s.open_item_count} open` }}</span>
+          </td>
           <td class="py-1.5 text-right whitespace-nowrap">
             <button class="text-slate-400 hover:text-indigo-600 mr-2" @click="startEdit(s)"><Pencil class="w-3.5 h-3.5" /></button>
             <button class="text-slate-400 hover:text-rose-600" @click="remove(s.id)"><Trash2 class="w-3.5 h-3.5" /></button>

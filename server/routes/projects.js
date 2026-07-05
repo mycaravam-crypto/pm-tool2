@@ -87,14 +87,15 @@ router.post('/', requireAdmin, (req, res) => {
   const create = db.transaction(() => {
     const info = db
       .prepare(`
-      INSERT INTO projects (name, description, color_hex, start_date, target_end_date, budget_planned, budget_spent)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (name, description, color_hex, start_date, target_end_date, original_target_end_date, budget_planned, budget_spent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .run(
         name,
         description ?? null,
         color_hex ?? '#3B82F6',
         start_date ?? null,
+        target_end_date ?? null,
         target_end_date ?? null,
         budget_planned ?? null,
         budget_spent ?? 0,

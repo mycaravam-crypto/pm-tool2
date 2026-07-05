@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS projects (
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived','completed')),
     start_date TEXT,
     target_end_date TEXT,
+    original_target_end_date TEXT, -- snapshotted once at creation; never touched again, so
+        -- schedule slip (current vs. originally planned) stays visible even after target_end_date moves
     actual_end_date TEXT,
     budget_planned REAL,
     budget_spent REAL NOT NULL DEFAULT 0,
@@ -91,6 +93,9 @@ CREATE TABLE IF NOT EXISTS pain_points (
     event_id INTEGER NOT NULL,
     text TEXT NOT NULL,
     severity TEXT NOT NULL CHECK(severity IN ('Low', 'Medium', 'High')),
+    kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk')), -- issue: already happened (the
+        -- original Quality signal); risk: might happen — same shape (severity/owner/resolved), just a
+        -- forward-looking lens on the same list instead of a parallel table
     owner_id INTEGER,
     resolved INTEGER NOT NULL DEFAULT 0,
     resolved_at TEXT,

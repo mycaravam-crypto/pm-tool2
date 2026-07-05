@@ -50,6 +50,30 @@ export function runDigest() {
         }
 
         if (member.notify_upcoming_deadlines) {
+          // Pending milestones/deadlines whose date already passed — the timeline only
+          // ever shows these as a passive amber nudge, so nobody who isn't actively
+          // looking at it finds out. Same toggle/type as the "upcoming" digest below;
+          // it's the same underlying question ("what needs my attention on the
+          // schedule"), just the other side of today.
+          const overdue = db
+            .prepare(`
+            SELECT title, type, date FROM events
+            WHERE project_id = ? AND type IN ('milestone', 'deadline') AND status = 'pending' AND date < ?
+            ORDER BY date
+          `)
+            .all(projectId, today);
+          if (overdue.length > 0) {
+            const body = overdue.map((o) => `- ${o.type}: ${o.title} (${formatDate(o.date)}, overdue)`).join('\n');
+            const info = insertNotification.run(
+              member.id,
+              'deadline_digest',
+              `${overdue.length} overdue milestone/deadline(s)`,
+              body,
+              projectId,
+            );
+            generatedIds.push(info.lastInsertRowid);
+          }
+
           const upcoming = db
             .prepare(`
             SELECT title, type, date FROM events

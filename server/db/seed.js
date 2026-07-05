@@ -33,8 +33,8 @@ const seed = db.transaction(() => {
   const dave = insertStakeholder.run('Dave Okafor', 'dave@example.com', 'Marketing Lead').lastInsertRowid;
 
   const insertProject = db.prepare(`
-    INSERT INTO projects (name, description, color_hex, status, start_date, target_end_date, budget_planned, budget_spent)
-    VALUES (@name, @description, @color_hex, 'active', @start_date, @target_end_date, @budget_planned, @budget_spent)
+    INSERT INTO projects (name, description, color_hex, status, start_date, target_end_date, original_target_end_date, budget_planned, budget_spent)
+    VALUES (@name, @description, @color_hex, 'active', @start_date, @target_end_date, @original_target_end_date, @budget_planned, @budget_spent)
   `);
   const website = insertProject.run({
     name: 'Website Redesign',
@@ -42,6 +42,9 @@ const seed = db.transaction(() => {
     color_hex: '#3B82F6',
     start_date: '2026-01-15',
     target_end_date: '2026-09-30',
+    // Slipped ~7 weeks from plan — exercises the schedule-baseline note in the
+    // project edit form (see ProjectFormModal.vue's scheduleSlip computed).
+    original_target_end_date: '2026-08-01',
     budget_planned: 50000,
     budget_spent: 32000,
   }).lastInsertRowid;
@@ -51,6 +54,8 @@ const seed = db.transaction(() => {
     color_hex: '#10B981',
     start_date: '2026-03-01',
     target_end_date: '2026-07-10',
+    // On track — no slip — the contrasting case next to Website Redesign's.
+    original_target_end_date: '2026-07-10',
     budget_planned: 20000,
     budget_spent: 21000,
   }).lastInsertRowid;
@@ -75,8 +80,11 @@ const seed = db.transaction(() => {
     'INSERT INTO action_items (event_id, text, assignee_id, done, due_date) VALUES (?, ?, ?, ?, ?)',
   );
   const insertPainPoint = db.prepare(
-    'INSERT INTO pain_points (event_id, text, severity, owner_id, resolved, resolved_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO pain_points (event_id, text, severity, owner_id, resolved, resolved_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?)',
   );
+  function addPainPoint(eventId, text, severity, ownerId, resolved, resolvedAt, kind = 'issue') {
+    insertPainPoint.run(eventId, text, severity, ownerId, resolved, resolvedAt, kind);
+  }
 
   function addEvent({ project_id, title, date, type, summary, status = 'pending', participants = [] }) {
     const id = insertEvent.run({ project_id, title, date, type, summary, status }).lastInsertRowid;
@@ -105,7 +113,16 @@ const seed = db.transaction(() => {
   });
   insertDecision.run(e2, 'Adopt a new shared component library for consistency', alice);
   insertActionItem.run(e2, 'Finalize component library selection', bob, 0, '2026-06-01');
-  insertPainPoint.run(e2, 'Design handoff to engineering is inconsistent', 'Medium', carol, 0, null);
+  addPainPoint(e2, 'Design handoff to engineering is inconsistent', 'Medium', carol, 0, null);
+  addPainPoint(
+    e2,
+    'Key vendor contract renewal is uncertain — may delay the Q3 rollout',
+    'Medium',
+    bob,
+    0,
+    null,
+    'risk',
+  );
 
   addEvent({
     project_id: website,
@@ -162,7 +179,7 @@ const seed = db.transaction(() => {
     summary: 'Launch planning kickoff.',
     participants: [dave, alice],
   });
-  insertPainPoint.run(e6, 'Unclear campaign KPIs at kickoff', 'Low', dave, 1, '2026-03-06');
+  addPainPoint(e6, 'Unclear campaign KPIs at kickoff', 'Low', dave, 1, '2026-03-06');
 
   addEvent({
     project_id: campaign,
@@ -190,7 +207,7 @@ const seed = db.transaction(() => {
     summary: 'Review of campaign creative assets.',
     participants: [dave, carol],
   });
-  insertPainPoint.run(e8, 'Creative assets delivered late from agency', 'High', dave, 0, null);
+  addPainPoint(e8, 'Creative assets delivered late from agency', 'High', dave, 0, null);
 
   const e9 = addEvent({
     project_id: campaign,
@@ -202,7 +219,16 @@ const seed = db.transaction(() => {
   });
   insertDecision.run(e9, 'Shift budget toward paid social over print', dave);
   insertActionItem.run(e9, 'Update media plan with new channel mix', carol, 0, '2026-07-01');
-  insertPainPoint.run(e9, 'Budget approval process is too slow', 'High', alice, 0, null);
+  addPainPoint(e9, 'Budget approval process is too slow', 'High', alice, 0, null);
+  addPainPoint(
+    e9,
+    'Agency may lack capacity for a rush reprint if the initial run underperforms',
+    'High',
+    dave,
+    0,
+    null,
+    'risk',
+  );
 
   const e10 = addEvent({
     project_id: campaign,

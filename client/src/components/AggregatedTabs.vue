@@ -25,6 +25,7 @@ const projectFilter = ref('');
 const actionOverdueOnly = ref(false);
 const painOpenOnly = ref(false);
 const painSeverityFilter = ref('');
+const painKindFilter = ref('');
 const requirementOpenOnly = ref(false);
 const goalOpenOnly = ref(false);
 
@@ -185,12 +186,14 @@ const painPoints = computed(() => {
   let rows = painPointsInScope.value;
   if (painOpenOnly.value) rows = rows.filter((p) => !p.resolved);
   if (painSeverityFilter.value) rows = rows.filter((p) => p.severity === painSeverityFilter.value);
+  if (painKindFilter.value) rows = rows.filter((p) => p.kind === painKindFilter.value);
   const order = { High: 0, Medium: 1, Low: 2 };
   return [...rows].sort((a, b) => order[a.severity] - order[b.severity]);
 });
 function clearPainFilters() {
   painOpenOnly.value = false;
   painSeverityFilter.value = '';
+  painKindFilter.value = '';
 }
 
 // Requirements/goals are project-scoped, not event-scoped — they're already
@@ -300,6 +303,11 @@ async function toggleGoal(g) {
           <label v-if="subTab === 'pain'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
             <input type="checkbox" v-model="painOpenOnly" /> Open only
           </label>
+          <select v-if="subTab === 'pain'" v-model="painKindFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+            <option value="">Risks + Issues</option>
+            <option value="risk">Risks only</option>
+            <option value="issue">Issues only</option>
+          </select>
           <select v-if="subTab === 'pain'" v-model="painSeverityFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
             <option value="">All severities</option>
             <option value="High">High</option>
@@ -384,13 +392,19 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'pain'" class="w-full text-sm">
         <thead>
           <tr :class="TABLE_HEADER_ROW">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Pain Point</th><th class="py-1.5">Severity</th><th class="py-1.5">Owner</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Date</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Pain Point</th><th class="py-1.5">Kind</th><th class="py-1.5">Severity</th><th class="py-1.5">Owner</th><th class="py-1.5">Event</th><th class="py-1.5">Project</th><th class="py-1.5">Date</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="p in painPoints" :key="p.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!p.resolved" @change="toggleResolved(p)" /></td>
             <td class="py-1.5" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</td>
+            <td class="py-1.5">
+              <span
+                class="text-xs px-1.5 py-0.5 rounded"
+                :class="p.kind === 'risk' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'"
+              >{{ p.kind === 'risk' ? 'Risk' : 'Issue' }}</span>
+            </td>
             <td class="py-1.5">
               <span
                 class="text-xs px-1.5 py-0.5 rounded"

@@ -103,11 +103,12 @@ router.post('/', (req, res) => {
       );
     }
     for (const p of pain_points) {
-      db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id) VALUES (?, ?, ?, ?)').run(
+      db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id, kind) VALUES (?, ?, ?, ?, ?)').run(
         eventId,
         p.text,
         p.severity,
         p.owner_id ?? null,
+        p.kind ?? 'issue',
       );
     }
     return eventId;

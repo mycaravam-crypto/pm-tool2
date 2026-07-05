@@ -16,6 +16,15 @@ export function runMigrations(db) {
   if (!hasColumn(db, 'notifications', 'project_id')) {
     db.exec('ALTER TABLE notifications ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL');
   }
+  if (!hasColumn(db, 'projects', 'original_target_end_date')) {
+    db.exec('ALTER TABLE projects ADD COLUMN original_target_end_date TEXT');
+    // Backfill from the current value so a database that predates this column doesn't
+    // read as "slipped from nothing" — best available proxy for "what it was at creation".
+    db.exec('UPDATE projects SET original_target_end_date = target_end_date WHERE original_target_end_date IS NULL');
+  }
+  if (!hasColumn(db, 'pain_points', 'kind')) {
+    db.exec("ALTER TABLE pain_points ADD COLUMN kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk'))");
+  }
   // Outside the check above, not inside it: on a brand-new database the column
   // already exists (created directly by schema.sql), so the ALTER is skipped —
   // but the index still needs to be created either way.
