@@ -114,7 +114,7 @@ function downloadTemplate() {
         <div class="max-h-64 overflow-y-auto border border-slate-200 rounded-md">
           <table class="w-full text-xs">
             <thead class="bg-slate-50 sticky top-0">
-              <tr class="text-left text-slate-500">
+              <tr class="text-left uppercase tracking-wide text-slate-500 border-b border-slate-200">
                 <th class="px-2 py-1">Row</th>
                 <th class="px-2 py-1">Title</th>
                 <th class="px-2 py-1">Date</th>
@@ -123,7 +123,7 @@ function downloadTemplate() {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in preview.rows" :key="r.row" :class="r.errors.length ? 'bg-rose-50' : ''" class="border-t border-slate-100">
+              <tr v-for="r in preview.rows" :key="r.row" :class="r.errors.length ? 'bg-rose-50' : ''" class="border-b border-slate-100">
                 <td class="px-2 py-1">{{ r.row }}</td>
                 <td class="px-2 py-1">{{ r.title }}</td>
                 <td class="px-2 py-1">{{ formatDate(r.date) }}</td>
