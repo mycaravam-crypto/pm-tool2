@@ -4,11 +4,13 @@ import { canAccessProject, canContribute, getAccessibleProjectIds } from '../uti
 import { formatDate } from '../utils/dateFormat.js';
 import { parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
 import { notifyAssigned } from '../utils/notify.js';
+import { generateOccurrenceDates, validateRecurrence } from '../utils/recurrence.js';
 
 const router = Router();
 
 const getEventStmt = db.prepare('SELECT * FROM events WHERE id = ?');
 const getProjectStmt = db.prepare('SELECT id, name, color_hex FROM projects WHERE id = ?');
+const getSeriesStmt = db.prepare('SELECT * FROM event_series WHERE id = ?');
 const getParticipantsStmt = db.prepare(`
   SELECT s.id, s.name FROM event_participants ep
   JOIN stakeholders s ON s.id = ep.stakeholder_id
@@ -34,6 +36,7 @@ function serializeEvent(event) {
   return {
     ...event,
     project: getProjectStmt.get(event.project_id),
+    series: event.series_id ? getSeriesStmt.get(event.series_id) : null,
     participants: getParticipantsStmt.all(event.id),
     decisions: getDecisionsStmt.all(event.id),
     action_items: getActionItemsStmt.all(event.id),
@@ -61,6 +64,7 @@ router.post('/', (req, res) => {
     project_id,
     title,
     date,
+    time,
     type,
     summary,
     status = 'pending',
@@ -68,6 +72,7 @@ router.post('/', (req, res) => {
     decisions = [],
     action_items = [],
     pain_points = [],
+    recurrence = null,
   } = req.body;
   if (!project_id || !title || !date || !type) {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
@@ -75,28 +80,63 @@ router.post('/', (req, res) => {
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
   if (!canContribute(req.member, project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
+  if (recurrence) {
+    const recurrenceError = validateRecurrence(recurrence);
+    if (recurrenceError) return res.status(400).json({ error: recurrenceError });
+  }
+
+  const insertEventStmt = db.prepare(`
+    INSERT INTO events (project_id, title, date, time, type, summary, status, series_id, occurrence_index)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
 
   const create = db.transaction(() => {
-    const info = db
-      .prepare(`
-      INSERT INTO events (project_id, title, date, type, summary, status) VALUES (?, ?, ?, ?, ?, ?)
-    `)
-      .run(project_id, title, date, type, summary ?? null, status);
-    const eventId = info.lastInsertRowid;
+    // Only the first occurrence gets the nested decisions/action items/pain points
+    // entered at creation time — those are per-meeting notes, and duplicating them
+    // onto every not-yet-happened future occurrence would just be noise to delete.
+    const occurrenceDates = recurrence
+      ? generateOccurrenceDates(date, recurrence.frequency, recurrence.interval, recurrence.count)
+      : [date];
+    const seriesId = recurrence
+      ? db
+          .prepare('INSERT INTO event_series (project_id, frequency, interval, count) VALUES (?, ?, ?, ?)')
+          .run(project_id, recurrence.frequency, recurrence.interval, recurrence.count).lastInsertRowid
+      : null;
 
-    for (const stakeholderId of participants) {
-      db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(eventId, stakeholderId);
+    const eventIds = occurrenceDates.map((occurrenceDate, index) => {
+      const info = insertEventStmt.run(
+        project_id,
+        title,
+        occurrenceDate,
+        time || null,
+        type,
+        summary ?? null,
+        status,
+        seriesId,
+        seriesId ? index : null,
+      );
+      return info.lastInsertRowid;
+    });
+
+    for (const eventId of eventIds) {
+      for (const stakeholderId of participants) {
+        db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(
+          eventId,
+          stakeholderId,
+        );
+      }
     }
+    const firstEventId = eventIds[0];
     for (const d of decisions) {
       db.prepare('INSERT INTO decisions (event_id, text, decided_by) VALUES (?, ?, ?)').run(
-        eventId,
+        firstEventId,
         d.text,
         d.decided_by ?? null,
       );
     }
     for (const a of action_items) {
       db.prepare('INSERT INTO action_items (event_id, text, assignee_id, due_date) VALUES (?, ?, ?, ?)').run(
-        eventId,
+        firstEventId,
         a.text,
         a.assignee_id ?? null,
         a.due_date ?? null,
@@ -104,17 +144,17 @@ router.post('/', (req, res) => {
     }
     for (const p of pain_points) {
       db.prepare('INSERT INTO pain_points (event_id, text, severity, owner_id, kind) VALUES (?, ?, ?, ?, ?)').run(
-        eventId,
+        firstEventId,
         p.text,
         p.severity,
         p.owner_id ?? null,
         p.kind ?? 'issue',
       );
     }
-    return eventId;
+    return eventIds;
   });
 
-  const id = create();
+  const ids = create();
 
   // Notify after the transaction commits, not inside it — a rollback shouldn't leave
   // a "you were assigned" notification for data that never actually landed.
@@ -147,7 +187,9 @@ router.post('/', (req, res) => {
       );
   }
 
-  res.status(201).json(serializeEvent(getEventStmt.get(id)));
+  res.status(201).json({
+    events: ids.map((id) => serializeEvent(getEventStmt.get(id))),
+  });
 });
 
 const getProjectStakeholdersForImportStmt = db.prepare(`
@@ -227,6 +269,7 @@ router.put('/:id', (req, res) => {
   const {
     title = event.title,
     date = event.date,
+    time = event.time,
     type = event.type,
     summary = event.summary,
     status = event.status,
@@ -235,8 +278,8 @@ router.put('/:id', (req, res) => {
 
   const update = db.transaction(() => {
     db.prepare(`
-      UPDATE events SET title = ?, date = ?, type = ?, summary = ?, status = ?, updated_at = datetime('now') WHERE id = ?
-    `).run(title, date, type, summary, status, req.params.id);
+      UPDATE events SET title = ?, date = ?, time = ?, type = ?, summary = ?, status = ?, updated_at = datetime('now') WHERE id = ?
+    `).run(title, date, time || null, type, summary, status, req.params.id);
 
     if (Array.isArray(participants)) {
       db.prepare('DELETE FROM event_participants WHERE event_id = ?').run(req.params.id);
@@ -260,6 +303,65 @@ router.delete('/:id', (req, res) => {
   if (!canContribute(req.member, event.project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+  res.status(204).end();
+});
+
+// Edits shared fields across every occurrence of a series (Outlook's "edit the
+// series" as opposed to "edit this occurrence," which is the plain PUT /:id
+// above). Deliberately excludes date/status — those are inherently per-occurrence,
+// not properties of the series itself.
+router.put('/series/:seriesId', (req, res) => {
+  const series = getSeriesStmt.get(req.params.seriesId);
+  if (!series || !canAccessProject(req.member, series.project_id))
+    return res.status(404).json({ error: 'series not found' });
+  if (!canContribute(req.member, series.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
+
+  const { title, time, type, summary, participants } = req.body;
+  const eventIds = db
+    .prepare('SELECT id FROM events WHERE series_id = ?')
+    .all(req.params.seriesId)
+    .map((r) => r.id);
+
+  const update = db.transaction(() => {
+    for (const eventId of eventIds) {
+      const event = getEventStmt.get(eventId);
+      db.prepare(`
+        UPDATE events SET title = ?, time = ?, type = ?, summary = ?, updated_at = datetime('now') WHERE id = ?
+      `).run(
+        title ?? event.title,
+        time === undefined ? event.time : time || null,
+        type ?? event.type,
+        summary ?? event.summary,
+        eventId,
+      );
+
+      if (Array.isArray(participants)) {
+        db.prepare('DELETE FROM event_participants WHERE event_id = ?').run(eventId);
+        for (const stakeholderId of participants) {
+          db.prepare('INSERT INTO event_participants (event_id, stakeholder_id) VALUES (?, ?)').run(
+            eventId,
+            stakeholderId,
+          );
+        }
+      }
+    }
+  });
+  update();
+
+  res.json(eventIds.map((id) => serializeEvent(getEventStmt.get(id))));
+});
+
+// Deletes an entire series in one go — ON DELETE CASCADE on events.series_id
+// (and events' own cascades onto decisions/action_items/pain_points) means this
+// single delete is enough to clean up every occurrence and its nested records.
+router.delete('/series/:seriesId', (req, res) => {
+  const series = getSeriesStmt.get(req.params.seriesId);
+  if (!series || !canAccessProject(req.member, series.project_id))
+    return res.status(404).json({ error: 'series not found' });
+  if (!canContribute(req.member, series.project_id))
+    return res.status(403).json({ error: 'read-only access to this project' });
+  db.prepare('DELETE FROM event_series WHERE id = ?').run(req.params.seriesId);
   res.status(204).end();
 });
 

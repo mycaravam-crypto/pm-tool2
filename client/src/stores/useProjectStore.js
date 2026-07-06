@@ -198,6 +198,16 @@ export const useProjectStore = defineStore('project', {
       await this.refreshAll();
     },
 
+    async updateEventSeries(seriesId, data) {
+      await api.events.updateSeries(seriesId, data);
+      await this.refreshAll();
+    },
+
+    async deleteEventSeries(seriesId) {
+      await api.events.removeSeries(seriesId);
+      await this.refreshAll();
+    },
+
     // The fetches below are all independent reads (different endpoints, none
     // depending on another's result), so they run via Promise.all rather than
     // sequential awaits — each stacked await was a full extra network round

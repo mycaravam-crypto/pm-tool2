@@ -25,8 +25,21 @@ export function runMigrations(db) {
   if (!hasColumn(db, 'pain_points', 'kind')) {
     db.exec("ALTER TABLE pain_points ADD COLUMN kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk'))");
   }
+  // event_series is a brand-new table, so schema.sql's CREATE TABLE IF NOT EXISTS
+  // already creates it on an existing database with no ALTER needed here — only
+  // the new columns on the pre-existing events table need retrofitting.
+  if (!hasColumn(db, 'events', 'time')) {
+    db.exec('ALTER TABLE events ADD COLUMN time TEXT');
+  }
+  if (!hasColumn(db, 'events', 'series_id')) {
+    db.exec('ALTER TABLE events ADD COLUMN series_id INTEGER REFERENCES event_series(id) ON DELETE CASCADE');
+  }
+  if (!hasColumn(db, 'events', 'occurrence_index')) {
+    db.exec('ALTER TABLE events ADD COLUMN occurrence_index INTEGER');
+  }
   // Outside the check above, not inside it: on a brand-new database the column
   // already exists (created directly by schema.sql), so the ALTER is skipped —
   // but the index still needs to be created either way.
   db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_events_series_id ON events(series_id)');
 }

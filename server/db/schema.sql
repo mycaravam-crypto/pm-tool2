@@ -35,21 +35,47 @@ CREATE TABLE IF NOT EXISTS project_stakeholders (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_lead_per_project ON project_stakeholders(project_id) WHERE project_role = 'lead';
 
+-- 4a. Event Series — the recurrence rule behind a set of generated event rows.
+-- Occurrences are materialized up front (one row per event.series_id) rather than
+-- expanded on read, since there's no date-math library in this codebase and a
+-- materialized set plugs into every existing event code path (Timeline, exports,
+-- notifications) with zero changes. count is capped at MAX_OCCURRENCES (25, see
+-- server/utils/recurrence.js) — recurrence here means "the next N meetings," not
+-- an open-ended series, so a hard cap keeps this from ever needing infinite expansion.
+CREATE TABLE IF NOT EXISTS event_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    frequency TEXT NOT NULL CHECK(frequency IN ('daily','weekly','monthly')),
+    interval INTEGER NOT NULL DEFAULT 1,
+    count INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_event_series_project_id ON event_series(project_id);
+
 -- 4. Events Table
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     date TEXT NOT NULL,
+    time TEXT, -- optional 'HH:MM', 24h; a date-only event (most of them) leaves this null
     type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')),
     summary TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- only meaningful for milestone/deadline; ignored elsewhere
+    series_id INTEGER, -- set only on events generated from a repeat rule; null for one-off events
+    occurrence_index INTEGER, -- this event's 0-based position within its series, for "3 of 10" display
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (series_id) REFERENCES event_series(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_events_project_id ON events(project_id);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
+-- idx_events_series_id is created in migrations.js, not here: on a database
+-- that predates the series_id column, an unconditional CREATE INDEX in this
+-- file would run (and fail — no such column) before migrations.js gets a
+-- chance to ALTER TABLE it in.
 
 -- 5. Event-Participant Association (Many-to-Many)
 CREATE TABLE IF NOT EXISTS event_participants (

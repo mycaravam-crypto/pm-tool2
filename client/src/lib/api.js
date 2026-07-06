@@ -53,6 +53,8 @@ export const api = {
     update: (id, data) => put(`/events/${id}`, data),
     remove: (id) => del(`/events/${id}`),
     import: (project_id, csv, commit = false) => post('/events/import', { project_id, csv, commit }),
+    updateSeries: (seriesId, data) => put(`/events/series/${seriesId}`, data),
+    removeSeries: (seriesId) => del(`/events/series/${seriesId}`),
   },
   decisions: {
     create: (data) => post('/decisions', data),

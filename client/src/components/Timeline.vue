@@ -1,5 +1,5 @@
 <script setup>
-import { CalendarSearch, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { CalendarSearch, Repeat, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
@@ -22,7 +22,11 @@ const STACK_STEP = 74;
 // bubbles above the track entirely, which is exactly the overlay-timeline
 // promise ("see clusters at a glance") breaking down under real multi-project
 // density. Capping keeps the max stack offset constant regardless of size.
-const MAX_VISIBLE_STACK = 4;
+// 3, not 4: with STACK_BASE/STACK_STEP above, tier index 3 lands at
+// BASELINE_TOP - (76 + 3*74) = -18px — off the top of the track and into
+// whatever sits above it (the "Today" label included). Tier index 2 (56px)
+// is the tallest one that still fits.
+const MAX_VISIBLE_STACK = 3;
 
 // Zoom controls pixels-per-day directly, so "zoom in" is literally "give nearby
 // events more room" — which is also how label collisions get resolved, see
@@ -84,25 +88,29 @@ const clusters = computed(() => {
   const sorted = [...store.events].sort((a, b) => a.date.localeCompare(b.date));
   const width = trackWidth.value;
   const result = [];
-  let prevPx = null;
-  let prevIsFuture = null;
+  let anchorPx = null;
+  let anchorIsFuture = null;
   for (const event of sorted) {
     const pct = leftPercent(event.date);
     const px = (pct / 100) * width;
     const isFuture = event.date >= todayStr;
     const withVisual = { ...event, visual: resolveEventVisual(event, todayStr) };
-    const withinThreshold = result.length > 0 && prevPx !== null && Math.abs(px - prevPx) < CLUSTER_THRESHOLD_PX;
+    // Measured against the cluster's anchor (its first member) rather than the
+    // previous event — comparing to "prev" let a chain of events each just under
+    // the threshold apart merge into one cluster spanning many multiples of it.
+    // Anchoring bounds every cluster to a real ~CLUSTER_THRESHOLD_PX window.
+    const withinThreshold = anchorPx !== null && Math.abs(px - anchorPx) < CLUSTER_THRESHOLD_PX;
     // A cluster renders every event at its first member's x-position (the rest
     // stack vertically above it) — so a cluster must never straddle "today," or
     // an after-today event pulled into a before-today cluster would render on
     // the wrong side of the marker, even though its own position is correct.
-    if (withinThreshold && prevIsFuture === isFuture) {
+    if (withinThreshold && anchorIsFuture === isFuture) {
       result[result.length - 1].events.push(withVisual);
     } else {
       result.push({ leftPercent: pct, events: [withVisual] });
+      anchorPx = px;
+      anchorIsFuture = isFuture;
     }
-    prevPx = px;
-    prevIsFuture = isFuture;
   }
   return result;
 });
@@ -311,6 +319,7 @@ onMounted(() => nextTick(scrollToToday));
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
+          <span class="flex items-center gap-1.5"><span class="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-600"><Repeat class="w-2 h-2 text-white" /></span> Recurring</span>
           <span v-if="store.loading" class="text-slate-400 italic">Updating…</span>
         </div>
 
@@ -447,7 +456,7 @@ onMounted(() => nextTick(scrollToToday));
                   class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
                   :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
                   :style="{ border: `2px solid ${event.project.color_hex}` }"
-                  :title="`${event.title} — ${event.project.name} (${formatDate(event.date)})${event.status !== 'pending' ? ' — ' + event.status : ''}`"
+                  :title="`${event.title} — ${event.project.name} (${formatDate(event.date)}${event.time ? ' ' + event.time : ''})${event.status !== 'pending' ? ' — ' + event.status : ''}${event.series_id ? ' — recurring' : ''}`"
                   @click="emit('select-event', event)"
                 >
                   <component
@@ -455,9 +464,15 @@ onMounted(() => nextTick(scrollToToday));
                     class="w-4 h-4"
                     :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
                   />
+                  <span
+                    v-if="event.series_id"
+                    class="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 border border-white"
+                    :class="event.visual.shape === 'diamond' ? '-rotate-45' : ''"
+                  ><Repeat class="w-2.5 h-2.5 text-white" /></span>
                 </button>
                 <span
-                  class="mt-1.5 max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
+                  class="max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
+                  :class="event.visual.shape === 'diamond' ? 'mt-2.5' : 'mt-1.5'"
                   :title="event.title"
                 >{{ event.title }}</span>
               </div>

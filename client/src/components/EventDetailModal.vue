@@ -1,10 +1,11 @@
 <script setup>
-import { FileDown, Plus, Trash2 } from 'lucide-vue-next';
+import { FileDown, Plus, Repeat, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS } from '../lib/eventTypes.js';
 import { generateEventProtocolPdf } from '../lib/pdfReports.js';
+import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '../lib/recurrence.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
@@ -30,6 +31,7 @@ const form = reactive({
   project_id: props.event?.project_id ?? props.defaultProjectId ?? store.selectedProjectIds[0] ?? null,
   title: props.event?.title ?? '',
   date: props.event?.date ?? todayStr,
+  time: props.event?.time ?? '',
   type: props.event?.type ?? 'sync',
   summary: props.event?.summary ?? '',
   status: props.event?.status ?? 'pending',
@@ -37,6 +39,21 @@ const form = reactive({
 });
 
 const isForwardType = computed(() => EVENT_TYPES[form.type].shape === 'diamond');
+
+// Repeat is only offered at creation time — an existing series is managed
+// afterwards via "save/delete entire series" below, not by re-configuring its rule.
+const recurrence = reactive({ enabled: false, frequency: 'weekly', interval: 1, count: 10 });
+const recurrenceEndDate = computed(() => {
+  if (!recurrence.enabled || !form.date) return null;
+  const dates = generateOccurrenceDates(
+    form.date,
+    recurrence.frequency,
+    Number(recurrence.interval) || 1,
+    Number(recurrence.count) || 1,
+  );
+  return dates[dates.length - 1];
+});
+const isSeriesOccurrence = computed(() => isEdit.value && !!liveEvent.value?.series_id);
 
 const projectPeople = ref([]);
 async function loadPeople() {
@@ -140,6 +157,7 @@ async function save() {
       await store.updateEvent(props.event.id, {
         title: form.title,
         date: form.date,
+        time: form.time || null,
         type: form.type,
         summary: form.summary,
         status: form.status,
@@ -150,6 +168,7 @@ async function save() {
         project_id: form.project_id,
         title: form.title,
         date: form.date,
+        time: form.time || null,
         type: form.type,
         summary: form.summary,
         status: form.status,
@@ -157,8 +176,30 @@ async function save() {
         decisions: stagedDecisions.value,
         action_items: stagedActionItems.value,
         pain_points: stagedPainPoints.value,
+        recurrence: recurrence.enabled
+          ? { frequency: recurrence.frequency, interval: Number(recurrence.interval), count: Number(recurrence.count) }
+          : undefined,
       });
     }
+    emit('close');
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function saveSeries() {
+  error.value = '';
+  saving.value = true;
+  try {
+    await store.updateEventSeries(liveEvent.value.series_id, {
+      title: form.title,
+      time: form.time || null,
+      type: form.type,
+      summary: form.summary,
+      participants: form.participants,
+    });
     emit('close');
   } catch (e) {
     error.value = e.message;
@@ -175,6 +216,18 @@ async function removeEvent() {
   if (!confirm(`Delete "${props.event.title}"? This also deletes its decisions, action items, and pain points.`))
     return;
   await store.deleteEvent(props.event.id);
+  emit('close');
+}
+
+async function removeSeries() {
+  const count = liveEvent.value.series?.count ?? '?';
+  if (
+    !confirm(
+      `Delete the entire series "${props.event.title}"? This deletes all ${count} occurrences and their decisions, action items, and pain points.`,
+    )
+  )
+    return;
+  await store.deleteEventSeries(liveEvent.value.series_id);
   emit('close');
 }
 
@@ -206,11 +259,15 @@ function removeStagedPain(idx) {
 
 <template>
   <ModalShell :title="isEdit ? liveEvent.title : 'New Event'" wide @close="emit('close')">
-    <div v-if="isEdit" class="flex items-center gap-2 mb-4 text-sm">
+    <div v-if="isEdit" class="flex items-center gap-2 mb-2 text-sm">
       <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: liveEvent.project.color_hex }" />
       <span class="font-medium">{{ liveEvent.project.name }}</span>
       <span class="text-slate-400">·</span>
       <span class="text-slate-500">Lead: {{ store.projectById(liveEvent.project_id)?.lead?.name ?? '—' }}</span>
+    </div>
+    <div v-if="isSeriesOccurrence" class="flex items-center gap-1.5 mb-4 text-xs text-indigo-700 bg-indigo-50 rounded-md px-2.5 py-1.5 w-fit">
+      <Repeat class="w-3.5 h-3.5" />
+      Part of a recurring series — occurrence {{ liveEvent.occurrence_index + 1 }} of {{ liveEvent.series.count }} ({{ liveEvent.series.frequency }})
     </div>
 
     <form class="space-y-4" @submit.prevent="save">
@@ -228,7 +285,10 @@ function removeStagedPain(idx) {
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
-          <input v-model="form.date" type="date" required :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <div class="flex gap-2">
+            <input v-model="form.date" type="date" required :disabled="!canContribute" class="flex-1 min-w-0 border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+            <input v-model="form.time" type="time" :disabled="!canContribute" title="Optional time" class="w-28 border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          </div>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
@@ -255,6 +315,37 @@ function removeStagedPain(idx) {
             <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
         </div>
+      </div>
+
+      <!-- Repeat: create-mode only — an existing series is managed afterwards
+           via "save/delete entire series" rather than by re-editing its rule. -->
+      <div v-if="!isEdit && canContribute" class="border-t border-slate-200 pt-3">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-600 mb-2">
+          <input v-model="recurrence.enabled" type="checkbox" />
+          <span class="flex items-center gap-1"><Repeat class="w-3.5 h-3.5" /> Repeat</span>
+        </label>
+        <div v-if="recurrence.enabled" class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Frequency</label>
+            <select v-model="recurrence.frequency" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+              <option v-for="f in RECURRENCE_FREQUENCIES" :key="f.key" :value="f.key">{{ f.label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Every</label>
+            <input v-model.number="recurrence.interval" type="number" min="1" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="flex items-center gap-1 text-xs text-slate-500 mb-1">
+              Occurrences
+              <HelpTooltip :text="`Repeating events are capped at ${MAX_OCCURRENCES} occurrences.`" />
+            </label>
+            <input v-model.number="recurrence.count" type="number" min="2" :max="MAX_OCCURRENCES" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+          </div>
+        </div>
+        <p v-if="recurrence.enabled && recurrenceEndDate" class="mt-2 text-xs text-slate-500">
+          Creates {{ recurrence.count }} events, ending {{ formatDate(recurrenceEndDate) }}.
+        </p>
       </div>
 
       <!-- Decisions -->
@@ -342,9 +433,14 @@ function removeStagedPain(idx) {
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-200">
-        <button v-if="isEdit && canContribute" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeEvent">
-          <Trash2 class="w-4 h-4" /> Delete event
-        </button>
+        <div v-if="isEdit && canContribute" class="flex items-center gap-3">
+          <button type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeEvent">
+            <Trash2 class="w-4 h-4" /> {{ isSeriesOccurrence ? 'Delete this occurrence' : 'Delete event' }}
+          </button>
+          <button v-if="isSeriesOccurrence" type="button" class="text-sm text-rose-600 hover:underline" @click="removeSeries">
+            Delete entire series
+          </button>
+        </div>
         <span v-else />
         <div class="flex gap-2">
           <button
@@ -353,8 +449,13 @@ function removeStagedPain(idx) {
             @click="exportProtocol"
           ><FileDown class="w-4 h-4" /> Export PDF</button>
           <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
+          <button
+            v-if="canContribute && isSeriesOccurrence" type="button" :disabled="saving"
+            class="text-sm px-3 py-1.5 rounded-md border border-indigo-300 text-indigo-700 disabled:opacity-50"
+            @click="saveSeries"
+          >Save entire series</button>
           <button v-if="canContribute" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
-            {{ saving ? 'Saving…' : 'Save' }}
+            {{ saving ? 'Saving…' : (isSeriesOccurrence ? 'Save this occurrence' : 'Save') }}
           </button>
         </div>
       </div>
