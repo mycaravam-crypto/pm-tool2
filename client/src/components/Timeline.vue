@@ -1,10 +1,11 @@
 <script setup>
 import { CalendarSearch, Repeat, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
+import TimelineMiniMap from './TimelineMiniMap.vue';
 
 const emit = defineEmits(['select-event', 'new-event']);
 const store = useProjectStore();
@@ -261,6 +262,35 @@ function jumpToDate() {
   scrollToDate(jumpDate.value);
 }
 
+// Tracked reactively (rather than read imperatively on demand) so the minimap's
+// viewport window can follow every scroll/zoom/pan/resize without each of
+// those call sites having to remember to notify it separately.
+const scrollLeftPx = ref(0);
+const viewportWidthPx = ref(0);
+let resizeObserver = null;
+
+function handleScroll() {
+  scrollLeftPx.value = scrollContainer.value?.scrollLeft ?? 0;
+}
+
+const viewportStartPct = computed(() => {
+  const width = trackWidth.value;
+  return width > 0 ? Math.min(100, (scrollLeftPx.value / width) * 100) : 0;
+});
+const viewportWidthPct = computed(() => {
+  const width = trackWidth.value;
+  return width > 0 ? Math.min(100, (viewportWidthPx.value / width) * 100) : 100;
+});
+
+// The minimap emits a plain 0-100 position on the full date range; translate
+// that into the same scrollLeft math scrollToDate/zoomBy already use.
+function handleMinimapNavigate(pct) {
+  const container = scrollContainer.value;
+  if (!container) return;
+  const targetPx = (pct / 100) * trackWidth.value;
+  container.scrollLeft = Math.max(0, targetPx - container.clientWidth / 2);
+}
+
 // Re-centers on whatever was under `viewportAnchor` (an x-offset within the
 // container's visible area) before zooming, so a zoom doesn't jump the view to
 // an unrelated part of the timeline. Defaults to the viewport's own center for
@@ -386,7 +416,26 @@ function handleKeydown(e) {
   }
 }
 
-onMounted(() => nextTick(scrollToToday));
+// scrollContainer is only rendered once a project is selected and its events
+// have loaded (see the v-if branches below), so it can go from null to an
+// element well after this component's own onMounted has already fired —
+// watching the ref (rather than a one-shot onMounted) re-attaches the
+// observer and re-centers on today whenever that first happens.
+watch(
+  scrollContainer,
+  (el, oldEl) => {
+    resizeObserver?.disconnect();
+    if (!el) return;
+    viewportWidthPx.value = el.clientWidth;
+    resizeObserver = new ResizeObserver(() => {
+      viewportWidthPx.value = scrollContainer.value?.clientWidth ?? 0;
+    });
+    resizeObserver.observe(el);
+    if (!oldEl) nextTick(scrollToToday);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => resizeObserver?.disconnect());
 </script>
 
 <template>
@@ -462,7 +511,18 @@ onMounted(() => nextTick(scrollToToday));
         </div>
       </div>
 
+      <TimelineMiniMap
+        class="mb-2"
+        :range="range"
+        :events="store.events"
+        :today-str="todayStr"
+        :viewport-start-pct="viewportStartPct"
+        :viewport-width-pct="viewportWidthPct"
+        @navigate="handleMinimapNavigate"
+      />
+
       <div
+        id="timeline-scroll-viewport"
         ref="scrollContainer"
         class="relative overflow-x-auto pb-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
         :class="isPanning ? 'cursor-grabbing' : 'cursor-grab'"
@@ -473,6 +533,7 @@ onMounted(() => nextTick(scrollToToday));
         @pointerdown="handlePointerDown"
         @dblclick="handleDblclick"
         @keydown="handleKeydown"
+        @scroll="handleScroll"
       >
         <div ref="trackEl" class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
           <!-- day gridlines: lightest tier, only rendered once zoomed in enough
