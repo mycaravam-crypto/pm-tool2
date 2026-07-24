@@ -14,7 +14,6 @@ const clear = db.transaction(() => {
     'event_participants',
     'events',
     'project_stakeholders',
-    'events',
     'projects',
     'stakeholders',
   ]) {
