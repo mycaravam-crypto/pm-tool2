@@ -3,6 +3,13 @@ import { CalendarSearch, Repeat, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-n
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { resolveEventVisual } from '../lib/eventTypes.js';
+import { computeClusters as computeClustersPure, computePositionedEvents } from '../lib/timelineAggregation.js';
+import {
+  computeRange,
+  computeSemanticZoomLabel,
+  computeTrackWidth,
+  leftPercent as leftPercentPure,
+} from '../lib/timelineScale.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
 import TimelineMiniMap from './TimelineMiniMap.vue';
@@ -65,41 +72,29 @@ const isPanning = ref(false);
 // Named zoom tiers so the toolbar readout matches the issue's semantic-zoom
 // vocabulary (Jahr/Quartal/Monat/Woche/Tag) instead of a bare percentage —
 // thresholds are picked against the actual pxPerDay range this component
-// produces (BASE_PX_PER_DAY * [ZOOM_MIN..ZOOM_MAX] = 2..30).
-const semanticZoomLabel = computed(() => {
-  const pxPerDay = BASE_PX_PER_DAY * zoomLevel.value;
-  if (pxPerDay < 4) return 'Jahr';
-  if (pxPerDay < 8) return 'Quartal';
-  if (pxPerDay < DAY_GRID_MIN_PX_PER_DAY) return 'Monat';
-  if (pxPerDay < 24) return 'Woche';
-  return 'Tag';
-});
+// produces (BASE_PX_PER_DAY * [ZOOM_MIN..ZOOM_MAX] = 2..30). Delegates to
+// timelineScale.js so the tier logic has a unit-testable, Vue-free home.
+const semanticZoomLabel = computed(() =>
+  computeSemanticZoomLabel(BASE_PX_PER_DAY * zoomLevel.value, DAY_GRID_MIN_PX_PER_DAY),
+);
 
-const range = computed(() => {
-  const dates = store.events.map((e) => e.date);
-  dates.push(todayStr);
-  if (dates.length === 1) {
-    const only = new Date(dates[0]);
-    return { min: new Date(only.getTime() - 30 * DAY_MS), max: new Date(only.getTime() + 30 * DAY_MS) };
-  }
-  const sorted = [...dates].sort();
-  const min = new Date(sorted[0]);
-  const max = new Date(sorted[sorted.length - 1]);
-  const pad = Math.max((max - min) * 0.1, 7 * DAY_MS);
-  return { min: new Date(min.getTime() - pad), max: new Date(max.getTime() + pad) };
-});
+const range = computed(() =>
+  computeRange(
+    store.events.map((e) => e.date),
+    todayStr,
+  ),
+);
 
-const trackWidth = computed(() => {
-  const days = (range.value.max - range.value.min) / DAY_MS;
-  const pxPerDay = BASE_PX_PER_DAY * zoomLevel.value;
-  return Math.min(MAX_TRACK_WIDTH, Math.max(900, Math.round(days * pxPerDay)));
-});
+const trackWidth = computed(() =>
+  computeTrackWidth(range.value, zoomLevel.value, {
+    basePxPerDay: BASE_PX_PER_DAY,
+    minWidth: 900,
+    maxWidth: MAX_TRACK_WIDTH,
+  }),
+);
 
 function leftPercent(dateStr) {
-  const { min, max } = range.value;
-  const t = new Date(dateStr).getTime();
-  const pct = ((t - min.getTime()) / (max.getTime() - min.getTime())) * 100;
-  return Math.min(100, Math.max(0, pct));
+  return leftPercentPure(dateStr, range.value);
 }
 
 const todayLeftPercent = computed(() => leftPercent(todayStr));
@@ -108,73 +103,23 @@ const todayLeftPercent = computed(() => leftPercent(todayStr));
 // sharing an exact date. At low zoom many days collapse into the same handful of
 // pixels, so nearby-but-different-date events need to stack too; at high zoom the
 // same events end up far enough apart to stand alone. Recomputes with trackWidth,
-// so zooming in is the fix for "labels are colliding."
-const clusters = computed(() => {
-  const sorted = [...store.events].sort((a, b) => a.date.localeCompare(b.date));
-  const width = trackWidth.value;
-  const result = [];
-  let anchorPx = null;
-  let anchorIsFuture = null;
-  for (const event of sorted) {
-    const pct = leftPercent(event.date);
-    const px = (pct / 100) * width;
-    const isFuture = event.date >= todayStr;
-    const withVisual = { ...event, visual: resolveEventVisual(event, todayStr) };
-    // Measured against the cluster's anchor (its first member) rather than the
-    // previous event — comparing to "prev" let a chain of events each just under
-    // the threshold apart merge into one cluster spanning many multiples of it.
-    // Anchoring bounds every cluster to a real ~CLUSTER_THRESHOLD_PX window.
-    const withinThreshold = anchorPx !== null && Math.abs(px - anchorPx) < CLUSTER_THRESHOLD_PX;
-    // A cluster renders every event at its first member's x-position (the rest
-    // stack vertically above it) — so a cluster must never straddle "today," or
-    // an after-today event pulled into a before-today cluster would render on
-    // the wrong side of the marker, even though its own position is correct.
-    if (withinThreshold && anchorIsFuture === isFuture) {
-      result[result.length - 1].events.push(withVisual);
-    } else {
-      result.push({ leftPercent: pct, events: [withVisual] });
-      anchorPx = px;
-      anchorIsFuture = isFuture;
-    }
-  }
-  return result;
-});
+// so zooming in is the fix for "labels are colliding." Logic lives in
+// timelineAggregation.js so it's unit-testable without mounting the component.
+const clusters = computed(() =>
+  computeClustersPure(store.events, {
+    range: range.value,
+    trackWidth: trackWidth.value,
+    todayStr,
+    thresholdPx: CLUSTER_THRESHOLD_PX,
+    resolveVisual: resolveEventVisual,
+  }),
+);
 
 // Flattened for TransitionGroup, which needs a single-level v-for to animate
 // individual entries in/out as filtering (sidebar project selection) adds or
 // removes events — the nested cluster/event structure above is still what
 // decides each bubble's position, just re-shaped into one list here.
-// Clusters at or under MAX_VISIBLE_STACK render every event normally; larger
-// ones show the first (MAX_VISIBLE_STACK - 1) events and fold the rest into
-// one overflow badge in the last slot, so the tallest a cluster ever gets is
-// the same regardless of how many events it actually contains.
-const positionedEvents = computed(() => {
-  return clusters.value.flatMap((cluster) => {
-    const events = cluster.events;
-    if (events.length <= MAX_VISIBLE_STACK) {
-      return events.map((event, idx) => ({
-        ...event,
-        leftPercent: cluster.leftPercent,
-        stackIndex: idx,
-        isOverflow: false,
-      }));
-    }
-    const visible = events
-      .slice(0, MAX_VISIBLE_STACK - 1)
-      .map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx, isOverflow: false }));
-    const overflowEvents = events.slice(MAX_VISIBLE_STACK - 1);
-    return [
-      ...visible,
-      {
-        id: `overflow-${events[0].id}`,
-        isOverflow: true,
-        leftPercent: cluster.leftPercent,
-        stackIndex: MAX_VISIBLE_STACK - 1,
-        overflowEvents,
-      },
-    ];
-  });
-});
+const positionedEvents = computed(() => computePositionedEvents(clusters.value, MAX_VISIBLE_STACK));
 
 const openOverflowId = ref(null);
 function toggleOverflow(id) {
