@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Event Horizon – Interaktive Timeline</title>
+
+  <!-- Mockup/CDN setup. For production, pin versions and build locally. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+  </style>
+
+  <style>
+    :root {
+      --bg: #080a0f;
+      --panel: rgba(17, 20, 28, 0.88);
+      --panel-solid: #11141c;
+      --line: rgba(255, 255, 255, 0.075);
+      --muted: #8b93a7;
+      --text: #f6f7fb;
+      --lane-label-width: 220px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body, #app { min-height: 100%; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 12% -5%, rgba(123, 92, 255, .18), transparent 30rem),
+        radial-gradient(circle at 92% 12%, rgba(53, 211, 255, .09), transparent 26rem),
+        var(--bg);
+      color: var(--text);
+    }
+    [v-cloak] { display: none; }
+    button, input, select, textarea { font: inherit; }
+
+    .glass {
+      background: linear-gradient(180deg, rgba(20, 24, 34, .92), rgba(12, 15, 22, .92));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 24px 80px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.025);
+      backdrop-filter: blur(18px);
+    }
+
+    .timeline-scroll {
+      scrollbar-color: rgba(255,255,255,.2) transparent;
+      scrollbar-width: thin;
+      overscroll-behavior: contain;
+    }
+    .timeline-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
+    .timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+    .timeline-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,.14);
+      border: 3px solid transparent;
+      background-clip: padding-box;
+      border-radius: 999px;
+    }
+
+    .axis-corner,
+    .lane-label {
+      position: sticky;
+      left: 0;
+      width: var(--lane-label-width);
+      min-width: var(--lane-label-width);
+      z-index: 35;
+      background: linear-gradient(90deg, rgba(17,20,28,.99) 0%, rgba(17,20,28,.99) 88%, rgba(17,20,28,.92) 100%);
+      border-right: 1px solid rgba(255,255,255,.08);
+    }
+    .axis-row {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      height: 86px;
+      background: rgba(13,16,23,.96);
+      border-bottom: 1px solid rgba(255,255,255,.09);
+      backdrop-filter: blur(18px);
+    }
+    .axis-corner { z-index: 50; }
+
+    .lane-row { display: flex; border-bottom: 1px solid rgba(255,255,255,.065); }
+    .lane-track { position: relative; overflow: hidden; }
+    .lane-track::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255,255,255,.015), transparent 42%, rgba(0,0,0,.06));
+    }
+
+    .event-card {
+      position: absolute;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 12px;
+      color: #f8fafc;
+      text-align: left;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+      box-shadow: 0 10px 26px rgba(0,0,0,.16), inset 0 1px rgba(255,255,255,.06);
+    }
+    .event-card:hover, .event-card:focus-visible {
+      z-index: 20;
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,.34);
+      box-shadow: 0 16px 40px rgba(0,0,0,.3), 0 0 0 3px rgba(255,255,255,.045);
+      outline: none;
+    }
+    .event-card.is-past { filter: saturate(.62); opacity: .7; }
+    .event-card.is-selected { border-color: rgba(255,255,255,.68); box-shadow: 0 0 0 3px rgba(255,255,255,.08), 0 18px 45px rgba(0,0,0,.35); }
+    .event-card.milestone { background: linear-gradient(135deg, rgba(127,92,255,.38), rgba(74,47,160,.28)); }
+    .event-card.release { background: linear-gradient(135deg, rgba(23,185,223,.32), rgba(12,84,117,.28)); }
+    .event-card.meeting { background: linear-gradient(135deg, rgba(245,172,47,.28), rgba(125,74,17,.25)); }
+    .event-card.incident { background: linear-gradient(135deg, rgba(244,63,94,.35), rgba(119,27,50,.28)); }
+    .event-card.campaign { background: linear-gradient(135deg, rgba(30,201,146,.3), rgba(15,98,76,.26)); }
+
+    .event-icon {
+      display: grid;
+      place-items: center;
+      width: 23px;
+      height: 23px;
+      flex: 0 0 23px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.1);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .cluster-card {
+      position: absolute;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      background: rgba(255,255,255,.055);
+      color: #f8fafc;
+      text-align: left;
+      cursor: zoom-in;
+      box-shadow: 0 12px 30px rgba(0,0,0,.18), inset 0 1px rgba(255,255,255,.05);
+      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+    .cluster-card:hover, .cluster-card:focus-visible {
+      transform: translateY(-2px) scale(1.015);
+      background: rgba(255,255,255,.085);
+      border-color: rgba(255,255,255,.28);
+      outline: none;
+    }
+    .cluster-stack {
+      position: absolute;
+      inset: 5px -5px -5px 5px;
+      z-index: -1;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: inherit;
+      background: rgba(255,255,255,.025);
+    }
+
+    .today-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 18;
+      width: 1px;
+      background: linear-gradient(180deg, #ff6b91, rgba(255,107,145,.3));
+      box-shadow: 0 0 18px rgba(255,107,145,.55);
+      pointer-events: none;
+    }
+    .today-line::before {
+      content: "";
+      position: absolute;
+      top: -4px;
+      left: -4px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #ff6b91;
+      box-shadow: 0 0 0 4px rgba(255,107,145,.13);
+    }
+
+    .mini-viewport {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      border: 1px solid rgba(255,255,255,.5);
+      border-radius: 5px;
+      background: rgba(255,255,255,.075);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+      pointer-events: none;
+    }
+
+    .drawer-enter-active, .drawer-leave-active { transition: opacity .2s ease; }
+    .drawer-enter-active .drawer-panel, .drawer-leave-active .drawer-panel { transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+    .drawer-enter-from, .drawer-leave-to { opacity: 0; }
+    .drawer-enter-from .drawer-panel, .drawer-leave-to .drawer-panel { transform: translateX(28px); }
+
+    .modal-enter-active, .modal-leave-active { transition: opacity .18s ease; }
+    .modal-enter-active .modal-card, .modal-leave-active .modal-card { transition: transform .22s ease; }
+    .modal-enter-from, .modal-leave-to { opacity: 0; }
+    .modal-enter-from .modal-card, .modal-leave-to .modal-card { transform: translateY(12px) scale(.98); }
+
+    .focus-ring:focus-visible { outline: 2px solid rgba(139, 124, 255, .9); outline-offset: 3px; }
+
+    @media (max-width: 760px) {
+      :root { --lane-label-width: 156px; }
+      .event-card { min-height: 34px; padding: 6px 8px; }
+    }
+  </style>
+</head>
+<body class="font-sans antialiased selection:bg-violet-400/30">
+  <div id="app" v-cloak>
+    <div class="min-h-screen p-3 sm:p-5 lg:p-6">
+      <main class="glass mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[1800px] flex-col overflow-hidden rounded-[28px] sm:min-h-[calc(100vh-2.5rem)]">
+        <!-- Header -->
+        <header class="border-b border-white/8 px-4 py-4 sm:px-6 lg:px-7">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div class="flex items-center gap-3">
+              <div class="grid h-11 w-11 place-items-center rounded-2xl border border-violet-300/20 bg-gradient-to-br from-violet-500/35 to-cyan-400/10 shadow-[0_12px_36px_rgba(94,70,220,.24)]">
+                <svg class="h-5 w-5 text-violet-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <path stroke-linecap="round" d="M4 7h16M4 12h10M4 17h16" />
+                  <circle cx="17" cy="12" r="2.5" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h1 class="text-lg font-semibold tracking-[-.025em] text-white sm:text-xl">Event Horizon</h1>
+                  <span class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Prototype</span>
+                </div>
+                <p class="mt-0.5 text-xs text-slate-500 sm:text-sm">Zentrale, zoombare Ereignisperspektive</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="relative min-w-[190px] flex-1 sm:flex-none">
+                <span class="sr-only">Events durchsuchen</span>
+                <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+                </svg>
+                <input v-model.trim="search" type="search" placeholder="Events durchsuchen …" class="h-10 w-full rounded-xl border border-white/8 bg-white/[.045] pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-violet-400/45 focus:bg-white/[.065] focus:ring-4 focus:ring-violet-500/10 sm:w-64" />
+              </label>
+
+              <button type="button" class="focus-ring inline-flex h-10 items-center gap-2 rounded-xl border border-white/8 bg-white/[.045] px-3 text-sm font-medium text-slate-300 transition hover:bg-white/[.08] hover:text-white" @click="jumpToToday">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/><circle cx="12" cy="14" r="2" fill="currentColor" stroke="none"/></svg>
+                Heute
+              </button>
+
+              <button type="button" class="focus-ring inline-flex h-10 items-center gap-2 rounded-xl bg-white px-3.5 text-sm font-semibold text-slate-950 shadow-[0_10px_28px_rgba(255,255,255,.12)] transition hover:-translate-y-0.5 hover:bg-violet-50" @click="openCreateModal()">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                Event
+              </button>
+            </div>
+          </div>
+
+          <!-- Filters and zoom -->
+          <div class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Event-Typen filtern">
+              <button type="button" class="focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition" :class="activeTypes.length === types.length ? 'border-white/20 bg-white/10 text-white' : 'border-white/8 bg-transparent text-slate-500 hover:text-slate-300'" @click="toggleAllTypes">
+                <span class="h-1.5 w-1.5 rounded-full bg-white"></span>Alle
+                <span class="text-[10px] text-slate-500">{{ filteredEvents.length }}</span>
+              </button>
+              <button v-for="type in types" :key="type.id" type="button" class="focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition" :class="activeTypes.includes(type.id) ? 'border-white/16 bg-white/[.075] text-slate-100' : 'border-white/6 bg-transparent text-slate-600 hover:text-slate-300'" @click="toggleType(type.id)">
+                <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: type.color, boxShadow: activeTypes.includes(type.id) ? `0 0 12px ${type.color}` : 'none' }"></span>
+                {{ type.label }}
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="hidden items-center gap-1.5 text-[11px] text-slate-600 md:flex">
+                <kbd class="rounded border border-white/8 bg-white/5 px-1.5 py-0.5">Ctrl</kbd><span>+</span><span>Mausrad</span>
+                <span class="mx-1 text-slate-700">·</span>
+                <span>Ziehen zum Navigieren</span>
+              </div>
+              <div class="ml-auto flex items-center rounded-xl border border-white/8 bg-black/15 p-1">
+                <button type="button" class="focus-ring grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white/8 hover:text-white disabled:opacity-30" :disabled="zoomIndex === 0" aria-label="Herauszoomen" @click="setZoom(zoomIndex - 1)">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+                </button>
+                <div class="min-w-[88px] px-2 text-center">
+                  <div class="text-[10px] uppercase tracking-[.15em] text-slate-600">Zoom</div>
+                  <div class="text-xs font-semibold text-slate-200">{{ zoomLevels[zoomIndex].label }}</div>
+                </div>
+                <button type="button" class="focus-ring grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition hover:bg-white/8 hover:text-white disabled:opacity-30" :disabled="zoomIndex === zoomLevels.length - 1" aria-label="Hineinzoomen" @click="setZoom(zoomIndex + 1)">
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Summary strip -->
+        <section class="grid grid-cols-2 border-b border-white/7 bg-black/10 sm:grid-cols-4" aria-label="Zusammenfassung">
+          <div v-for="stat in summaryStats" :key="stat.label" class="border-r border-white/6 px-4 py-3 last:border-r-0 sm:px-6">
+            <div class="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-600">{{ stat.label }}</div>
+            <div class="mt-1 flex items-end gap-2"><strong class="text-xl font-semibold tracking-tight text-slate-100">{{ stat.value }}</strong><span class="pb-0.5 text-[11px] text-slate-500">{{ stat.note }}</span></div>
+          </div>
+        </section>
+
+        <!-- Timeline viewport -->
+        <section class="relative min-h-0 flex-1" aria-label="Interaktive Event-Timeline">
+          <div ref="viewport" class="timeline-scroll absolute inset-0 overflow-auto" :class="isPanning ? 'cursor-grabbing select-none' : 'cursor-grab'" @scroll="onScroll" @wheel="onWheel" @pointerdown="startPan" @pointermove="movePan" @pointerup="endPan" @pointercancel="endPan" @keydown="handleKeydown" tabindex="0">
+            <div :style="{ width: `${timelineWidth + laneLabelWidth}px`, minHeight: '100%' }">
+              <!-- Axis -->
+              <div class="axis-row">
+                <div class="axis-corner flex items-end px-5 pb-3">
+                  <div>
+                    <div class="text-[10px] font-semibold uppercase tracking-[.15em] text-slate-600">Event Stream</div>
+                    <div class="mt-1 text-xs text-slate-400">{{ visibleDateLabel }}</div>
+                  </div>
+                </div>
+                <div class="relative h-full" :style="{ width: `${timelineWidth}px`, minWidth: `${timelineWidth}px` }">
+                  <div v-for="band in yearBands" :key="band.year" class="absolute inset-y-0 border-l border-white/10" :style="{ left: `${band.left}px`, width: `${band.width}px` }">
+                    <div class="absolute left-3 top-3 text-[11px] font-bold tracking-[.08em] text-slate-300">{{ band.year }}</div>
+                  </div>
+                  <div v-for="tick in axisTicks" :key="tick.key" class="absolute bottom-0 top-8 border-l" :class="tick.major ? 'border-white/12' : 'border-white/[.055]'" :style="{ left: `${tick.left}px` }">
+                    <span class="absolute bottom-3 left-2 whitespace-nowrap text-[10px]" :class="tick.major ? 'font-semibold text-slate-400' : 'text-slate-600'">{{ tick.label }}</span>
+                  </div>
+                  <div v-if="todayX >= 0 && todayX <= timelineWidth" class="today-line" :style="{ left: `${todayX}px` }"></div>
+                </div>
+              </div>
+
+              <!-- Lanes -->
+              <div v-for="lane in laneLayouts" :key="lane.type.id" class="lane-row" :style="{ height: `${lane.height}px` }">
+                <div class="lane-label flex items-start justify-between gap-3 px-5 py-5" :style="{ height: `${lane.height}px` }">
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-2.5">
+                      <span class="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/[.045]" :style="{ color: lane.type.color }" v-html="lane.type.icon"></span>
+                      <div class="min-w-0">
+                        <div class="truncate text-sm font-semibold text-slate-200">{{ lane.type.label }}</div>
+                        <div class="mt-0.5 text-[11px] text-slate-600">{{ lane.items.length }} sichtbar</div>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="button" class="focus-ring grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-600 transition hover:bg-white/8 hover:text-slate-300" :aria-label="`${lane.type.label}-Event hinzufügen`" @click="openCreateModal(lane.type.id)">
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
+
+                <div class="lane-track" :style="trackStyle(lane)" @dblclick.self="createAtPosition($event, lane.type.id)">
+                  <div v-for="tick in gridTicks" :key="`${lane.type.id}-${tick.key}`" class="absolute inset-y-0 border-l" :class="tick.major ? 'border-white/[.065]' : 'border-white/[.028]'" :style="{ left: `${tick.left}px` }"></div>
+                  <div v-if="todayX >= 0 && todayX <= timelineWidth" class="today-line" :style="{ left: `${todayX}px` }"></div>
+
+                  <template v-if="lane.mode === 'events'">
+                    <button v-for="item in lane.items" :key="item.event.id" type="button" data-interactive="true" class="event-card" :class="[item.event.type, temporalClass(item.event), selectedEvent?.id === item.event.id ? 'is-selected' : '']" :style="{ left: `${item.left}px`, top: `${item.top}px`, width: `${item.width}px` }" @click.stop="selectEvent(item.event)" :title="`${item.event.title} · ${formatDateRange(item.event)}`">
+                      <span class="event-icon" aria-hidden="true">{{ typeById(item.event.type).symbol }}</span>
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-[11px] font-semibold leading-tight">{{ item.event.title }}</span>
+                        <span class="mt-0.5 block truncate text-[9px] text-white/55">{{ compactEventMeta(item.event) }}</span>
+                      </span>
+                      <span v-if="item.event.priority === 'high'" class="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-300 shadow-[0_0_9px_rgba(253,164,175,.8)]" aria-label="Hohe Priorität"></span>
+                    </button>
+                  </template>
+
+                  <template v-else>
+                    <button v-for="cluster in lane.items" :key="cluster.key" type="button" data-interactive="true" class="cluster-card" :style="{ left: `${cluster.left}px`, top: `${cluster.top}px`, width: `${cluster.width}px`, borderColor: `${lane.type.color}45`, background: `linear-gradient(135deg, ${lane.type.color}25, rgba(255,255,255,.035))` }" @click.stop="openCluster(cluster)">
+                      <span class="cluster-stack"></span>
+                      <span class="min-w-0">
+                        <span class="block truncate text-[10px] font-semibold">{{ cluster.label }}</span>
+                        <span class="mt-0.5 block text-[9px] text-white/50">{{ cluster.rangeLabel }}</span>
+                      </span>
+                      <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold">{{ cluster.events.length }}</span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div v-if="laneLayouts.length === 0" class="flex min-h-[320px] items-center justify-center" :style="{ marginLeft: `${laneLabelWidth}px`, width: `${timelineWidth}px` }">
+                <div class="text-center">
+                  <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/8 bg-white/5 text-slate-500">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                  </div>
+                  <p class="mt-3 text-sm font-medium text-slate-300">Keine Events im Filter</p>
+                  <button class="mt-2 text-xs text-violet-300 hover:text-violet-200" @click="resetFilters">Filter zurücksetzen</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Minimap / statusbar -->
+        <footer class="flex flex-col gap-3 border-t border-white/8 bg-black/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div class="flex items-center gap-3 text-[11px] text-slate-600">
+            <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>Vergangenheit gedämpft</span>
+            <span class="inline-flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,.7)]"></span>Heute</span>
+            <span class="hidden sm:inline">Doppelklick erstellt ein Event</span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span class="hidden text-[10px] uppercase tracking-[.14em] text-slate-700 sm:block">Navigator</span>
+            <button type="button" class="focus-ring relative h-8 w-full min-w-0 overflow-hidden rounded-lg border border-white/8 bg-white/[.025] sm:w-72" @click="navigateMiniMap" aria-label="Timeline-Navigator">
+              <span v-for="event in filteredEvents" :key="`mini-${event.id}`" class="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full opacity-65" :style="{ left: `${eventPercent(event)}%`, backgroundColor: typeById(event.type).color }"></span>
+              <span class="absolute inset-y-0 w-px bg-rose-400/80" :style="{ left: `${todayPercent}%` }"></span>
+              <span class="mini-viewport" :style="miniViewportStyle"></span>
+            </button>
+            <span class="min-w-[68px] text-right text-[11px] font-medium text-slate-500">{{ zoomLevels[zoomIndex].scaleText }}</span>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Event drawer -->
+    <transition name="drawer">
+      <div v-if="selectedEvent" class="fixed inset-0 z-[100] bg-black/55 backdrop-blur-[3px]" @click.self="selectedEvent = null">
+        <aside class="drawer-panel absolute bottom-2 right-2 top-2 flex w-[min(440px,calc(100vw-16px))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#121620] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="event-detail-title">
+          <div class="relative overflow-hidden border-b border-white/8 p-6">
+            <div class="absolute inset-x-0 top-0 h-28 opacity-25 blur-3xl" :style="{ background: `radial-gradient(circle at 25% 0%, ${typeById(selectedEvent.type).color}, transparent 65%)` }"></div>
+            <div class="relative flex items-start justify-between gap-4">
+              <div>
+                <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">
+                  <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: typeById(selectedEvent.type).color }"></span>
+                  {{ typeById(selectedEvent.type).label }}
+                </div>
+                <h2 id="event-detail-title" class="mt-4 text-2xl font-semibold tracking-[-.035em] text-white">{{ selectedEvent.title }}</h2>
+                <p class="mt-2 text-sm leading-6 text-slate-400">{{ selectedEvent.description }}</p>
+              </div>
+              <button type="button" class="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/5 text-slate-500 transition hover:bg-white/10 hover:text-white" aria-label="Details schließen" @click="selectedEvent = null">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-6">
+            <dl class="grid grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-white/7 bg-white/[.035] p-4">
+                <dt class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-600">Zeitraum</dt>
+                <dd class="mt-2 text-sm font-medium text-slate-200">{{ formatDateRange(selectedEvent) }}</dd>
+              </div>
+              <div class="rounded-2xl border border-white/7 bg-white/[.035] p-4">
+                <dt class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-600">Status</dt>
+                <dd class="mt-2 inline-flex items-center gap-2 text-sm font-medium text-slate-200"><span class="h-2 w-2 rounded-full" :class="statusDotClass(selectedEvent)"></span>{{ temporalLabel(selectedEvent) }}</dd>
+              </div>
+              <div class="rounded-2xl border border-white/7 bg-white/[.035] p-4">
+                <dt class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-600">Verantwortlich</dt>
+                <dd class="mt-2 text-sm font-medium text-slate-200">{{ selectedEvent.owner }}</dd>
+              </div>
+              <div class="rounded-2xl border border-white/7 bg-white/[.035] p-4">
+                <dt class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-600">Priorität</dt>
+                <dd class="mt-2 text-sm font-medium capitalize text-slate-200">{{ priorityLabel(selectedEvent.priority) }}</dd>
+              </div>
+            </dl>
+
+            <div class="mt-6">
+              <div class="flex items-center justify-between"><h3 class="text-sm font-semibold text-slate-200">Aktivität</h3><span class="text-[10px] text-slate-600">Live Mockup</span></div>
+              <div class="mt-3 space-y-3">
+                <div v-for="activity in selectedEvent.activities" :key="activity.text" class="flex gap-3 rounded-2xl border border-white/6 bg-black/10 p-3">
+                  <span class="mt-1 h-2 w-2 shrink-0 rounded-full" :style="{ backgroundColor: typeById(selectedEvent.type).color }"></span>
+                  <div><p class="text-xs leading-5 text-slate-300">{{ activity.text }}</p><time class="mt-1 block text-[10px] text-slate-600">{{ activity.time }}</time></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6">
+              <label for="note" class="text-sm font-semibold text-slate-200">Notiz</label>
+              <textarea id="note" v-model="eventNote" rows="3" placeholder="Kontext oder nächste Aktion ergänzen …" class="mt-3 w-full resize-none rounded-2xl border border-white/8 bg-white/[.035] p-3 text-sm text-slate-200 outline-none placeholder:text-slate-700 focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10"></textarea>
+            </div>
+          </div>
+
+          <div class="flex gap-2 border-t border-white/8 p-4">
+            <button type="button" class="focus-ring flex-1 rounded-xl border border-white/9 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/9 hover:text-white" @click="duplicateSelected">Duplizieren</button>
+            <button type="button" class="focus-ring flex-1 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-50" @click="toggleEventState">{{ temporalLabel(selectedEvent) === 'Abgeschlossen' ? 'Reaktivieren' : 'Abschließen' }}</button>
+          </div>
+        </aside>
+      </div>
+    </transition>
+
+    <!-- Create modal -->
+    <transition name="modal">
+      <div v-if="createModal.open" class="fixed inset-0 z-[110] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" @click.self="closeCreateModal">
+        <form class="modal-card w-full max-w-lg overflow-hidden rounded-[26px] border border-white/10 bg-[#121620] shadow-2xl" @submit.prevent="addEvent">
+          <div class="flex items-center justify-between border-b border-white/8 px-6 py-5">
+            <div><h2 class="text-lg font-semibold tracking-tight text-white">Neues Event</h2><p class="mt-0.5 text-xs text-slate-600">Wird lokal in diesem Mockup ergänzt</p></div>
+            <button type="button" class="focus-ring grid h-9 w-9 place-items-center rounded-xl text-slate-500 hover:bg-white/8 hover:text-white" aria-label="Dialog schließen" @click="closeCreateModal"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+          </div>
+          <div class="space-y-4 p-6">
+            <label class="block"><span class="text-xs font-medium text-slate-400">Titel</span><input v-model.trim="createModal.title" required autofocus class="mt-2 h-11 w-full rounded-xl border border-white/8 bg-white/[.04] px-3 text-sm text-white outline-none focus:border-violet-400/45 focus:ring-4 focus:ring-violet-500/10" placeholder="z. B. Release Candidate" /></label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="block"><span class="text-xs font-medium text-slate-400">Typ</span><select v-model="createModal.type" class="mt-2 h-11 w-full rounded-xl border border-white/8 bg-[#171b25] px-3 text-sm text-white outline-none focus:border-violet-400/45"><option v-for="type in types" :key="type.id" :value="type.id">{{ type.label }}</option></select></label>
+              <label class="block"><span class="text-xs font-medium text-slate-400">Priorität</span><select v-model="createModal.priority" class="mt-2 h-11 w-full rounded-xl border border-white/8 bg-[#171b25] px-3 text-sm text-white outline-none focus:border-violet-400/45"><option value="low">Niedrig</option><option value="medium">Mittel</option><option value="high">Hoch</option></select></label>
+              <label class="block"><span class="text-xs font-medium text-slate-400">Start</span><input v-model="createModal.start" required type="date" class="mt-2 h-11 w-full rounded-xl border border-white/8 bg-[#171b25] px-3 text-sm text-white outline-none focus:border-violet-400/45" /></label>
+              <label class="block"><span class="text-xs font-medium text-slate-400">Ende</span><input v-model="createModal.end" type="date" :min="createModal.start" class="mt-2 h-11 w-full rounded-xl border border-white/8 bg-[#171b25] px-3 text-sm text-white outline-none focus:border-violet-400/45" /></label>
+            </div>
+            <label class="block"><span class="text-xs font-medium text-slate-400">Beschreibung</span><textarea v-model.trim="createModal.description" rows="3" class="mt-2 w-full resize-none rounded-xl border border-white/8 bg-white/[.04] p-3 text-sm text-white outline-none focus:border-violet-400/45 focus:ring-4 focus:ring-violet-500/10" placeholder="Kurzer Kontext zum Event …"></textarea></label>
+          </div>
+          <div class="flex justify-end gap-2 border-t border-white/8 bg-black/10 px-6 py-4">
+            <button type="button" class="focus-ring rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-white/5 hover:text-slate-300" @click="closeCreateModal">Abbrechen</button>
+            <button type="submit" class="focus-ring rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-violet-50">Event erstellen</button>
+          </div>
+        </form>
+      </div>
+    </transition>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } = Vue;
+
+    createApp({
+      setup() {
+        const DAY = 86400000;
+        const laneLabelWidth = ref(window.innerWidth <= 760 ? 156 : 220);
+        const viewport = ref(null);
+        const zoomIndex = ref(2);
+        const selectedEvent = ref(null);
+        const eventNote = ref('');
+        const search = ref('');
+        const activeTypes = ref(['milestone', 'release', 'meeting', 'incident', 'campaign']);
+        const isPanning = ref(false);
+        const scrollState = reactive({ left: 0, width: 1 });
+        const panState = reactive({ startX: 0, startLeft: 0, pointerId: null });
+
+        const rangeStart = new Date('2024-01-01T12:00:00');
+        const rangeEnd = new Date('2028-12-31T12:00:00');
+        const totalDays = Math.round((rangeEnd - rangeStart) / DAY) + 1;
+
+        const zoomLevels = [
+          { label: 'Jahre', dayWidth: .72, scaleText: '1 px ≈ 1,4 Tage', clusterDays: 122 },
+          { label: 'Quartale', dayWidth: 1.8, scaleText: '1 px ≈ 13 Std.', clusterDays: 46 },
+          { label: 'Monate', dayWidth: 5.5, scaleText: '5,5 px / Tag', clusterDays: 0 },
+          { label: 'Wochen', dayWidth: 14, scaleText: '14 px / Tag', clusterDays: 0 },
+          { label: 'Tage', dayWidth: 38, scaleText: '38 px / Tag', clusterDays: 0 }
+        ];
+
+        const types = [
+          { id: 'milestone', label: 'Meilensteine', color: '#9b87ff', symbol: '◆', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 9 9-9 9-9-9 9-9Z"/></svg>' },
+          { id: 'release', label: 'Releases', color: '#4fd8ff', symbol: '↗', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 17 17 7M8 7h9v9"/></svg>' },
+          { id: 'meeting', label: 'Meetings', color: '#f4bb5e', symbol: '●', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.7-3.2 2.5-5 5.5-5s4.8 1.8 5.5 5M16 8h5M18.5 5.5v5"/></svg>' },
+          { id: 'incident', label: 'Incidents', color: '#ff6f91', symbol: '!', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4M12 16.4v.1"/></svg>' },
+          { id: 'campaign', label: 'Kampagnen', color: '#46d7a4', symbol: '◉', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 13V7l13-3v12L4 13Z"/><path d="m8 14 1 6h4l-2-6M17 8c2 .5 3 1.8 3 3.5S19 14.5 17 15"/></svg>' }
+        ];
+
+        const events = ref([
+          { id: 1, type: 'milestone', title: 'Strategie 2025 beschlossen', start: '2024-02-14', end: '2024-02-14', owner: 'Leadership', priority: 'high', state: 'done', description: 'Strategische Leitplanken und Zielbild für die nächste Produktphase.', activities: [{ text: 'Entscheidung im Steering Committee dokumentiert.', time: '14. Feb. 2024' }] },
+          { id: 2, type: 'release', title: 'Core Platform 2.0', start: '2024-03-04', end: '2024-03-15', owner: 'Platform Team', priority: 'high', state: 'done', description: 'Migration der zentralen Laufzeitplattform auf die zweite Architekturversion.', activities: [{ text: 'Rollout erfolgreich abgeschlossen.', time: '15. März 2024' }] },
+          { id: 3, type: 'meeting', title: 'Architecture Review', start: '2024-03-11', end: '2024-03-11', owner: 'Architecture Board', priority: 'medium', state: 'done', description: 'Bewertung der Integrations- und Sicherheitsarchitektur.', activities: [{ text: 'Drei Architecture Decision Records freigegeben.', time: '11. März 2024' }] },
+          { id: 4, type: 'incident', title: 'API Latency Spike', start: '2024-04-06', end: '2024-04-08', owner: 'SRE', priority: 'high', state: 'done', description: 'Erhöhte Antwortzeiten im europäischen API-Cluster.', activities: [{ text: 'Root Cause: fehlerhafte Cache-Invalidierung.', time: '8. Apr. 2024' }] },
+          { id: 5, type: 'campaign', title: 'Spring Adoption', start: '2024-04-15', end: '2024-06-07', owner: 'Growth', priority: 'medium', state: 'done', description: 'Aktivierungskampagne für neue Collaboration-Funktionen.', activities: [{ text: 'Zielwert bei Aktivierungsrate erreicht.', time: '7. Juni 2024' }] },
+          { id: 6, type: 'meeting', title: 'Customer Council', start: '2024-05-22', end: '2024-05-22', owner: 'Product', priority: 'medium', state: 'done', description: 'Qualitatives Feedback zu Roadmap und Nutzerführung.', activities: [{ text: 'Feedback in Discovery Backlog überführt.', time: '23. Mai 2024' }] },
+          { id: 7, type: 'release', title: 'Mobile Offline Mode', start: '2024-07-08', end: '2024-07-19', owner: 'Mobile Team', priority: 'medium', state: 'done', description: 'Offline-Fähigkeit für Kernworkflows in der mobilen Anwendung.', activities: [{ text: 'Stufenweise Verteilung auf 100 %.', time: '19. Juli 2024' }] },
+          { id: 8, type: 'milestone', title: 'ISO 27001 Stage 1', start: '2024-09-17', end: '2024-09-17', owner: 'ISMS', priority: 'high', state: 'done', description: 'Erste Auditstufe des Informationssicherheits-Managementsystems.', activities: [{ text: 'Keine Major Nonconformities.', time: '17. Sept. 2024' }] },
+          { id: 9, type: 'incident', title: 'Webhook Delivery Delay', start: '2024-10-02', end: '2024-10-03', owner: 'Integration Team', priority: 'medium', state: 'done', description: 'Zeitverzögerte Verarbeitung ausgehender Webhooks.', activities: [{ text: 'Queue-Skalierung angepasst.', time: '3. Okt. 2024' }] },
+          { id: 10, type: 'campaign', title: 'Enterprise Migration Wave', start: '2024-10-14', end: '2025-01-31', owner: 'Customer Success', priority: 'high', state: 'done', description: 'Koordinierte Migration strategischer Unternehmenskunden.', activities: [{ text: 'Letzte Migrationswelle abgeschlossen.', time: '31. Jan. 2025' }] },
+          { id: 11, type: 'meeting', title: 'Quarterly Product Review', start: '2025-01-23', end: '2025-01-23', owner: 'Product Ops', priority: 'low', state: 'done', description: 'Review der Outcomes und Priorisierung der nächsten Produktinkremente.', activities: [{ text: 'Q2-Schwerpunkte priorisiert.', time: '23. Jan. 2025' }] },
+          { id: 12, type: 'release', title: 'Insights Dashboard', start: '2025-02-10', end: '2025-02-21', owner: 'Data Experience', priority: 'high', state: 'done', description: 'Neue Analyseoberfläche mit rollenbasierten KPI-Sichten.', activities: [{ text: 'Feature Flag global aktiviert.', time: '21. Feb. 2025' }] },
+          { id: 13, type: 'milestone', title: '1 Mio. aktive Workspaces', start: '2025-03-05', end: '2025-03-05', owner: 'Company', priority: 'medium', state: 'done', description: 'Nutzungsmeilenstein über alle Mandanten.', activities: [{ text: 'Meilenstein intern kommuniziert.', time: '5. März 2025' }] },
+          { id: 14, type: 'incident', title: 'Identity Provider Outage', start: '2025-03-19', end: '2025-03-19', owner: 'Identity', priority: 'high', state: 'done', description: 'Kurzzeitige Einschränkung bei SSO-Anmeldungen.', activities: [{ text: 'Failover-Regel erweitert.', time: '20. März 2025' }] },
+          { id: 15, type: 'meeting', title: 'Security Tabletop', start: '2025-04-03', end: '2025-04-03', owner: 'Security', priority: 'high', state: 'done', description: 'Simulation eines sicherheitsrelevanten Vorfalls mit Entscheidungswegen.', activities: [{ text: 'Verbesserungen im Incident Playbook erfasst.', time: '3. Apr. 2025' }] },
+          { id: 16, type: 'campaign', title: 'AI Assistant Early Access', start: '2025-05-12', end: '2025-08-29', owner: 'Growth + AI', priority: 'high', state: 'done', description: 'Gestaffelte Early-Access-Kampagne für den produktinternen Assistenten.', activities: [{ text: 'Teilnehmerkohorte vollständig aktiviert.', time: '29. Aug. 2025' }] },
+          { id: 17, type: 'release', title: 'Workflow Automations', start: '2025-06-02', end: '2025-06-20', owner: 'Automation Team', priority: 'high', state: 'done', description: 'Regelbasierte Automatisierung wiederkehrender Arbeitsschritte.', activities: [{ text: 'General Availability erreicht.', time: '20. Juni 2025' }] },
+          { id: 18, type: 'meeting', title: 'Design System Summit', start: '2025-07-16', end: '2025-07-17', owner: 'Design Platform', priority: 'medium', state: 'done', description: 'Abgleich zu Komponenten, Tokens und Accessibility.', activities: [{ text: 'Roadmap für Design System 3.0 erstellt.', time: '17. Juli 2025' }] },
+          { id: 19, type: 'incident', title: 'Search Index Drift', start: '2025-09-09', end: '2025-09-12', owner: 'Search Team', priority: 'medium', state: 'done', description: 'Inkonsistente Suchergebnisse nach Teilreindexierung.', activities: [{ text: 'Reconciliation Job eingeführt.', time: '12. Sept. 2025' }] },
+          { id: 20, type: 'milestone', title: 'EU Data Boundary', start: '2025-11-03', end: '2025-11-03', owner: 'Platform + Legal', priority: 'high', state: 'done', description: 'Technischer und organisatorischer Abschluss der EU-Datengrenze.', activities: [{ text: 'Kontrollnachweise finalisiert.', time: '3. Nov. 2025' }] },
+          { id: 21, type: 'release', title: 'Permissions 3.0', start: '2026-01-12', end: '2026-02-06', owner: 'Identity', priority: 'high', state: 'done', description: 'Granularere Rollen und Richtlinien mit vereinfachter Administration.', activities: [{ text: 'Migration aller Bestandsrollen abgeschlossen.', time: '6. Feb. 2026' }] },
+          { id: 22, type: 'campaign', title: 'Partner Launch Program', start: '2026-02-16', end: '2026-05-29', owner: 'Partnerships', priority: 'medium', state: 'done', description: 'Gemeinsame Markteinführung mit ausgewählten Integrationspartnern.', activities: [{ text: 'Erste Partnerkohorte zertifiziert.', time: '29. Mai 2026' }] },
+          { id: 23, type: 'meeting', title: 'H2 Portfolio Planning', start: '2026-06-18', end: '2026-06-19', owner: 'Portfolio Board', priority: 'high', state: 'done', description: 'Kapazitäts- und Outcome-Planung für das zweite Halbjahr.', activities: [{ text: 'Portfolio-Szenario B ausgewählt.', time: '19. Juni 2026' }] },
+          { id: 24, type: 'release', title: 'Realtime Collaboration', start: '2026-07-20', end: '2026-08-14', owner: 'Collaboration', priority: 'high', state: 'active', description: 'Synchrones Bearbeiten mit Präsenzinformationen und Konfliktauflösung.', activities: [{ text: 'Canary-Rollout auf 15 % gestartet.', time: '20. Juli 2026' }, { text: 'Latenz-SLO liegt innerhalb des Zielkorridors.', time: 'Heute' }] },
+          { id: 25, type: 'incident', title: 'Regional Packet Loss', start: '2026-07-22', end: '2026-07-24', owner: 'SRE', priority: 'high', state: 'active', description: 'Paketverluste in einem regionalen Netzwerksegment; Workaround aktiv.', activities: [{ text: 'Traffic auf alternatives Peering umgeleitet.', time: 'Vor 2 Stunden' }, { text: 'Provider-Eskalation läuft.', time: 'Vor 45 Minuten' }] },
+          { id: 26, type: 'meeting', title: 'Incident Review', start: '2026-07-27', end: '2026-07-27', owner: 'SRE + Platform', priority: 'high', state: 'planned', description: 'Blameless Post-Incident Review mit Maßnahmenableitung.', activities: [{ text: 'Agenda und Timeline vorbereitet.', time: 'Heute' }] },
+          { id: 27, type: 'milestone', title: 'ISO 27001 Surveillance Audit', start: '2026-09-15', end: '2026-09-16', owner: 'ISMS', priority: 'high', state: 'planned', description: 'Überwachungsaudit mit Fokus auf Wirksamkeitsnachweise.', activities: [{ text: 'Evidence Collection gestartet.', time: 'Diese Woche' }] },
+          { id: 28, type: 'campaign', title: 'Autumn Product Tour', start: '2026-09-21', end: '2026-11-20', owner: 'Product Marketing', priority: 'medium', state: 'planned', description: 'Regionale Veranstaltungsreihe für neue Enterprise-Funktionen.', activities: [{ text: 'Vier Standorte bestätigt.', time: 'Gestern' }] },
+          { id: 29, type: 'release', title: 'Agentic Workflows Beta', start: '2026-10-05', end: '2026-10-30', owner: 'AI Platform', priority: 'high', state: 'planned', description: 'Kontrollierte Beta für mehrstufige, assistierte Workflow-Ausführung.', activities: [{ text: 'Threat Model in Review.', time: 'Heute' }] },
+          { id: 30, type: 'meeting', title: 'Customer Advisory Board', start: '2026-10-08', end: '2026-10-08', owner: 'Executive Product', priority: 'medium', state: 'planned', description: 'Roadmap-Validierung mit strategischen Kunden.', activities: [{ text: 'Teilnehmerkreis steht fest.', time: 'Diese Woche' }] },
+          { id: 31, type: 'incident', title: 'Resilience Game Day', start: '2026-11-12', end: '2026-11-12', owner: 'SRE', priority: 'medium', state: 'planned', description: 'Geplanter Resilienztest unter kontrollierten Fehlerbedingungen.', activities: [{ text: 'Failure Scenarios in Ausarbeitung.', time: 'Diese Woche' }] },
+          { id: 32, type: 'milestone', title: 'Global Availability', start: '2027-01-18', end: '2027-01-18', owner: 'Company', priority: 'high', state: 'planned', description: 'Globale Verfügbarkeit des erweiterten Produktportfolios.', activities: [{ text: 'Readiness-Kriterien zu 72 % erfüllt.', time: 'Aktuell' }] },
+          { id: 33, type: 'campaign', title: 'Global Launch', start: '2027-01-11', end: '2027-03-26', owner: 'Marketing', priority: 'high', state: 'planned', description: 'Globale Einführungskampagne über alle Kernmärkte.', activities: [{ text: 'Kampagnenkonzept freigegeben.', time: 'Aktuell' }] },
+          { id: 34, type: 'release', title: 'Data Fabric', start: '2027-04-05', end: '2027-05-14', owner: 'Data Platform', priority: 'high', state: 'planned', description: 'Einheitliche Datenzugriffsschicht für transaktionale und analytische Workloads.', activities: [{ text: 'Architecture Spike geplant.', time: 'Backlog' }] },
+          { id: 35, type: 'meeting', title: 'Architecture Summit', start: '2027-04-20', end: '2027-04-22', owner: 'Engineering', priority: 'medium', state: 'planned', description: 'Mehrjähriges Zielbild und technische Investitionsfelder.', activities: [{ text: 'Themenvorschläge werden gesammelt.', time: 'Backlog' }] },
+          { id: 36, type: 'milestone', title: 'Carbon Neutral Operations', start: '2027-09-30', end: '2027-09-30', owner: 'Operations', priority: 'medium', state: 'planned', description: 'Zieltermin für bilanziell klimaneutralen Plattformbetrieb.', activities: [{ text: 'Messkonzept abgestimmt.', time: 'Aktuell' }] },
+          { id: 37, type: 'release', title: 'Experience 4.0', start: '2028-02-07', end: '2028-03-10', owner: 'Product Experience', priority: 'high', state: 'planned', description: 'Umfassendes UX- und Informationsarchitektur-Update.', activities: [{ text: 'Discovery vorgesehen.', time: 'Roadmap' }] },
+          { id: 38, type: 'milestone', title: 'Platform 2030 Baseline', start: '2028-10-16', end: '2028-10-16', owner: 'Architecture Board', priority: 'high', state: 'planned', description: 'Verbindliche Architektur-Baseline für das langfristige Zielbild.', activities: [{ text: 'Strategisches Fenster reserviert.', time: 'Roadmap' }] }
+        ]);
+
+        const createModal = reactive({ open: false, title: '', type: 'release', priority: 'medium', start: '2026-07-24', end: '', description: '' });
+
+        const currentDayWidth = computed(() => zoomLevels[zoomIndex.value].dayWidth);
+        const timelineWidth = computed(() => Math.ceil(totalDays * currentDayWidth.value));
+
+        const parseDate = value => value instanceof Date ? value : new Date(`${value}T12:00:00`);
+        const dateKey = date => {
+          const d = parseDate(date);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        };
+        const dayOffset = date => Math.round((parseDate(date) - rangeStart) / DAY);
+        const xForDate = date => dayOffset(date) * currentDayWidth.value;
+        const dateForX = x => new Date(rangeStart.getTime() + Math.max(0, Math.min(totalDays - 1, x / currentDayWidth.value)) * DAY);
+        const today = new Date();
+        const todayX = computed(() => xForDate(today));
+        const todayPercent = computed(() => Math.max(0, Math.min(100, todayX.value / timelineWidth.value * 100)));
+
+        function typeById(id) { return types.find(type => type.id === id) || types[0]; }
+
+        const filteredEvents = computed(() => {
+          const term = search.value.toLocaleLowerCase('de');
+          return events.value.filter(event => activeTypes.value.includes(event.type) && (!term || [event.title, event.owner, event.description, typeById(event.type).label].join(' ').toLocaleLowerCase('de').includes(term)));
+        });
+
+        const axisTicks = computed(() => {
+          const ticks = [];
+          const level = zoomIndex.value;
+          let cursor = new Date(rangeStart);
+          let index = 0;
+
+          if (level === 0) cursor = new Date(rangeStart.getFullYear(), 0, 1, 12);
+          if (level === 1 || level === 2) cursor = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1, 12);
+          if (level === 3) {
+            cursor = new Date(rangeStart);
+            const day = cursor.getDay() || 7;
+            cursor.setDate(cursor.getDate() - day + 1);
+          }
+
+          while (cursor <= rangeEnd) {
+            let label = '';
+            let major = false;
+            if (level === 0) {
+              label = `Q${Math.floor(cursor.getMonth() / 3) + 1}`;
+              major = cursor.getMonth() === 0;
+              cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 3, 1, 12);
+            } else if (level === 1 || level === 2) {
+              label = cursor.toLocaleDateString('de-DE', { month: level === 1 ? 'short' : 'long' });
+              major = cursor.getMonth() === 0;
+              cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1, 12);
+            } else if (level === 3) {
+              label = `KW ${isoWeek(cursor)}`;
+              major = cursor.getDate() <= 7;
+              cursor = new Date(cursor.getTime() + 7 * DAY);
+            } else {
+              label = cursor.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
+              major = cursor.getDate() === 1 || cursor.getDay() === 1;
+              cursor = new Date(cursor.getTime() + DAY);
+            }
+            const tickDate = level === 0 ? new Date(cursor.getFullYear(), cursor.getMonth() - 3, 1, 12) : level === 1 || level === 2 ? new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1, 12) : level === 3 ? new Date(cursor.getTime() - 7 * DAY) : new Date(cursor.getTime() - DAY);
+            const left = xForDate(tickDate);
+            if (left >= 0 && left <= timelineWidth.value) ticks.push({ key: `${level}-${index++}`, left, label, major });
+          }
+          return ticks;
+        });
+
+        const gridTicks = computed(() => axisTicks.value);
+
+        const yearBands = computed(() => {
+          const bands = [];
+          for (let year = rangeStart.getFullYear(); year <= rangeEnd.getFullYear(); year++) {
+            const start = new Date(year, 0, 1, 12);
+            const end = new Date(year + 1, 0, 1, 12);
+            bands.push({ year, left: xForDate(start), width: Math.min(timelineWidth.value, xForDate(end)) - xForDate(start) });
+          }
+          return bands;
+        });
+
+        function isoWeek(date) {
+          const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+          const dayNum = d.getUTCDay() || 7;
+          d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+          const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+          return Math.ceil((((d - yearStart) / DAY) + 1) / 7);
+        }
+
+        function layoutEvents(laneEvents) {
+          const sorted = [...laneEvents].sort((a,b) => parseDate(a.start) - parseDate(b.start));
+          const rowEnds = [];
+          const minWidth = [64, 76, 112, 132, 164][zoomIndex.value];
+          const rowHeight = 43;
+          const topPadding = 15;
+          const gap = 8;
+          const items = sorted.map(event => {
+            const left = xForDate(event.start) + 3;
+            const rawWidth = Math.max(currentDayWidth.value * (Math.max(1, dayOffset(event.end) - dayOffset(event.start) + 1)), 3);
+            const width = Math.max(minWidth, rawWidth - 6);
+            let row = rowEnds.findIndex(end => left >= end + gap);
+            if (row === -1) { row = rowEnds.length; rowEnds.push(0); }
+            rowEnds[row] = left + width;
+            return { event, left, width, top: topPadding + row * rowHeight };
+          });
+          return { items, height: Math.max(92, topPadding * 2 + Math.max(1, rowEnds.length) * rowHeight) };
+        }
+
+        function layoutClusters(laneEvents) {
+          const bucketDays = zoomLevels[zoomIndex.value].clusterDays;
+          const groups = new Map();
+          laneEvents.forEach(event => {
+            const bucket = Math.floor(dayOffset(event.start) / bucketDays);
+            if (!groups.has(bucket)) groups.set(bucket, []);
+            groups.get(bucket).push(event);
+          });
+          const items = [...groups.entries()].sort((a,b) => a[0] - b[0]).map(([bucket, group], index) => {
+            const bucketStart = new Date(rangeStart.getTime() + bucket * bucketDays * DAY);
+            const bucketEnd = new Date(Math.min(rangeEnd.getTime(), bucketStart.getTime() + (bucketDays - 1) * DAY));
+            const width = Math.max(76, bucketDays * currentDayWidth.value - 10);
+            const left = xForDate(bucketStart) + 5;
+            return {
+              key: `${bucket}-${index}`,
+              events: group,
+              left,
+              width,
+              top: 20,
+              date: bucketStart,
+              label: group.length === 1 ? group[0].title : `${group.length} ${typeById(group[0].type).label}`,
+              rangeLabel: `${bucketStart.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })} – ${bucketEnd.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' })}`
+            };
+          });
+          return { items, height: 92 };
+        }
+
+        const laneLayouts = computed(() => types.filter(type => activeTypes.value.includes(type.id)).map(type => {
+          const laneEvents = filteredEvents.value.filter(event => event.type === type.id);
+          const layout = zoomIndex.value <= 1 ? layoutClusters(laneEvents) : layoutEvents(laneEvents);
+          return { type, mode: zoomIndex.value <= 1 ? 'clusters' : 'events', ...layout };
+        }));
+
+        const summaryStats = computed(() => {
+          const visible = filteredEvents.value;
+          const past = visible.filter(event => temporalLabel(event) === 'Abgeschlossen').length;
+          const active = visible.filter(event => temporalLabel(event) === 'Läuft').length;
+          const planned = visible.filter(event => temporalLabel(event) === 'Geplant').length;
+          const high = visible.filter(event => event.priority === 'high' && temporalLabel(event) !== 'Abgeschlossen').length;
+          return [
+            { label: 'Sichtbare Events', value: visible.length, note: `von ${events.value.length}` },
+            { label: 'Abgeschlossen', value: past, note: 'historisch' },
+            { label: 'Aktiv / geplant', value: active + planned, note: `${active} laufend` },
+            { label: 'Kritischer Fokus', value: high, note: 'hohe Priorität' }
+          ];
+        });
+
+        const visibleDateLabel = computed(() => {
+          if (!viewport.value) return '2024 – 2028';
+          const start = dateForX(scrollState.left);
+          const end = dateForX(scrollState.left + scrollState.width);
+          const options = zoomIndex.value >= 3 ? { day: '2-digit', month: 'short', year: 'numeric' } : { month: 'short', year: 'numeric' };
+          return `${start.toLocaleDateString('de-DE', options)} – ${end.toLocaleDateString('de-DE', options)}`;
+        });
+
+        const miniViewportStyle = computed(() => {
+          const left = Math.max(0, scrollState.left / timelineWidth.value * 100);
+          const width = Math.max(2, Math.min(100, scrollState.width / timelineWidth.value * 100));
+          return { left: `${Math.min(100 - width, left)}%`, width: `${width}%` };
+        });
+
+        function trackStyle(lane) {
+          return {
+            width: `${timelineWidth.value}px`,
+            minWidth: `${timelineWidth.value}px`,
+            height: `${lane.height}px`,
+            backgroundColor: 'rgba(255,255,255,.008)'
+          };
+        }
+
+        function temporalLabel(event) {
+          if (event.state === 'done') return 'Abgeschlossen';
+          if (event.state === 'active') return 'Läuft';
+          const now = new Date();
+          if (parseDate(event.end || event.start) < now) return 'Abgeschlossen';
+          if (parseDate(event.start) <= now && parseDate(event.end || event.start) >= now) return 'Läuft';
+          return 'Geplant';
+        }
+        function temporalClass(event) { return temporalLabel(event) === 'Abgeschlossen' ? 'is-past' : ''; }
+        function statusDotClass(event) { return temporalLabel(event) === 'Abgeschlossen' ? 'bg-slate-500' : temporalLabel(event) === 'Läuft' ? 'bg-emerald-400 shadow-[0_0_9px_rgba(52,211,153,.7)]' : 'bg-violet-400'; }
+        function priorityLabel(priority) { return ({ low: 'Niedrig', medium: 'Mittel', high: 'Hoch' })[priority] || priority; }
+        function formatDateRange(event) {
+          const start = parseDate(event.start).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+          const end = parseDate(event.end || event.start).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
+          return event.start === (event.end || event.start) ? start : `${start} – ${end}`;
+        }
+        function compactEventMeta(event) {
+          const date = parseDate(event.start).toLocaleDateString('de-DE', zoomIndex.value >= 3 ? { day: '2-digit', month: 'short' } : { month: 'short', year: '2-digit' });
+          return `${date} · ${event.owner}`;
+        }
+        function eventPercent(event) { return Math.max(0, Math.min(100, xForDate(event.start) / timelineWidth.value * 100)); }
+
+        function toggleType(id) {
+          const index = activeTypes.value.indexOf(id);
+          if (index >= 0) activeTypes.value.splice(index, 1);
+          else activeTypes.value.push(id);
+        }
+        function toggleAllTypes() { activeTypes.value = activeTypes.value.length === types.length ? [] : types.map(type => type.id); }
+        function resetFilters() { activeTypes.value = types.map(type => type.id); search.value = ''; }
+
+        function onScroll() {
+          if (!viewport.value) return;
+          scrollState.left = viewport.value.scrollLeft;
+          scrollState.width = viewport.value.clientWidth - laneLabelWidth.value;
+        }
+
+        function setZoom(next, anchorClientX = null) {
+          const clamped = Math.max(0, Math.min(zoomLevels.length - 1, next));
+          if (clamped === zoomIndex.value || !viewport.value) return;
+          const oldWidth = currentDayWidth.value;
+          const rect = viewport.value.getBoundingClientRect();
+          const anchor = anchorClientX == null ? Math.max(0, (viewport.value.clientWidth - laneLabelWidth.value) / 2) : Math.max(0, anchorClientX - rect.left - laneLabelWidth.value);
+          const contentX = viewport.value.scrollLeft + anchor;
+          const anchorDay = contentX / oldWidth;
+          zoomIndex.value = clamped;
+          nextTick(() => {
+            viewport.value.scrollLeft = Math.max(0, anchorDay * currentDayWidth.value - anchor);
+            onScroll();
+          });
+        }
+
+        function onWheel(event) {
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            setZoom(zoomIndex.value + (event.deltaY < 0 ? 1 : -1), event.clientX);
+          } else if (event.shiftKey) {
+            event.preventDefault();
+            viewport.value.scrollLeft += event.deltaY;
+          }
+        }
+
+        function startPan(event) {
+          if (event.button !== 0 || event.target.closest('[data-interactive], button, input, select, textarea, a')) return;
+          isPanning.value = true;
+          panState.startX = event.clientX;
+          panState.startLeft = viewport.value.scrollLeft;
+          panState.pointerId = event.pointerId;
+          viewport.value.setPointerCapture?.(event.pointerId);
+        }
+        function movePan(event) {
+          if (!isPanning.value || event.pointerId !== panState.pointerId) return;
+          viewport.value.scrollLeft = panState.startLeft - (event.clientX - panState.startX);
+        }
+        function endPan(event) {
+          if (!isPanning.value) return;
+          isPanning.value = false;
+          if (panState.pointerId != null) viewport.value.releasePointerCapture?.(panState.pointerId);
+          panState.pointerId = null;
+        }
+
+        function selectEvent(event) { selectedEvent.value = event; eventNote.value = ''; }
+        function openCluster(cluster) {
+          const targetZoom = Math.min(zoomLevels.length - 1, zoomIndex.value + 2);
+          const date = cluster.events[Math.floor(cluster.events.length / 2)]?.start || cluster.date;
+          setZoom(targetZoom);
+          nextTick(() => centerOnDate(date));
+        }
+        function centerOnDate(date) {
+          if (!viewport.value) return;
+          viewport.value.scrollLeft = Math.max(0, xForDate(date) - (viewport.value.clientWidth - laneLabelWidth.value) / 2);
+          onScroll();
+        }
+        function jumpToToday() { centerOnDate(today); }
+
+        function navigateMiniMap(event) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+          viewport.value.scrollLeft = Math.max(0, ratio * timelineWidth.value - (viewport.value.clientWidth - laneLabelWidth.value) / 2);
+          onScroll();
+        }
+
+        function openCreateModal(type = 'release', date = null) {
+          createModal.open = true;
+          createModal.title = '';
+          createModal.type = type;
+          createModal.priority = 'medium';
+          createModal.start = dateKey(date || today);
+          createModal.end = '';
+          createModal.description = '';
+        }
+        function closeCreateModal() { createModal.open = false; }
+        function createAtPosition(event, type) {
+          const rect = event.currentTarget.getBoundingClientRect();
+          openCreateModal(type, dateForX(event.clientX - rect.left));
+        }
+        function addEvent() {
+          const id = Math.max(...events.value.map(event => event.id)) + 1;
+          const newEvent = {
+            id,
+            type: createModal.type,
+            title: createModal.title,
+            start: createModal.start,
+            end: createModal.end || createModal.start,
+            owner: 'Du',
+            priority: createModal.priority,
+            state: parseDate(createModal.start) <= today ? 'active' : 'planned',
+            description: createModal.description || 'Neu angelegtes Event im interaktiven Timeline-Mockup.',
+            activities: [{ text: 'Event im Timeline-Mockup erstellt.', time: 'Gerade eben' }]
+          };
+          events.value.push(newEvent);
+          if (!activeTypes.value.includes(newEvent.type)) activeTypes.value.push(newEvent.type);
+          createModal.open = false;
+          nextTick(() => { centerOnDate(newEvent.start); selectEvent(newEvent); });
+        }
+        function duplicateSelected() {
+          const source = selectedEvent.value;
+          if (!source) return;
+          const start = new Date(parseDate(source.start).getTime() + 7 * DAY);
+          const end = new Date(parseDate(source.end || source.start).getTime() + 7 * DAY);
+          const clone = { ...source, id: Math.max(...events.value.map(event => event.id)) + 1, title: `${source.title} (Kopie)`, start: dateKey(start), end: dateKey(end), state: 'planned', activities: [{ text: 'Aus bestehendem Event dupliziert.', time: 'Gerade eben' }] };
+          events.value.push(clone);
+          selectedEvent.value = clone;
+          nextTick(() => centerOnDate(clone.start));
+        }
+        function toggleEventState() {
+          if (!selectedEvent.value) return;
+          selectedEvent.value.state = selectedEvent.value.state === 'done' ? 'planned' : 'done';
+          selectedEvent.value.activities.unshift({ text: selectedEvent.value.state === 'done' ? 'Event als abgeschlossen markiert.' : 'Event reaktiviert.', time: 'Gerade eben' });
+        }
+
+        function handleKeydown(event) {
+          const tag = event.target?.tagName?.toLowerCase();
+          const isEditing = ['input', 'textarea', 'select'].includes(tag) || event.target?.isContentEditable;
+          if (event.key === 'Escape') { selectedEvent.value = null; closeCreateModal(); return; }
+          if (isEditing) return;
+          if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(zoomIndex.value + 1); }
+          if (event.key === '-') { event.preventDefault(); setZoom(zoomIndex.value - 1); }
+          if (event.key === '0') { event.preventDefault(); jumpToToday(); }
+        }
+
+        function onResize() {
+          laneLabelWidth.value = window.innerWidth <= 760 ? 156 : 220;
+          onScroll();
+        }
+
+        onMounted(() => {
+          window.addEventListener('resize', onResize);
+          window.addEventListener('keydown', handleKeydown);
+          nextTick(() => { onScroll(); jumpToToday(); });
+        });
+        onBeforeUnmount(() => {
+          window.removeEventListener('resize', onResize);
+          window.removeEventListener('keydown', handleKeydown);
+        });
+
+        return {
+          viewport, laneLabelWidth, zoomIndex, zoomLevels, types, events, selectedEvent, eventNote, search, activeTypes, isPanning,
+          createModal, timelineWidth, filteredEvents, laneLayouts, axisTicks, gridTicks, yearBands, todayX, todayPercent,
+          summaryStats, visibleDateLabel, miniViewportStyle,
+          typeById, trackStyle, temporalLabel, temporalClass, statusDotClass, priorityLabel, formatDateRange, compactEventMeta, eventPercent,
+          toggleType, toggleAllTypes, resetFilters, onScroll, onWheel, setZoom, startPan, movePan, endPan, selectEvent, openCluster,
+          jumpToToday, navigateMiniMap, openCreateModal, closeCreateModal, createAtPosition, addEvent, duplicateSelected, toggleEventState, handleKeydown
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
