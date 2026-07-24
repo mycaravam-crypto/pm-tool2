@@ -24,6 +24,22 @@ export const EVENT_TYPES = {
 
 export const EVENT_TYPE_KEYS = Object.keys(EVENT_TYPES);
 
+// Purely presentational — lets an event's type read as its own hue at a
+// glance (filter pills, timeline card accents, the event drawer's header
+// glow) independent of the status colors resolveEventVisual applies below.
+// Shared here so Timeline.vue and EventDetailModal.vue can't drift onto two
+// different palettes for the same type.
+export const TYPE_COLORS = {
+  kickoff: '#38bdf8',
+  sync: '#22d3ee',
+  workshop: '#a78bfa',
+  review: '#4ade80',
+  decision: '#facc15',
+  retro: '#fb923c',
+  milestone: '#c084fc',
+  deadline: '#fb7185',
+};
+
 export const FORWARD_TYPES = ['milestone', 'deadline'];
 
 export const STATUS_LABELS = { pending: 'Pending', achieved: 'Achieved', missed: 'Missed' };

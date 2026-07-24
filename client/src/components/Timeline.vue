@@ -1,8 +1,8 @@
 <script setup>
-import { CalendarSearch, Repeat, RotateCcw, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { CalendarSearch, Repeat, RotateCcw, Search, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { resolveEventVisual } from '../lib/eventTypes.js';
+import { EVENT_TYPE_KEYS, EVENT_TYPES, FORWARD_TYPES, resolveEventVisual, TYPE_COLORS } from '../lib/eventTypes.js';
 import { computeClusters as computeClustersPure, computePositionedEvents } from '../lib/timelineAggregation.js';
 import {
   computeRange,
@@ -22,20 +22,16 @@ const todayStr = getTodayStr();
 const DAY_MS = 86400000;
 const TRACK_HEIGHT = 400;
 const BASELINE_TOP = 280;
-// Each stacked unit is icon (40px) + label gap (6px) + one line of title text (~14px) = ~60px tall.
-// STACK_BASE must clear that whole unit above the baseline, or the title dips below the line.
-const STACK_BASE = 76;
-const STACK_STEP = 74;
-// Beyond this many events, a cluster collapses the rest into a "+N" badge
+// A card is a single 30px-tall row (icon + inline title, no separate label
+// line below it like the old bubble layout had), so it only needs enough
+// clearance above the baseline to fit itself plus a small gap.
+const STACK_BASE = 40;
+const STACK_STEP = 38;
+// Beyond this many events, a cluster collapses the rest into a "+N" chip
 // instead of stacking indefinitely — an unbounded stack eventually pushes
-// bubbles above the track entirely, which is exactly the overlay-timeline
-// promise ("see clusters at a glance") breaking down under real multi-project
-// density. Capping keeps the max stack offset constant regardless of size.
-// 3, not 4: with STACK_BASE/STACK_STEP above, tier index 3 lands at
-// BASELINE_TOP - (76 + 3*74) = -18px — off the top of the track and into
-// whatever sits above it (the "Today" label included). Tier index 2 (56px)
-// is the tallest one that still fits.
-const MAX_VISIBLE_STACK = 3;
+// cards above the track entirely (or into the "Today" label near the top),
+// so capping keeps the tallest stack offset constant regardless of size.
+const MAX_VISIBLE_STACK = 5;
 
 // Zoom controls pixels-per-day directly, so "zoom in" is literally "give nearby
 // events more room" — which is also how label collisions get resolved, see
@@ -48,9 +44,11 @@ const ZOOM_STEP = 1.4;
 // the +/- buttons), so a single scroll gesture zooms smoothly rather than in clicky jumps.
 const WHEEL_ZOOM_SENSITIVITY = 0.0018;
 const MAX_TRACK_WIDTH = 16000;
-// Two truncated title labels (max-w-22 = 88px, centered under their icon) start
-// visually colliding once their icons are closer than about this many pixels.
-const CLUSTER_THRESHOLD_PX = 90;
+// Two truncated card titles start visually colliding once their anchors are
+// closer than about this many pixels — CARD_WIDTH below is kept safely under
+// this so cards from two different (non-clustered) anchors never overlap.
+const CLUSTER_THRESHOLD_PX = 100;
+const CARD_WIDTH = 88;
 // Day gridlines only render once each day has this much width — below it
 // they'd pack into an illegible solid band, so day-level detail stays hidden
 // until you've zoomed in far enough for it to actually read as detail.
@@ -69,6 +67,17 @@ const zoomLevel = ref(1);
 const scrollContainer = ref(null);
 const trackEl = ref(null);
 const isPanning = ref(false);
+const search = ref('');
+const activeTypes = ref([...EVENT_TYPE_KEYS]);
+
+function toggleType(key) {
+  const idx = activeTypes.value.indexOf(key);
+  if (idx >= 0) activeTypes.value.splice(idx, 1);
+  else activeTypes.value.push(key);
+}
+function toggleAllTypes() {
+  activeTypes.value = activeTypes.value.length === EVENT_TYPE_KEYS.length ? [] : [...EVENT_TYPE_KEYS];
+}
 
 // Named zoom tiers so the toolbar readout matches the issue's semantic-zoom
 // vocabulary (Jahr/Quartal/Monat/Woche/Tag) instead of a bare percentage —
@@ -100,6 +109,28 @@ function leftPercent(dateStr) {
 
 const todayLeftPercent = computed(() => leftPercent(todayStr));
 
+const visibleEvents = computed(() => {
+  const term = search.value.trim().toLowerCase();
+  return store.events.filter(
+    (e) => activeTypes.value.includes(e.type) && (!term || e.title.toLowerCase().includes(term)),
+  );
+});
+
+const summaryStats = computed(() => {
+  const visible = visibleEvents.value;
+  const achieved = visible.filter((e) => e.status === 'achieved').length;
+  const missed = visible.filter((e) => e.status === 'missed').length;
+  const overdue = visible.filter(
+    (e) => FORWARD_TYPES.includes(e.type) && e.status === 'pending' && e.date < todayStr,
+  ).length;
+  return [
+    { label: 'Visible events', value: visible.length, note: `of ${store.events.length}` },
+    { label: 'Achieved', value: achieved, note: 'milestones & deadlines' },
+    { label: 'Missed', value: missed, note: 'milestones & deadlines' },
+    { label: 'Overdue, unmarked', value: overdue, note: 'needs a status' },
+  ];
+});
+
 // Groups events close enough in *rendered pixel space* to collide, not just events
 // sharing an exact date. At low zoom many days collapse into the same handful of
 // pixels, so nearby-but-different-date events need to stack too; at high zoom the
@@ -107,7 +138,7 @@ const todayLeftPercent = computed(() => leftPercent(todayStr));
 // so zooming in is the fix for "labels are colliding." Logic lives in
 // timelineAggregation.js so it's unit-testable without mounting the component.
 const clusters = computed(() =>
-  computeClustersPure(store.events, {
+  computeClustersPure(visibleEvents.value, {
     range: range.value,
     trackWidth: trackWidth.value,
     todayStr,
@@ -117,9 +148,9 @@ const clusters = computed(() =>
 );
 
 // Flattened for TransitionGroup, which needs a single-level v-for to animate
-// individual entries in/out as filtering (sidebar project selection) adds or
-// removes events — the nested cluster/event structure above is still what
-// decides each bubble's position, just re-shaped into one list here.
+// individual entries in/out as filtering (sidebar project selection, search,
+// type pills) adds or removes events — the nested cluster structure above is
+// still what decides each card's position, just re-shaped into one list here.
 const positionedEvents = computed(() => computePositionedEvents(clusters.value, MAX_VISIBLE_STACK));
 
 const openOverflowId = ref(null);
@@ -132,6 +163,18 @@ function closeOverflow() {
 function selectOverflowEvent(event) {
   closeOverflow();
   emit('select-event', event);
+}
+
+function cardTitle(event) {
+  const parts = [
+    event.title,
+    '—',
+    event.project.name,
+    `(${formatDate(event.date)}${event.time ? ` ${event.time}` : ''})`,
+  ];
+  if (event.status !== 'pending') parts.push(`— ${event.status}`);
+  if (event.series_id) parts.push('— recurring');
+  return parts.join(' ');
 }
 
 // Month gridlines give the timeline a sense of scale beyond the "Past/Future" corner labels.
@@ -283,7 +326,7 @@ function handleWheel(e) {
 
 // Click-and-drag panning for mouse users (trackpads/touch already pan via
 // native scroll). Skipped when the press starts on an interactive element —
-// event bubbles, the overflow popover, form controls — so their own click
+// event cards, the overflow popover, form controls — so their own click
 // handling is untouched. `moved` gates the paired dblclick handler below so
 // a drag-release-drag never gets misread as a double-click.
 let panStartX = 0;
@@ -315,7 +358,7 @@ function handlePointerUp() {
 }
 
 // Double-click on empty timeline space creates a new event pre-filled with
-// the clicked date — clicks on an event/cluster bubble are excluded so they
+// the clicked date — clicks on an event/cluster card are excluded so they
 // keep going to their own click handler instead of also firing this.
 function handleDblclick(e) {
   if (panMoved) return;
@@ -385,14 +428,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
 </script>
 
 <template>
-  <div class="p-6">
-    <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-400">
+  <div class="p-3 sm:p-5">
+    <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-500">
       Select a project from the sidebar to see its timeline.
     </div>
-    <div v-else-if="store.loading && store.events.length === 0" class="text-center py-24 text-slate-400">
+    <div v-else-if="store.loading && store.events.length === 0" class="text-center py-24 text-slate-500">
       Loading events…
     </div>
-    <div v-else-if="!store.loading && store.events.length === 0" class="text-center py-24 text-slate-400">
+    <div v-else-if="!store.loading && store.events.length === 0" class="text-center py-24 text-slate-500">
       No events yet for the selected project(s).
     </div>
     <!-- Kept mounted across a background refetch (e.g. toggling a project
@@ -401,205 +444,238 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
          this whole subtree — that was killing the enter/leave transitions
          below since TransitionGroup had no continuity to animate across. -->
     <template v-else>
-      <!-- Project color legend: the timeline's overlay only works if you can tell
-           whose event is whose without looking away to the sidebar checkboxes. -->
-      <div v-if="store.selectedProjects.length > 1" class="flex items-center gap-3 flex-wrap mb-2 text-xs text-slate-600">
-        <span
-          v-for="p in store.selectedProjects" :key="p.id"
-          class="flex items-center gap-1.5"
-        >
-          <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: p.color_hex }" />{{ p.name }}
-        </span>
-      </div>
-
-      <div class="flex items-center justify-between gap-4 mb-3 flex-wrap">
-        <div class="flex items-center gap-4 text-xs text-slate-500">
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400" /> Record</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border-2 border-slate-400 rotate-45" /> Milestone / Deadline</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
-          <span class="flex items-center gap-1.5"><span class="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-indigo-600"><Repeat class="w-2 h-2 text-white" /></span> Recurring</span>
-          <span v-if="store.loading" class="text-slate-400 italic">Updating…</span>
+      <div class="glass rounded-[26px] overflow-hidden">
+        <!-- Project color legend: the timeline's overlay only works if you can tell
+             whose event is whose without looking away to the sidebar checkboxes. -->
+        <div v-if="store.selectedProjects.length > 1" class="flex items-center gap-3 flex-wrap px-4 sm:px-6 pt-4 text-xs text-slate-400">
+          <span v-for="p in store.selectedProjects" :key="p.id" class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: p.color_hex }" />{{ p.name }}
+          </span>
         </div>
 
-        <div class="flex items-center gap-3">
-          <form class="flex items-center gap-1" @submit.prevent="jumpToDate">
-            <input v-model="jumpDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-xs" />
-            <button
-              type="submit"
-              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-              title="Jump to date" :disabled="!jumpDate"
-            ><CalendarSearch class="w-4 h-4" /></button>
-          </form>
-          <div class="flex items-center gap-1">
-            <button
-              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-              title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
-            ><ZoomOut class="w-4 h-4" /></button>
-            <span
-              class="text-xs text-slate-500 w-16 text-center tabular-nums"
-              :title="`Zoom: ${Math.round(zoomLevel * 100)}%`"
-            >{{ semanticZoomLabel }}</span>
-            <button
-              class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
-              title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
-            ><ZoomIn class="w-4 h-4" /></button>
-            <button
-              class="p-1.5 rounded text-slate-500 hover:bg-slate-100"
-              title="Reset zoom and jump to today" @click="resetZoom"
-            ><RotateCcw class="w-4 h-4" /></button>
-            <HelpTooltip
-              align="right"
-              text="Scroll your mouse wheel or trackpad to zoom into whatever date is under your cursor. Click and drag to pan. With the timeline focused: arrow keys pan, +/- zoom, Home jumps to today. Double-click empty space to create an event on that date."
-            />
-          </div>
-        </div>
-      </div>
-
-      <TimelineMiniMap
-        class="mb-2"
-        :range="range"
-        :events="store.events"
-        :today-str="todayStr"
-        :viewport-start-pct="viewportStartPct"
-        :viewport-width-pct="viewportWidthPct"
-        @navigate="handleMinimapNavigate"
-      />
-
-      <div
-        id="timeline-scroll-viewport"
-        ref="scrollContainer"
-        class="relative overflow-x-auto pb-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
-        :class="isPanning ? 'cursor-grabbing' : 'cursor-grab'"
-        tabindex="0"
-        role="group"
-        aria-label="Event timeline. Scroll or drag to pan, use arrow keys to pan, plus and minus keys to zoom, and Home to jump to today. Double-click an empty area to create a new event on that date."
-        @wheel="handleWheel"
-        @pointerdown="handlePointerDown"
-        @dblclick="handleDblclick"
-        @keydown="handleKeydown"
-        @scroll="handleScroll"
-      >
-        <div ref="trackEl" class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
-          <!-- day gridlines: lightest tier, only rendered once zoomed in enough
-               (see DAY_GRID_MIN_PX_PER_DAY) for one-per-day lines to read as
-               texture rather than a solid smear -->
-          <TransitionGroup name="fade-pop" tag="div">
-            <div
-              v-for="d in dayMarkers" :key="d.key"
-              class="absolute top-0 w-px bg-slate-100 transition-[left] duration-300 ease-out"
-              :style="{ left: d.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-            />
-          </TransitionGroup>
-
-          <!-- month gridlines -->
-          <TransitionGroup name="fade-pop" tag="div">
-            <div
-              v-for="m in monthMarkers" :key="m.key"
-              class="absolute top-0 w-px bg-slate-200 transition-[left] duration-300 ease-out"
-              :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-            />
-          </TransitionGroup>
-          <TransitionGroup name="fade-pop" tag="div">
-            <div
-              v-for="m in monthMarkers" :key="'label-' + m.key"
-              class="absolute text-[11px] text-slate-400 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
-              :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
-            >{{ m.label }}</div>
-          </TransitionGroup>
-
-          <!-- year gridlines: heaviest tier, painted last so they win visually
-               wherever they land on the same tick as a month/day line -->
-          <TransitionGroup name="fade-pop" tag="div">
-            <div
-              v-for="y in yearMarkers" :key="y.key"
-              class="absolute top-0 w-px bg-slate-300 transition-[left] duration-300 ease-out"
-              :style="{ left: y.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-            />
-          </TransitionGroup>
-          <TransitionGroup name="fade-pop" tag="div">
-            <div
-              v-for="y in yearMarkers" :key="'label-' + y.key"
-              class="absolute text-[11px] font-semibold text-slate-500 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
-              :style="{ left: y.leftPercent + '%', top: (BASELINE_TOP + 28) + 'px' }"
-            >{{ y.label }}</div>
-          </TransitionGroup>
-
-          <!-- baseline -->
-          <div class="absolute left-0 right-0 h-px bg-slate-300" :style="{ top: BASELINE_TOP + 'px' }" />
-
-          <div class="absolute text-xs font-medium text-slate-400 left-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Past</div>
-          <div class="absolute text-xs font-medium text-slate-400 right-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Future</div>
-
-          <!-- today marker -->
-          <div class="absolute top-0 w-px bg-rose-400 z-10" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
-            <span class="absolute -top-1 left-1.5 text-[10px] text-rose-500 font-medium whitespace-nowrap">Today · {{ formatDate(todayStr) }}</span>
-          </div>
-
-          <!-- event bubbles: a flat, TransitionGroup-animated list so events
-               entering/leaving as the sidebar's project filter changes fade
-               and pop instead of snapping in/out; ongoing left/top transitions
-               (re-clustering, zoom, filtering-driven range changes) still
-               apply per-element via the transition-[left,top] utility below -->
-          <TransitionGroup name="event-pop" tag="div">
-            <template v-for="event in positionedEvents" :key="event.id">
-              <div
-                v-if="event.isOverflow"
-                :key="event.id"
-                class="absolute -translate-x-1/2 transition-[left,top] duration-300 ease-out z-20"
-                :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
+        <!-- Header: search, type filters, today/jump, zoom -->
+        <div class="border-b border-white/8 px-4 sm:px-6 py-4">
+          <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div class="flex flex-1 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Filter by event type">
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                :class="activeTypes.length === EVENT_TYPE_KEYS.length ? 'border-white/20 bg-white/10 text-white' : 'border-white/8 bg-transparent text-slate-500 hover:text-slate-300'"
+                @click="toggleAllTypes"
               >
-                <!-- The `-translate-x-1/2` transform above makes this wrapper its own
-                     stacking context (per spec, any non-none transform does), which
-                     traps ClusterDetailPopover's internal z-20 menu inside it — that
-                     inner z-20 never gets compared against the page-covering
-                     click-outside layer below (fixed, z-10) at all, so without an
-                     explicit z-index *here*, on the context-creating element itself,
-                     the click-outside div always wins the hit-test and every menu
-                     item click is silently swallowed as a "close the popover" click. -->
-                <ClusterDetailPopover
-                  :overflow-events="event.overflowEvents"
-                  :is-open="openOverflowId === event.id"
-                  @toggle="toggleOverflow(event.id)"
-                  @select="selectOverflowEvent"
+                <span class="h-1.5 w-1.5 rounded-full bg-white" />All
+                <span class="text-[10px] text-slate-500">{{ visibleEvents.length }}</span>
+              </button>
+              <button
+                v-for="key in EVENT_TYPE_KEYS" :key="key" type="button"
+                class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                :class="activeTypes.includes(key) ? 'border-white/16 bg-white/[.075] text-slate-100' : 'border-white/6 bg-transparent text-slate-600 hover:text-slate-300'"
+                @click="toggleType(key)"
+              >
+                <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: TYPE_COLORS[key], boxShadow: activeTypes.includes(key) ? `0 0 10px ${TYPE_COLORS[key]}` : 'none' }" />
+                {{ EVENT_TYPES[key].label }}
+              </button>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="relative">
+                <span class="sr-only">Search events</span>
+                <Search class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <input
+                  v-model.trim="search" type="search" placeholder="Search events…"
+                  class="h-9 w-44 rounded-lg border border-white/8 bg-white/[.045] pl-8 pr-3 text-xs text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-violet-400/45 focus:bg-white/[.065] focus:ring-4 focus:ring-violet-500/10"
                 />
-              </div>
-              <div
-                v-else
-                :key="event.id"
-                class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
-                :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
-              >
+              </label>
+
+              <form class="flex items-center gap-1" @submit.prevent="jumpToDate">
+                <input v-model="jumpDate" type="date" class="h-9 rounded-lg border border-white/8 bg-white/[.045] px-2 text-xs text-slate-100 outline-none focus:border-violet-400/45" />
                 <button
-                  class="group relative flex items-center justify-center w-10 h-10 shadow hover:shadow-md hover:-translate-y-0.5 transition-all"
-                  :class="[event.visual.shape === 'diamond' ? 'rotate-45' : 'rounded-full', event.visual.bgClass]"
-                  :style="{ border: `2px solid ${event.project.color_hex}` }"
-                  :title="`${event.title} — ${event.project.name} (${formatDate(event.date)}${event.time ? ' ' + event.time : ''})${event.status !== 'pending' ? ' — ' + event.status : ''}${event.series_id ? ' — recurring' : ''}`"
+                  type="submit" title="Jump to date" :disabled="!jumpDate"
+                  class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-white/8 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+                ><CalendarSearch class="w-4 h-4" /></button>
+              </form>
+
+              <button
+                type="button"
+                class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/8 bg-white/[.045] px-3 text-xs font-medium text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+                @click="scrollToToday"
+              >Today</button>
+
+              <div class="flex items-center rounded-lg border border-white/8 bg-black/15 p-1">
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-white/8 hover:text-white disabled:opacity-30"
+                  title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
+                ><ZoomOut class="w-3.5 h-3.5" /></button>
+                <span class="w-16 text-center text-[11px] text-slate-400 tabular-nums" :title="`Zoom: ${Math.round(zoomLevel * 100)}%`">{{ semanticZoomLabel }}</span>
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-white/8 hover:text-white disabled:opacity-30"
+                  title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
+                ><ZoomIn class="w-3.5 h-3.5" /></button>
+                <button
+                  class="grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-white/8 hover:text-white"
+                  title="Reset zoom and jump to today" @click="resetZoom"
+                ><RotateCcw class="w-3.5 h-3.5" /></button>
+              </div>
+              <HelpTooltip
+                align="right"
+                text="Scroll your mouse wheel or trackpad to zoom into whatever date is under your cursor. Click and drag to pan. With the timeline focused: arrow keys pan, +/- zoom, Home jumps to today. Double-click empty space to create an event on that date."
+              />
+            </div>
+          </div>
+          <span v-if="store.loading" class="mt-2 block text-xs italic text-slate-500">Updating…</span>
+        </div>
+
+        <!-- Summary stats strip -->
+        <div class="grid grid-cols-2 border-b border-white/7 bg-black/10 sm:grid-cols-4">
+          <div v-for="stat in summaryStats" :key="stat.label" class="border-r border-white/6 px-4 py-3 last:border-r-0 sm:px-6">
+            <div class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-500">{{ stat.label }}</div>
+            <div class="mt-1 flex items-end gap-2"><strong class="text-xl font-semibold tracking-tight text-slate-100">{{ stat.value }}</strong><span class="pb-0.5 text-[11px] text-slate-500">{{ stat.note }}</span></div>
+          </div>
+        </div>
+
+        <!-- Timeline viewport -->
+        <div
+          id="timeline-scroll-viewport"
+          ref="scrollContainer"
+          class="timeline-scroll relative overflow-x-auto pb-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+          :class="isPanning ? 'cursor-grabbing select-none' : 'cursor-grab'"
+          tabindex="0"
+          role="group"
+          aria-label="Event timeline. Scroll or drag to pan, use arrow keys to pan, plus and minus keys to zoom, and Home to jump to today. Double-click an empty area to create a new event on that date."
+          @wheel="handleWheel"
+          @pointerdown="handlePointerDown"
+          @dblclick="handleDblclick"
+          @keydown="handleKeydown"
+          @scroll="handleScroll"
+        >
+          <div ref="trackEl" class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+            <!-- day gridlines: lightest tier, only rendered once zoomed in enough
+                 (see DAY_GRID_MIN_PX_PER_DAY) for one-per-day lines to read as
+                 texture rather than a solid smear -->
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="d in dayMarkers" :key="d.key"
+                class="absolute top-0 w-px bg-white/[.04] transition-[left] duration-300 ease-out"
+                :style="{ left: d.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+              />
+            </TransitionGroup>
+
+            <!-- month gridlines -->
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="m in monthMarkers" :key="m.key"
+                class="absolute top-0 w-px bg-white/[.07] transition-[left] duration-300 ease-out"
+                :style="{ left: m.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+              />
+            </TransitionGroup>
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="m in monthMarkers" :key="'label-' + m.key"
+                class="absolute text-[11px] text-slate-500 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+                :style="{ left: m.leftPercent + '%', top: (BASELINE_TOP + 10) + 'px' }"
+              >{{ m.label }}</div>
+            </TransitionGroup>
+
+            <!-- year gridlines: heaviest tier, painted last so they win visually
+                 wherever they land on the same tick as a month/day line -->
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="y in yearMarkers" :key="y.key"
+                class="absolute top-0 w-px bg-white/[.14] transition-[left] duration-300 ease-out"
+                :style="{ left: y.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+              />
+            </TransitionGroup>
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="y in yearMarkers" :key="'label-' + y.key"
+                class="absolute text-[11px] font-semibold text-slate-300 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+                :style="{ left: y.leftPercent + '%', top: (BASELINE_TOP + 28) + 'px' }"
+              >{{ y.label }}</div>
+            </TransitionGroup>
+
+            <!-- baseline -->
+            <div class="absolute left-0 right-0 h-px bg-white/15" :style="{ top: BASELINE_TOP + 'px' }" />
+
+            <div class="absolute text-xs font-medium text-slate-500 left-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Past</div>
+            <div class="absolute text-xs font-medium text-slate-500 right-0" :style="{ top: BASELINE_TOP + 'px', transform: 'translateY(-24px)' }">Future</div>
+
+            <!-- today marker -->
+            <div class="today-line" :style="{ left: todayLeftPercent + '%', height: BASELINE_TOP + 'px' }">
+              <span class="absolute -top-1 left-1.5 text-[10px] text-rose-400 font-medium whitespace-nowrap">Today · {{ formatDate(todayStr) }}</span>
+            </div>
+
+            <!-- event cards: a flat, TransitionGroup-animated list so events
+                 entering/leaving as the sidebar's project filter, search, or
+                 type pills change fade and pop instead of snapping in/out;
+                 ongoing left/top transitions (re-clustering, zoom, filtering-
+                 driven range changes) still apply per-element below -->
+            <TransitionGroup name="event-pop" tag="div">
+              <template v-for="event in positionedEvents" :key="event.id">
+                <div
+                  v-if="event.isOverflow"
+                  :key="event.id"
+                  class="absolute z-20 transition-[left,top] duration-300 ease-out"
+                  :style="{ left: `${event.leftPercent}%`, top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
+                >
+                  <ClusterDetailPopover
+                    :overflow-events="event.overflowEvents"
+                    :is-open="openOverflowId === event.id"
+                    @toggle="toggleOverflow(event.id)"
+                    @select="selectOverflowEvent"
+                  />
+                </div>
+                <button
+                  v-else
+                  :key="event.id"
+                  type="button"
+                  class="event-card"
+                  :class="event.visual.shape === 'diamond' ? 'event-card--diamond' : ''"
+                  :style="{ left: `${event.leftPercent}%`, top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px`, width: `${CARD_WIDTH}px`, borderColor: `${TYPE_COLORS[event.type]}55` }"
+                  :title="cardTitle(event)"
                   @click="emit('select-event', event)"
                 >
-                  <component
-                    :is="event.visual.icon"
-                    class="w-4 h-4"
-                    :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
-                  />
                   <span
-                    v-if="event.series_id"
-                    class="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 border border-white"
-                    :class="event.visual.shape === 'diamond' ? '-rotate-45' : ''"
-                  ><Repeat class="w-2.5 h-2.5 text-white" /></span>
+                    class="event-badge"
+                    :class="[event.visual.bgClass, event.visual.shape === 'diamond' ? 'rounded-md rotate-45' : 'rounded-full']"
+                    :style="{ borderColor: event.project.color_hex }"
+                  >
+                    <component
+                      :is="event.visual.icon" class="h-2.5 w-2.5"
+                      :class="[event.visual.iconClass, event.visual.shape === 'diamond' ? '-rotate-45' : '']"
+                    />
+                  </span>
+                  <span class="truncate">{{ event.title }}</span>
+                  <span v-if="event.series_id" class="event-card-repeat"><Repeat class="h-2 w-2 text-white" /></span>
                 </button>
-                <span
-                  class="max-w-22 truncate text-[11px] leading-tight text-slate-600 text-center"
-                  :class="event.visual.shape === 'diamond' ? 'mt-2.5' : 'mt-1.5'"
-                  :title="event.title"
-                >{{ event.title }}</span>
-              </div>
-            </template>
-          </TransitionGroup>
+              </template>
+            </TransitionGroup>
 
-          <!-- click-outside closer for the overflow dropdown -->
-          <div v-if="openOverflowId" class="fixed inset-0 z-10" @click="closeOverflow" />
+            <!-- click-outside closer for the overflow popover -->
+            <div v-if="openOverflowId" class="fixed inset-0 z-10" @click="closeOverflow" />
+          </div>
+        </div>
+
+        <!-- Footer: status legend + minimap -->
+        <div class="flex flex-col gap-3 border-t border-white/8 bg-black/15 px-4 sm:px-6 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400" /> Record</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border-2 border-slate-400 rotate-45" /> Milestone / Deadline</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
+            <span class="flex items-center gap-1.5"><span class="flex items-center justify-center w-3.5 h-3.5 rounded-full bg-violet-600"><Repeat class="w-2 h-2 text-white" /></span> Recurring</span>
+            <span class="hidden sm:inline text-slate-600">· Double-click empty space to create an event</span>
+          </div>
+
+          <TimelineMiniMap
+            class="lg:w-80"
+            :range="range"
+            :events="store.events"
+            :today-str="todayStr"
+            :viewport-start-pct="viewportStartPct"
+            :viewport-width-pct="viewportWidthPct"
+            @navigate="handleMinimapNavigate"
+          />
         </div>
       </div>
     </template>
@@ -607,10 +683,86 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
 </template>
 
 <style scoped>
-/* Event bubbles: pop + fade in/out as the sidebar's project filter adds or
-   removes events. `scale`/`opacity` are used instead of `transform` so this
-   doesn't fight the persistent `-translate-x-1/2` centering transform already
-   on the element — the two compose independently. */
+.today-line {
+  position: absolute;
+  top: 0;
+  z-index: 18;
+  width: 1px;
+  background: linear-gradient(180deg, #ff6b91, rgba(255, 107, 145, 0.25));
+  box-shadow: 0 0 14px rgba(255, 107, 145, 0.45);
+  pointer-events: none;
+}
+.today-line::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff6b91;
+  box-shadow: 0 0 0 3px rgba(255, 107, 145, 0.15);
+}
+
+.event-card {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
+  color: #f1f5f9;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+.event-card--diamond {
+  border-radius: 12px;
+}
+.event-card:hover,
+.event-card:focus-visible {
+  z-index: 15;
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.32);
+  outline: none;
+}
+.event-badge {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-width: 1.5px;
+  border-style: solid;
+}
+.event-card-repeat {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #7c3aed;
+  border: 1px solid #11141c;
+}
+
+/* Event cards: pop + fade in/out as filters (project/search/type) add or
+   remove events. `scale`/`opacity` are used instead of `transform` so this
+   doesn't fight the per-element `left`/`top` transition already on the
+   element — the two compose independently. */
 .event-pop-enter-active,
 .event-pop-leave-active {
   transition: opacity 220ms ease, scale 220ms ease;
@@ -626,7 +778,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
   pointer-events: none;
 }
 
-/* Month gridlines/labels: simple fade as the visible date range shifts. */
+/* Month/year gridlines and labels: simple fade as the visible date range shifts. */
 .fade-pop-enter-active,
 .fade-pop-leave-active {
   transition: opacity 220ms ease;

@@ -75,10 +75,10 @@ const allItems = computed(() => {
       person: a.assignee_name,
       statusLabel: a.done ? 'Done' : isOverdue(a) ? 'Overdue' : 'Open',
       statusClass: a.done
-        ? 'bg-emerald-100 text-emerald-700'
+        ? 'bg-emerald-500/15 text-emerald-300'
         : isOverdue(a)
-          ? 'bg-rose-100 text-rose-700'
-          : 'bg-slate-100 text-slate-600',
+          ? 'bg-rose-500/15 text-rose-300'
+          : 'bg-white/10 text-slate-400',
     })),
     ...e.pain_points.map((p) => ({
       kind: 'pain',
@@ -91,11 +91,11 @@ const allItems = computed(() => {
       person: p.owner_name,
       statusLabel: p.resolved ? 'Resolved' : p.severity,
       statusClass: p.resolved
-        ? 'bg-emerald-100 text-emerald-700'
+        ? 'bg-emerald-500/15 text-emerald-300'
         : {
-            High: 'bg-rose-100 text-rose-700',
-            Medium: 'bg-amber-100 text-amber-700',
-            Low: 'bg-slate-100 text-slate-600',
+            High: 'bg-rose-500/15 text-rose-300',
+            Medium: 'bg-amber-500/15 text-amber-300',
+            Low: 'bg-white/10 text-slate-400',
           }[p.severity],
     })),
     ...e.decisions.map((d) => ({
@@ -108,7 +108,7 @@ const allItems = computed(() => {
       project: e.project,
       person: d.decided_by_name,
       statusLabel: 'Decided',
-      statusClass: 'bg-indigo-100 text-indigo-700',
+      statusClass: 'bg-violet-500/20 text-violet-300',
     })),
   ]);
   rows = rows.concat(
@@ -123,7 +123,7 @@ const allItems = computed(() => {
         project: p,
         person: null,
         statusLabel: r.done ? 'Done' : 'Open',
-        statusClass: r.done ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600',
+        statusClass: r.done ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/10 text-slate-400',
       })),
       ...p.goals.map((g) => ({
         kind: 'goal',
@@ -135,7 +135,7 @@ const allItems = computed(() => {
         project: p,
         person: null,
         statusLabel: g.achieved ? 'Achieved' : 'Open',
-        statusClass: g.achieved ? 'bg-emerald-100 text-emerald-700' : 'bg-fuchsia-100 text-fuchsia-700',
+        statusClass: g.achieved ? 'bg-emerald-500/15 text-emerald-300' : 'bg-fuchsia-500/15 text-fuchsia-300',
       })),
     ]),
   );
@@ -151,11 +151,11 @@ const KIND_LABELS = {
   goal: 'Goal',
 };
 const KIND_CLASSES = {
-  action: 'bg-sky-100 text-sky-700',
-  pain: 'bg-amber-100 text-amber-700',
-  decision: 'bg-slate-200 text-slate-700',
-  requirement: 'bg-cyan-100 text-cyan-700',
-  goal: 'bg-fuchsia-100 text-fuchsia-700',
+  action: 'bg-sky-500/15 text-sky-300',
+  pain: 'bg-amber-500/15 text-amber-300',
+  decision: 'bg-white/15 text-slate-300',
+  requirement: 'bg-cyan-500/15 text-cyan-300',
+  goal: 'bg-fuchsia-500/15 text-fuchsia-300',
 };
 
 // Scoped by project only (not assignee/overdue/etc.) so the empty states below can
@@ -278,7 +278,7 @@ async function toggleGoal(g) {
 
 <template>
   <div class="p-6">
-    <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-400">
+    <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-500">
       Select a project from the sidebar to see aggregated data.
     </div>
     <template v-else>
@@ -287,40 +287,40 @@ async function toggleGoal(g) {
           <button
             v-for="t in [['overview', 'Overview'], ['actions', 'Action Items'], ['pain', 'Pain Points'], ['decisions', 'Decisions'], ['requirements', 'Requirements'], ['goals', 'Goals'], ['upcoming', 'Upcoming']]"
             :key="t[0]"
-            class="px-3 py-1.5 text-sm rounded-md"
-            :class="subTab === t[0] ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            class="px-3 py-1.5 text-sm rounded-md font-medium transition"
+            :class="subTab === t[0] ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/10'"
             @click="subTab = t[0]"
           >{{ t[1] }}</button>
         </div>
         <div class="flex items-center gap-2">
-          <label v-if="subTab === 'actions'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+          <label v-if="subTab === 'actions'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="actionOverdueOnly" /> Overdue only
           </label>
-          <select v-if="subTab === 'actions'" v-model="assigneeFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <select v-if="subTab === 'actions'" v-model="assigneeFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
             <option value="">My Tasks: all assignees</option>
             <option v-for="s in knownAssignees" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <label v-if="subTab === 'pain'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+          <label v-if="subTab === 'pain'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="painOpenOnly" /> Open only
           </label>
-          <select v-if="subTab === 'pain'" v-model="painKindFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <select v-if="subTab === 'pain'" v-model="painKindFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
             <option value="">Risks + Issues</option>
             <option value="risk">Risks only</option>
             <option value="issue">Issues only</option>
           </select>
-          <select v-if="subTab === 'pain'" v-model="painSeverityFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <select v-if="subTab === 'pain'" v-model="painSeverityFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
             <option value="">All severities</option>
             <option value="High">High</option>
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
           </select>
-          <label v-if="subTab === 'requirements'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+          <label v-if="subTab === 'requirements'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="requirementOpenOnly" /> Open only
           </label>
-          <label v-if="subTab === 'goals'" class="flex items-center gap-1.5 text-sm text-slate-600 whitespace-nowrap">
+          <label v-if="subTab === 'goals'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="goalOpenOnly" /> Open only
           </label>
-          <select v-model="projectFilter" class="border border-slate-300 rounded px-2 py-1 text-sm">
+          <select v-model="projectFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
             <option value="">All selected projects</option>
             <option v-for="p in store.selectedProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
@@ -350,10 +350,10 @@ async function toggleGoal(g) {
               />
             </td>
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="KIND_CLASSES[r.kind]">{{ KIND_LABELS[r.kind] }}</span></td>
-            <td class="py-1.5" :class="(r.raw.done || r.raw.resolved || r.raw.achieved) ? 'line-through text-slate-400' : ''">{{ r.text }}</td>
+            <td class="py-1.5" :class="(r.raw.done || r.raw.resolved || r.raw.achieved) ? 'line-through text-slate-500' : ''">{{ r.text }}</td>
             <td class="py-1.5">
               <EventLink v-if="r.event" :event="r.event" @select="emit('select-event', $event)" />
-              <span v-else class="text-slate-400">—</span>
+              <span v-else class="text-slate-500">—</span>
             </td>
             <td class="py-1.5 text-slate-500">{{ r.person || '—' }}</td>
             <td class="py-1.5"><ProjectChip :project="r.project" /></td>
@@ -362,7 +362,7 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'overview' && allItems.length === 0" class="text-sm text-slate-400 py-4">Nothing to show yet.</p>
+      <p v-if="subTab === 'overview' && allItems.length === 0" class="text-sm text-slate-500 py-4">Nothing to show yet.</p>
 
       <table v-if="subTab === 'actions'" class="w-full text-sm">
         <thead>
@@ -373,18 +373,18 @@ async function toggleGoal(g) {
         <tbody>
           <tr v-for="a in actionItems" :key="a.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!a.done" @change="toggleDone(a)" /></td>
-            <td class="py-1.5" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</td>
+            <td class="py-1.5" :class="a.done ? 'line-through text-slate-500' : ''">{{ a.text }}</td>
             <td class="py-1.5 text-slate-500">{{ a.assignee_name || '—' }}</td>
             <td class="py-1.5"><EventLink :event="a.event" @select="emit('select-event', $event)" /></td>
             <td class="py-1.5"><ProjectChip :project="a.event.project" /></td>
-            <td class="py-1.5" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-500'">{{ formatDate(a.due_date) }}</td>
+            <td class="py-1.5" :class="isOverdue(a) ? 'text-rose-400 font-medium' : 'text-slate-500'">{{ formatDate(a.due_date) }}</td>
           </tr>
         </tbody>
       </table>
-      <div v-if="subTab === 'actions' && actionItems.length === 0" class="text-sm text-slate-400 py-4">
+      <div v-if="subTab === 'actions' && actionItems.length === 0" class="text-sm text-slate-500 py-4">
         <template v-if="actionItemsInScope.length > 0">
           No tasks match the current filter — {{ actionItemsInScope.length }} hidden.
-          <button type="button" class="text-indigo-600 hover:underline" @click="clearActionFilters">Clear filters</button>
+          <button type="button" class="text-violet-400 hover:underline" @click="clearActionFilters">Clear filters</button>
         </template>
         <template v-else>No action items.</template>
       </div>
@@ -398,17 +398,17 @@ async function toggleGoal(g) {
         <tbody>
           <tr v-for="p in painPoints" :key="p.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!p.resolved" @change="toggleResolved(p)" /></td>
-            <td class="py-1.5" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</td>
+            <td class="py-1.5" :class="p.resolved ? 'line-through text-slate-500' : ''">{{ p.text }}</td>
             <td class="py-1.5">
               <span
                 class="text-xs px-1.5 py-0.5 rounded"
-                :class="p.kind === 'risk' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'"
+                :class="p.kind === 'risk' ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-slate-400'"
               >{{ p.kind === 'risk' ? 'Risk' : 'Issue' }}</span>
             </td>
             <td class="py-1.5">
               <span
                 class="text-xs px-1.5 py-0.5 rounded"
-                :class="{ High: 'bg-rose-100 text-rose-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-slate-100 text-slate-600' }[p.severity]"
+                :class="{ High: 'bg-rose-500/15 text-rose-300', Medium: 'bg-amber-500/15 text-amber-300', Low: 'bg-white/10 text-slate-400' }[p.severity]"
               >{{ p.severity }}</span>
             </td>
             <td class="py-1.5 text-slate-500">{{ p.owner_name || '—' }}</td>
@@ -418,10 +418,10 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <div v-if="subTab === 'pain' && painPoints.length === 0" class="text-sm text-slate-400 py-4">
+      <div v-if="subTab === 'pain' && painPoints.length === 0" class="text-sm text-slate-500 py-4">
         <template v-if="painPointsInScope.length > 0">
           No pain points match the current filter — {{ painPointsInScope.length }} hidden.
-          <button type="button" class="text-indigo-600 hover:underline" @click="clearPainFilters">Clear filters</button>
+          <button type="button" class="text-violet-400 hover:underline" @click="clearPainFilters">Clear filters</button>
         </template>
         <template v-else>No pain points.</template>
       </div>
@@ -442,7 +442,7 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'decisions' && decisions.length === 0" class="text-sm text-slate-400 py-4">No decisions logged.</p>
+      <p v-if="subTab === 'decisions' && decisions.length === 0" class="text-sm text-slate-500 py-4">No decisions logged.</p>
 
       <table v-if="subTab === 'requirements'" class="w-full text-sm">
         <thead>
@@ -453,16 +453,16 @@ async function toggleGoal(g) {
         <tbody>
           <tr v-for="r in requirementsList" :key="r.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!r.done" @change="toggleRequirement(r)" /></td>
-            <td class="py-1.5" :class="r.done ? 'line-through text-slate-400' : ''">{{ r.text }}</td>
+            <td class="py-1.5" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</td>
             <td class="py-1.5"><ProjectChip :project="r.project" /></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.created_at.slice(0, 10)) }}</td>
           </tr>
         </tbody>
       </table>
-      <div v-if="subTab === 'requirements' && requirementsList.length === 0" class="text-sm text-slate-400 py-4">
+      <div v-if="subTab === 'requirements' && requirementsList.length === 0" class="text-sm text-slate-500 py-4">
         <template v-if="requirementsInScope.length > 0">
           No requirements match the current filter — {{ requirementsInScope.length }} hidden.
-          <button type="button" class="text-indigo-600 hover:underline" @click="clearRequirementFilters">Clear filters</button>
+          <button type="button" class="text-violet-400 hover:underline" @click="clearRequirementFilters">Clear filters</button>
         </template>
         <template v-else>No requirements yet — add some from a project's Edit Project form.</template>
       </div>
@@ -476,16 +476,16 @@ async function toggleGoal(g) {
         <tbody>
           <tr v-for="g in goalsList" :key="g.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5"><input type="checkbox" :checked="!!g.achieved" @change="toggleGoal(g)" /></td>
-            <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-400' : ''">{{ g.text }}</td>
+            <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</td>
             <td class="py-1.5"><ProjectChip :project="g.project" /></td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>
           </tr>
         </tbody>
       </table>
-      <div v-if="subTab === 'goals' && goalsList.length === 0" class="text-sm text-slate-400 py-4">
+      <div v-if="subTab === 'goals' && goalsList.length === 0" class="text-sm text-slate-500 py-4">
         <template v-if="goalsInScope.length > 0">
           No goals match the current filter — {{ goalsInScope.length }} hidden.
-          <button type="button" class="text-indigo-600 hover:underline" @click="clearGoalFilters">Clear filters</button>
+          <button type="button" class="text-violet-400 hover:underline" @click="clearGoalFilters">Clear filters</button>
         </template>
         <template v-else>No goals yet — add some from a project's Edit Project form.</template>
       </div>
@@ -498,7 +498,7 @@ async function toggleGoal(g) {
         </thead>
         <tbody>
           <tr v-for="e in upcomingEvents" :key="e.id" :class="TABLE_BODY_ROW">
-            <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium bg-violet-100 text-violet-700">{{ EVENT_TYPES[e.type].label }}</span></td>
+            <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium bg-violet-500/20 text-violet-300">{{ EVENT_TYPES[e.type].label }}</span></td>
             <td class="py-1.5"><EventLink :event="e" @select="emit('select-event', $event)" /></td>
             <td class="py-1.5"><ProjectChip :project="e.project" /></td>
             <td class="py-1.5 text-slate-500">{{ STATUS_LABELS[e.status] }}</td>
@@ -506,7 +506,7 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'upcoming' && upcomingEvents.length === 0" class="text-sm text-slate-400 py-4">No milestones or deadlines in the next 14 days.</p>
+      <p v-if="subTab === 'upcoming' && upcomingEvents.length === 0" class="text-sm text-slate-500 py-4">No milestones or deadlines in the next 14 days.</p>
     </template>
   </div>
 </template>

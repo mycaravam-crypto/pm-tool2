@@ -80,38 +80,38 @@ function downloadTemplate() {
   <ModalShell title="Import Events" wide @close="emit('close')">
     <div class="space-y-4 text-sm">
       <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">Project</label>
-        <select v-model.number="projectId" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+        <label class="block text-xs font-medium text-slate-400 mb-1">Project</label>
+        <select v-model.number="projectId" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm">
           <option v-for="p in store.selectedProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
       </div>
 
-      <div class="border border-dashed border-slate-300 rounded-md p-4 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-2 text-slate-600">
+      <div class="border border-dashed border-white/15 rounded-md p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2 text-slate-400">
           <Upload class="w-4 h-4 shrink-0" />
           <span>{{ fileName || 'Choose a CSV file to import' }}</span>
           <HelpTooltip text="Columns: title, date (YYYY-MM-DD), type (kickoff/sync/workshop/review/decision/retro/milestone/deadline), summary, status (pending/achieved/missed, optional), participants (optional, stakeholder names separated by ;)." />
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <button type="button" class="text-indigo-600 hover:underline flex items-center gap-1" @click="downloadTemplate">
+          <button type="button" class="text-violet-400 hover:underline flex items-center gap-1" @click="downloadTemplate">
             <Download class="w-3.5 h-3.5" /> Template
           </button>
-          <label class="px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50 cursor-pointer">
+          <label class="px-3 py-1.5 rounded-md border border-white/15 hover:bg-white/[.03] cursor-pointer">
             Browse…
             <input type="file" accept=".csv" class="hidden" @change="onFileChange" />
           </label>
         </div>
       </div>
 
-      <div v-if="error" class="text-rose-600 flex items-center gap-1.5">
+      <div v-if="error" class="text-rose-400 flex items-center gap-1.5">
         <CircleAlert class="w-4 h-4" /> {{ error }}
       </div>
 
       <div v-if="preview" class="space-y-2">
-        <p class="font-medium text-slate-700">{{ preview.validCount }} of {{ preview.totalRows }} rows valid</p>
-        <div class="max-h-64 overflow-y-auto border border-slate-200 rounded-md">
+        <p class="font-medium text-slate-300">{{ preview.validCount }} of {{ preview.totalRows }} rows valid</p>
+        <div class="max-h-64 overflow-y-auto border border-white/10 rounded-md">
           <table class="w-full text-xs">
-            <thead class="bg-slate-50 sticky top-0">
+            <thead class="bg-white/[.03] sticky top-0">
               <tr :class="TABLE_HEADER_ROW">
                 <th class="px-2 py-1">Row</th>
                 <th class="px-2 py-1">Title</th>
@@ -121,15 +121,15 @@ function downloadTemplate() {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in preview.rows" :key="r.row" :class="[TABLE_BODY_ROW, r.errors.length ? 'bg-rose-50' : '']">
+              <tr v-for="r in preview.rows" :key="r.row" :class="[TABLE_BODY_ROW, r.errors.length ? 'bg-rose-500/10' : '']">
                 <td class="px-2 py-1">{{ r.row }}</td>
                 <td class="px-2 py-1">{{ r.title }}</td>
                 <td class="px-2 py-1">{{ formatDate(r.date) }}</td>
                 <td class="px-2 py-1">{{ r.type }}</td>
                 <td class="px-2 py-1">
-                  <span v-if="r.errors.length" class="text-rose-600">{{ r.errors.join('; ') }}</span>
-                  <span v-else-if="r.warnings.length" class="text-amber-600">{{ r.warnings.join('; ') }}</span>
-                  <span v-else class="text-emerald-600">OK</span>
+                  <span v-if="r.errors.length" class="text-rose-400">{{ r.errors.join('; ') }}</span>
+                  <span v-else-if="r.warnings.length" class="text-amber-400">{{ r.warnings.join('; ') }}</span>
+                  <span v-else class="text-emerald-400">OK</span>
                 </td>
               </tr>
             </tbody>
@@ -137,25 +137,25 @@ function downloadTemplate() {
         </div>
       </div>
 
-      <div v-if="result" class="text-emerald-700 bg-emerald-50 rounded-md px-3 py-2">
+      <div v-if="result" class="text-emerald-300 bg-emerald-500/10 rounded-md px-3 py-2">
         Imported {{ result.imported }} event{{ result.imported === 1 ? '' : 's' }}.
         <span v-if="result.skipped.length">{{ result.skipped.length }} row{{ result.skipped.length === 1 ? '' : 's' }} skipped.</span>
       </div>
 
       <div class="flex justify-end gap-2 pt-2">
-        <button type="button" class="px-3 py-1.5 rounded-md border border-slate-300 hover:bg-slate-50" @click="emit('close')">Close</button>
+        <button type="button" class="px-3 py-1.5 rounded-md border border-white/15 hover:bg-white/[.03]" @click="emit('close')">Close</button>
         <button
           v-if="!preview"
           type="button"
           :disabled="!projectId || !csvText || busy"
-          class="px-3 py-1.5 rounded-md bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-md border border-white/15 bg-white/10 text-white hover:bg-white/15 disabled:opacity-50"
           @click="runPreview"
         >Preview</button>
         <button
           v-else
           type="button"
           :disabled="!preview.validCount || busy"
-          class="px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50"
           @click="runImport"
         >Import {{ preview.validCount }} event{{ preview.validCount === 1 ? '' : 's' }}</button>
       </div>

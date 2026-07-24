@@ -14,7 +14,7 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 // instead of every section looking like undifferentiated gray.
 const ACCENT = {
   neutral: [71, 85, 105], // slate-600 — headers/dividers with no specific concern
-  decision: [79, 70, 229], // indigo-600
+  decision: [124, 58, 237], // violet-600
   action: [2, 132, 199], // sky-600
   pain: [217, 119, 6], // amber-600
   requirement: [8, 145, 178], // cyan-600

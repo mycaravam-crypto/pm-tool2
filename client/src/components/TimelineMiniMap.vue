@@ -83,28 +83,28 @@ function handleKeydown(e) {
 
 <template>
   <div
-    class="relative h-9 rounded bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    class="relative h-9 rounded-lg bg-white/[.035] border border-white/10 overflow-hidden cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
     role="scrollbar"
     aria-orientation="horizontal"
     aria-controls="timeline-scroll-viewport"
     :aria-valuenow="Math.round(viewportCenterPercent)"
     aria-valuemin="0"
     aria-valuemax="100"
-    aria-label="Timeline-Übersicht. Klicken oder ziehen, um zu einem Zeitpunkt zu springen."
+    aria-label="Timeline overview. Click or drag to jump to a point in time."
     tabindex="0"
     @click="handleTrackClick"
     @keydown="handleKeydown"
   >
     <div
       v-for="b in densityBuckets" :key="b.key"
-      class="absolute bottom-0 bg-slate-300"
+      class="absolute bottom-0 bg-white/25"
       :style="{ left: b.leftPercent + '%', width: (100 / BUCKET_COUNT) + '%', height: b.heightPercent + '%' }"
     />
 
     <div class="absolute top-0 bottom-0 w-px bg-rose-400" :style="{ left: todayPercent + '%' }" />
 
     <div
-      class="absolute top-0 bottom-0 bg-indigo-500/20 border-x-2 border-indigo-500 cursor-grab hover:bg-indigo-500/30 transition-colors"
+      class="absolute top-0 bottom-0 bg-violet-400/20 border-x-2 border-violet-400/80 cursor-grab hover:bg-violet-400/30 transition-colors"
       :style="{ left: viewportStartPct + '%', width: Math.max(viewportWidthPct, 1.5) + '%' }"
       @pointerdown="handleViewportPointerDown"
     />

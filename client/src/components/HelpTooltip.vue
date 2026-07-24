@@ -37,7 +37,7 @@ onBeforeUnmount(() => {
   <span ref="root" class="relative inline-flex align-middle">
     <button
       type="button"
-      class="text-slate-400 hover:text-indigo-600"
+      class="text-slate-500 hover:text-violet-400"
       :aria-expanded="open"
       aria-label="Help"
       @click.stop="toggle"
@@ -47,7 +47,7 @@ onBeforeUnmount(() => {
     <div
       v-if="open"
       role="tooltip"
-      class="absolute z-30 top-full mt-1.5 w-64 rounded-md border border-slate-200 bg-white p-2.5 text-xs leading-relaxed text-slate-600 shadow-lg"
+      class="absolute z-30 top-full mt-1.5 w-64 rounded-md border border-white/10 bg-[#171b25] p-2.5 text-xs leading-relaxed text-slate-400 shadow-[0_20px_45px_rgba(0,0,0,.45)]"
       :class="align === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'"
     >{{ text }}</div>
   </span>
