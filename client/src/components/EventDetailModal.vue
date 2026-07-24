@@ -13,6 +13,7 @@ import ModalShell from './ModalShell.vue';
 const props = defineProps({
   event: { type: Object, default: null },
   defaultProjectId: { type: Number, default: null },
+  defaultDate: { type: String, default: null },
 });
 const emit = defineEmits(['close']);
 const store = useProjectStore();
@@ -30,7 +31,7 @@ const liveEvent = computed(() => {
 const form = reactive({
   project_id: props.event?.project_id ?? props.defaultProjectId ?? store.selectedProjectIds[0] ?? null,
   title: props.event?.title ?? '',
-  date: props.event?.date ?? todayStr,
+  date: props.event?.date ?? props.defaultDate ?? todayStr,
   time: props.event?.time ?? '',
   type: props.event?.type ?? 'sync',
   summary: props.event?.summary ?? '',

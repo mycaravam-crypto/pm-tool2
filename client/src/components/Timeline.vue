@@ -6,7 +6,7 @@ import { resolveEventVisual } from '../lib/eventTypes.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
 
-const emit = defineEmits(['select-event']);
+const emit = defineEmits(['select-event', 'new-event']);
 const store = useProjectStore();
 
 const todayStr = getTodayStr();
@@ -47,8 +47,32 @@ const CLUSTER_THRESHOLD_PX = 90;
 // until you've zoomed in far enough for it to actually read as detail.
 const DAY_GRID_MIN_PX_PER_DAY = 16;
 
+// A dblclick within this many pixels of a mousedown still counts as "did not
+// drag" — trackpads and imprecise pointers rarely land the second click on
+// the exact pixel of the first, so a zero-tolerance check would make
+// double-click-to-create feel broken for anyone not using a mouse on glass.
+const DRAG_MOVE_THRESHOLD_PX = 4;
+// Arrow-key panning moves a week at the current zoom; Shift+Arrow jumps a
+// near-full viewport, mirroring how PageUp/PageDown behave in text editors.
+const KEY_PAN_DAYS = 7;
+
 const zoomLevel = ref(1);
 const scrollContainer = ref(null);
+const trackEl = ref(null);
+const isPanning = ref(false);
+
+// Named zoom tiers so the toolbar readout matches the issue's semantic-zoom
+// vocabulary (Jahr/Quartal/Monat/Woche/Tag) instead of a bare percentage —
+// thresholds are picked against the actual pxPerDay range this component
+// produces (BASE_PX_PER_DAY * [ZOOM_MIN..ZOOM_MAX] = 2..30).
+const semanticZoomLabel = computed(() => {
+  const pxPerDay = BASE_PX_PER_DAY * zoomLevel.value;
+  if (pxPerDay < 4) return 'Jahr';
+  if (pxPerDay < 8) return 'Quartal';
+  if (pxPerDay < DAY_GRID_MIN_PX_PER_DAY) return 'Monat';
+  if (pxPerDay < 24) return 'Woche';
+  return 'Tag';
+});
 
 const range = computed(() => {
   const dates = store.events.map((e) => e.date);
@@ -281,6 +305,87 @@ function handleWheel(e) {
   zoomBy(Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY), anchor);
 }
 
+// Click-and-drag panning for mouse users (trackpads/touch already pan via
+// native scroll). Skipped when the press starts on an interactive element —
+// event bubbles, the overflow popover, form controls — so their own click
+// handling is untouched. `moved` gates the paired dblclick handler below so
+// a drag-release-drag never gets misread as a double-click.
+let panStartX = 0;
+let panStartScrollLeft = 0;
+let panMoved = false;
+function handlePointerDown(e) {
+  if (e.button !== 0) return;
+  if (e.target.closest('button, input, a')) return;
+  const container = scrollContainer.value;
+  if (!container) return;
+  isPanning.value = true;
+  panMoved = false;
+  panStartX = e.clientX;
+  panStartScrollLeft = container.scrollLeft;
+  window.addEventListener('pointermove', handlePointerMove);
+  window.addEventListener('pointerup', handlePointerUp);
+}
+function handlePointerMove(e) {
+  const container = scrollContainer.value;
+  if (!isPanning.value || !container) return;
+  const dx = e.clientX - panStartX;
+  if (Math.abs(dx) > DRAG_MOVE_THRESHOLD_PX) panMoved = true;
+  container.scrollLeft = panStartScrollLeft - dx;
+}
+function handlePointerUp() {
+  isPanning.value = false;
+  window.removeEventListener('pointermove', handlePointerMove);
+  window.removeEventListener('pointerup', handlePointerUp);
+}
+
+// Double-click on empty timeline space creates a new event pre-filled with
+// the clicked date — clicks on an event/cluster bubble are excluded so they
+// keep going to their own click handler instead of also firing this.
+function handleDblclick(e) {
+  if (panMoved) return;
+  if (e.target.closest('button')) return;
+  const track = trackEl.value;
+  if (!track) return;
+  const rect = track.getBoundingClientRect();
+  const pct = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+  const { min, max } = range.value;
+  const t = min.getTime() + (pct / 100) * (max.getTime() - min.getTime());
+  emit('new-event', new Date(t).toISOString().slice(0, 10));
+}
+
+// Keyboard equivalents for pan/zoom/today so the timeline is usable without
+// a mouse: arrow keys pan (Shift = near-full-viewport jump), +/- zoom, Home
+// or 0 return to today — the same actions the toolbar buttons trigger.
+function handleKeydown(e) {
+  const container = scrollContainer.value;
+  if (!container) return;
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'ArrowRight': {
+      e.preventDefault();
+      const dir = e.key === 'ArrowLeft' ? -1 : 1;
+      const step = e.shiftKey ? container.clientWidth * 0.9 : BASE_PX_PER_DAY * zoomLevel.value * KEY_PAN_DAYS;
+      container.scrollLeft += dir * step;
+      break;
+    }
+    case '+':
+    case '=':
+      e.preventDefault();
+      zoomIn();
+      break;
+    case '-':
+    case '_':
+      e.preventDefault();
+      zoomOut();
+      break;
+    case '0':
+    case 'Home':
+      e.preventDefault();
+      resetZoom();
+      break;
+  }
+}
+
 onMounted(() => nextTick(scrollToToday));
 </script>
 
@@ -337,7 +442,10 @@ onMounted(() => nextTick(scrollToToday));
               class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
               title="Zoom out" :disabled="zoomLevel <= ZOOM_MIN" @click="zoomOut"
             ><ZoomOut class="w-4 h-4" /></button>
-            <span class="text-xs text-slate-500 w-11 text-center tabular-nums">{{ Math.round(zoomLevel * 100) }}%</span>
+            <span
+              class="text-xs text-slate-500 w-16 text-center tabular-nums"
+              :title="`Zoom: ${Math.round(zoomLevel * 100)}%`"
+            >{{ semanticZoomLabel }}</span>
             <button
               class="p-1.5 rounded text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
               title="Zoom in" :disabled="zoomLevel >= ZOOM_MAX" @click="zoomIn"
@@ -348,14 +456,25 @@ onMounted(() => nextTick(scrollToToday));
             ><RotateCcw class="w-4 h-4" /></button>
             <HelpTooltip
               align="right"
-              text="Scroll your mouse wheel or trackpad over the timeline to zoom in and out — it zooms into whatever date is under your cursor."
+              text="Scroll your mouse wheel or trackpad to zoom into whatever date is under your cursor. Click and drag to pan. With the timeline focused: arrow keys pan, +/- zoom, Home jumps to today. Double-click empty space to create an event on that date."
             />
           </div>
         </div>
       </div>
 
-      <div ref="scrollContainer" class="relative overflow-x-auto pb-4" @wheel="handleWheel">
-        <div class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
+      <div
+        ref="scrollContainer"
+        class="relative overflow-x-auto pb-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+        :class="isPanning ? 'cursor-grabbing' : 'cursor-grab'"
+        tabindex="0"
+        role="group"
+        aria-label="Event timeline. Scroll or drag to pan, use arrow keys to pan, plus and minus keys to zoom, and Home to jump to today. Double-click an empty area to create a new event on that date."
+        @wheel="handleWheel"
+        @pointerdown="handlePointerDown"
+        @dblclick="handleDblclick"
+        @keydown="handleKeydown"
+      >
+        <div ref="trackEl" class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
           <!-- day gridlines: lightest tier, only rendered once zoomed in enough
                (see DAY_GRID_MIN_PX_PER_DAY) for one-per-day lines to read as
                texture rather than a solid smear -->
