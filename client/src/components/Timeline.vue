@@ -11,6 +11,7 @@ import {
   leftPercent as leftPercentPure,
 } from '../lib/timelineScale.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
+import ClusterDetailPopover from './ClusterDetailPopover.vue';
 import HelpTooltip from './HelpTooltip.vue';
 import TimelineMiniMap from './TimelineMiniMap.vue';
 
@@ -546,30 +547,23 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
               <div
                 v-if="event.isOverflow"
                 :key="event.id"
-                class="absolute -translate-x-1/2 flex flex-col items-center transition-[left,top] duration-300 ease-out"
+                class="absolute -translate-x-1/2 transition-[left,top] duration-300 ease-out z-20"
                 :style="{ left: event.leftPercent + '%', top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px` }"
               >
-                <button
-                  class="flex items-center justify-center w-10 h-10 rounded-full shadow hover:shadow-md hover:-translate-y-0.5 transition-all bg-slate-100 border-2 border-slate-400 text-slate-600 text-xs font-semibold"
-                  :title="`${event.overflowEvents.length} more event(s) — click to list`"
-                  @click="toggleOverflow(event.id)"
-                >+{{ event.overflowEvents.length }}</button>
-                <span class="mt-1.5 text-[11px] leading-tight text-slate-500">more</span>
-
-                <div
-                  v-if="openOverflowId === event.id"
-                  class="absolute top-full mt-1 z-20 w-52 bg-white border border-slate-200 rounded-md shadow-lg py-1 max-h-56 overflow-y-auto"
-                >
-                  <button
-                    v-for="oe in event.overflowEvents" :key="oe.id" type="button"
-                    class="w-full flex items-center gap-1.5 px-2 py-1.5 text-left text-xs hover:bg-slate-50"
-                    @click="selectOverflowEvent(oe)"
-                  >
-                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: oe.project.color_hex }" />
-                    <span class="flex-1 truncate" :title="oe.title">{{ oe.title }}</span>
-                    <span class="text-slate-400 shrink-0">{{ formatDate(oe.date) }}</span>
-                  </button>
-                </div>
+                <!-- The `-translate-x-1/2` transform above makes this wrapper its own
+                     stacking context (per spec, any non-none transform does), which
+                     traps ClusterDetailPopover's internal z-20 menu inside it — that
+                     inner z-20 never gets compared against the page-covering
+                     click-outside layer below (fixed, z-10) at all, so without an
+                     explicit z-index *here*, on the context-creating element itself,
+                     the click-outside div always wins the hit-test and every menu
+                     item click is silently swallowed as a "close the popover" click. -->
+                <ClusterDetailPopover
+                  :overflow-events="event.overflowEvents"
+                  :is-open="openOverflowId === event.id"
+                  @toggle="toggleOverflow(event.id)"
+                  @select="selectOverflowEvent"
+                />
               </div>
               <div
                 v-else
