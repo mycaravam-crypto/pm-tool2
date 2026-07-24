@@ -3,6 +3,7 @@
 // into a stacked, render-ready list with a bounded overflow badge. Pulled out
 // of the component so it can be unit-tested without mounting Vue.
 
+import { computeLanes } from './timelineLanes.js';
 import { leftPercent } from './timelineScale.js';
 
 // Groups events close enough in *rendered pixel space* to collide, not just
@@ -35,25 +36,34 @@ export function computeClusters(events, { range, trackWidth, todayStr, threshold
   return result;
 }
 
-// Flattens clusters into a single render-ready list. Clusters at or under
-// maxVisibleStack render every event normally; larger ones show the first
-// (maxVisibleStack - 1) events and fold the rest into one overflow badge in
-// the last slot, so the tallest a cluster ever gets is the same regardless of
-// how many events it actually contains.
+// Flattens clusters into a single render-ready list. Every cluster member
+// renders at the same x position (the cluster's anchor), so their vertical
+// stacking order is decided by running them through the same deterministic
+// lane-assignment algorithm used for individual-event layout elsewhere
+// (timelineLanes.js) — here every member's footprint is identical (they
+// share one x), so the algorithm degenerates to "one lane per member, in
+// date order" (their existing sort order stands in as the tie-break), which
+// is exactly the stacking order this produced before it was expressed as a
+// lane assignment. Clusters at or under maxVisibleStack render every event
+// normally; larger ones show the first (maxVisibleStack - 1) events and fold
+// the rest into one overflow badge in the last slot, so the tallest a
+// cluster ever gets is the same regardless of how many events it contains.
 export function computePositionedEvents(clusters, maxVisibleStack) {
   return clusters.flatMap((cluster) => {
     const events = cluster.events;
+    const { assignments } = computeLanes(events, { getStart: () => 0, getEnd: () => 1 });
+    const lanes = assignments.map((a) => a.lane);
     if (events.length <= maxVisibleStack) {
       return events.map((event, idx) => ({
         ...event,
         leftPercent: cluster.leftPercent,
-        stackIndex: idx,
+        stackIndex: lanes[idx],
         isOverflow: false,
       }));
     }
     const visible = events
       .slice(0, maxVisibleStack - 1)
-      .map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: idx, isOverflow: false }));
+      .map((event, idx) => ({ ...event, leftPercent: cluster.leftPercent, stackIndex: lanes[idx], isOverflow: false }));
     const overflowEvents = events.slice(maxVisibleStack - 1);
     return [
       ...visible,
@@ -61,7 +71,7 @@ export function computePositionedEvents(clusters, maxVisibleStack) {
         id: `overflow-${events[0].id}`,
         isOverflow: true,
         leftPercent: cluster.leftPercent,
-        stackIndex: maxVisibleStack - 1,
+        stackIndex: lanes[maxVisibleStack - 1],
         overflowEvents,
       },
     ];
