@@ -30,6 +30,7 @@ const showMembers = ref(false);
 const showNotifications = ref(false);
 const showEventDetail = ref(false);
 const editingEvent = ref(null);
+const newEventDate = ref(null);
 const showImportEvents = ref(false);
 const authChecked = ref(false);
 const dashboardFocus = ref(null);
@@ -84,10 +85,16 @@ function openEditProject(project) {
 }
 function openNewEvent() {
   editingEvent.value = null;
+  newEventDate.value = null;
   showEventDetail.value = true;
 }
 function openEvent(event) {
   editingEvent.value = event;
+  showEventDetail.value = true;
+}
+function openNewEventOnDate(dateStr) {
+  editingEvent.value = null;
+  newEventDate.value = dateStr;
   showEventDetail.value = true;
 }
 function exportSituationReport() {
@@ -179,7 +186,7 @@ async function focusUpcoming() {
       </div>
 
       <div class="flex-1 overflow-auto">
-        <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" />
+        <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" @new-event="openNewEventOnDate" />
         <AggregatedTabs v-else :focus="dashboardFocus" @select-event="openEvent" />
       </div>
     </main>
@@ -188,7 +195,10 @@ async function focusUpcoming() {
     <StakeholderDirectoryModal v-if="showStakeholders" @close="showStakeholders = false" />
     <MembersModal v-if="showMembers" @close="showMembers = false" />
     <NotificationsLogModal v-if="showNotifications" @close="showNotifications = false" />
-    <EventDetailModal v-if="showEventDetail" :event="editingEvent" @close="showEventDetail = false" />
+    <EventDetailModal
+      v-if="showEventDetail" :event="editingEvent" :default-date="newEventDate"
+      @close="showEventDetail = false"
+    />
     <ImportEventsModal v-if="showImportEvents" @close="showImportEvents = false" />
   </div>
 </template>
