@@ -118,30 +118,30 @@ async function toggleSubscription(project) {
 
     <div class="flex justify-end mb-3">
       <button
-        class="flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md px-3 py-1.5 hover:bg-indigo-700"
+        class="flex items-center gap-1.5 text-sm font-semibold text-slate-950 bg-white rounded-md px-3 py-1.5 hover:bg-violet-50"
         @click="startNew"
       >
         <Plus class="w-4 h-4" /> New Member
       </button>
     </div>
 
-    <form v-if="showForm" class="border border-slate-200 rounded-md p-3 mb-4 space-y-3" @submit.prevent="save">
+    <form v-if="showForm" class="border border-white/10 rounded-md p-3 mb-4 space-y-3" @submit.prevent="save">
       <div class="grid grid-cols-2 gap-2">
-        <input v-model="form.name" placeholder="Name" required class="border border-slate-300 rounded px-2 py-1 text-sm" />
-        <input v-model="form.email" placeholder="Email" type="email" required class="border border-slate-300 rounded px-2 py-1 text-sm" />
+        <input v-model="form.name" placeholder="Name" required class="border border-white/15 rounded px-2 py-1 text-sm" />
+        <input v-model="form.email" placeholder="Email" type="email" required class="border border-white/15 rounded px-2 py-1 text-sm" />
       </div>
       <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">Linked stakeholder (optional — needed for "assigned to you" alerts)</label>
-        <select v-model="form.stakeholder_id" class="w-full border border-slate-300 rounded px-2 py-1 text-sm">
+        <label class="block text-xs font-medium text-slate-400 mb-1">Linked stakeholder (optional — needed for "assigned to you" alerts)</label>
+        <select v-model="form.stakeholder_id" class="w-full border border-white/15 rounded px-2 py-1 text-sm">
           <option value="">Not linked</option>
           <option v-for="s in store.stakeholders" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
       </div>
       <div>
-        <label class="block text-xs font-medium text-slate-600 mb-1">
+        <label class="block text-xs font-medium text-slate-400 mb-1">
           {{ editingId ? 'Set/change password (leave blank to keep unchanged)' : 'Password (leave blank — notification-only, can\'t log in)' }}
         </label>
-        <input v-model="form.password" type="password" minlength="6" placeholder="At least 6 characters" class="w-full border border-slate-300 rounded px-2 py-1 text-sm" />
+        <input v-model="form.password" type="password" minlength="6" placeholder="At least 6 characters" class="w-full border border-white/15 rounded px-2 py-1 text-sm" />
       </div>
       <div class="flex flex-wrap gap-4 text-sm">
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_assigned" /> Assigned to you</label>
@@ -150,7 +150,7 @@ async function toggleSubscription(project) {
       </div>
 
       <div v-if="editingId">
-        <label class="block text-xs font-medium text-slate-600 mb-1">Subscribed projects (digest scope)</label>
+        <label class="block text-xs font-medium text-slate-400 mb-1">Subscribed projects (digest scope)</label>
         <div class="flex flex-wrap gap-3">
           <label v-for="p in store.projects" :key="p.id" class="flex items-center gap-1.5 text-sm">
             <input type="checkbox" :checked="isSubscribed(p.id)" @change="toggleSubscription(p)" />
@@ -158,13 +158,13 @@ async function toggleSubscription(project) {
           </label>
         </div>
       </div>
-      <p v-else class="text-xs text-slate-400">Save the member first to add project subscriptions.</p>
+      <p v-else class="text-xs text-slate-500">Save the member first to add project subscriptions.</p>
 
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
 
       <div class="flex gap-2 justify-end">
-        <button type="button" class="text-xs px-2 py-1 rounded border border-slate-300" @click="cancel">Close</button>
-        <button type="submit" class="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Save</button>
+        <button type="button" class="text-xs px-2 py-1 rounded border border-white/15" @click="cancel">Close</button>
+        <button type="submit" class="text-xs px-2 py-1 rounded bg-white text-slate-950 font-semibold hover:bg-violet-50">Save</button>
       </div>
     </form>
 
@@ -186,16 +186,16 @@ async function toggleSubscription(project) {
           <td class="py-1.5">
             <span
               class="text-xs px-1.5 py-0.5 rounded"
-              :class="m.has_password ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+              :class="m.has_password ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/10 text-slate-500'"
             >{{ m.has_password ? 'Enabled' : 'Notification-only' }}</span>
           </td>
           <td class="py-1.5 text-right whitespace-nowrap">
-            <button class="text-slate-400 hover:text-indigo-600 mr-2" @click="startEdit(m)"><Pencil class="w-3.5 h-3.5" /></button>
-            <button class="text-slate-400 hover:text-rose-600" @click="remove(m.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button class="text-slate-500 hover:text-violet-400 mr-2" @click="startEdit(m)"><Pencil class="w-3.5 h-3.5" /></button>
+            <button class="text-slate-500 hover:text-rose-400" @click="remove(m.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </td>
         </tr>
       </tbody>
     </table>
-    <p v-if="store.members.length === 0" class="text-sm text-slate-400 py-2">No members yet.</p>
+    <p v-if="store.members.length === 0" class="text-sm text-slate-500 py-2">No members yet.</p>
   </ModalShell>
 </template>

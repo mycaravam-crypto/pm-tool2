@@ -1,5 +1,51 @@
 @import "tailwindcss";
 
+:root {
+  --bg: #080a0f;
+  --panel: rgba(17, 20, 28, 0.9);
+  --panel-solid: #11141c;
+  --panel-raised: #171b25;
+  --line: rgba(255, 255, 255, 0.08);
+  --muted: #8b93a7;
+  --text: #f6f7fb;
+  color-scheme: dark;
+}
+
+/* Form controls across the app don't each carry explicit bg/text utility
+   classes (most were written assuming the browser's light default) — styled
+   once here instead of touching every input/select/textarea individually. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background-color: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+}
+input:not([type="checkbox"]):not([type="radio"]):disabled,
+select:disabled,
+textarea:disabled {
+  background-color: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+}
+input::placeholder,
+textarea::placeholder {
+  color: #5b6472;
+}
+select option {
+  background-color: var(--panel-raised);
+  color: var(--text);
+}
+/* Same violet focus treatment the prototype uses on its search field, applied
+   to every text input/select/textarea app-wide — without this, focusing any
+   of the many inputs that don't set their own focus style falls back to the
+   browser's default blue ring, which clashes with the violet theme. */
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: rgba(167, 139, 250, 0.45);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+
 html,
 body,
 #app {
@@ -7,5 +53,38 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% -5%, rgba(123, 92, 255, 0.16), transparent 30rem),
+    radial-gradient(circle at 92% 8%, rgba(53, 211, 255, 0.08), transparent 26rem), var(--bg);
+  color: var(--text);
+  @apply antialiased;
+}
+
+::selection {
+  background: rgba(155, 135, 255, 0.3);
+}
+
+.timeline-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-width: thin;
+}
+.timeline-scroll::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.timeline-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(20, 24, 34, 0.92), rgba(12, 15, 22, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
 }

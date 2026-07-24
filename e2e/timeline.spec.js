@@ -64,7 +64,7 @@ test('double-clicking empty timeline space opens the new-event form with that da
 test('the minimap viewport window shrinks proportionally when zooming in', async ({ page }) => {
   const timeline = page.locator('[role="group"][aria-label*="timeline" i]');
   const minimap = page.locator('[role="scrollbar"]');
-  const viewportWindow = minimap.locator('div.bg-indigo-500\\/20');
+  const viewportWindow = minimap.locator('div.bg-violet-400\\/20');
 
   const widthBefore = (await viewportWindow.boundingBox()).width;
 
@@ -80,7 +80,10 @@ test('clicking the minimap navigates the main timeline', async ({ page }) => {
   const before = await timeline.evaluate((el) => el.scrollLeft);
   const box = await minimap.boundingBox();
 
-  await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
+  // Locator.click() (unlike a raw page.mouse.click() at absolute coordinates)
+  // scrolls the target into view first — needed now that the footer sits
+  // below the fold on a standard-height viewport.
+  await minimap.click({ position: { x: box.width * 0.9, y: box.height / 2 } });
 
   await expect.poll(() => timeline.evaluate((el) => el.scrollLeft)).not.toBe(before);
 });
@@ -88,8 +91,11 @@ test('clicking the minimap navigates the main timeline', async ({ page }) => {
 test('opening a cluster overflow popover and selecting an event opens its detail modal', async ({ page }) => {
   const sameDate = '2026-08-15';
 
-  // Seed enough same-day events to force an overflow badge (MAX_VISIBLE_STACK = 3).
-  for (let i = 0; i < 4; i++) {
+  // Seed enough same-day events (on top of the one already seeded for this date
+  // in server/db/seed.js) to force an overflow badge, well past however many
+  // individual cards a cluster shows before collapsing (see MAX_VISIBLE_STACK
+  // in Timeline.vue) so this doesn't sit right on the boundary.
+  for (let i = 0; i < 6; i++) {
     await page.locator('button', { hasText: 'New Event' }).first().click();
     await page.locator('label:has-text("Title") + input').fill(`Overflow ${i + 1}`);
     await page.locator('label:has-text("Date") ~ div input[type="date"]').fill(sameDate);

@@ -130,7 +130,7 @@ async function focusUpcoming() {
 
 <template>
   <ResetPasswordView v-if="resetToken" :token="resetToken" @done="clearResetToken" />
-  <div v-else-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-400">
+  <div v-else-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-500">
     Loading…
   </div>
   <LoginView v-else-if="!store.currentMember" @login="handleLogin" />
@@ -147,36 +147,36 @@ async function focusUpcoming() {
     <main class="flex-1 flex flex-col overflow-hidden">
       <HealthSummary @focus-overdue="focusOverdueActions" @focus-pain="focusHighSeverityPain" @focus-upcoming="focusUpcoming" />
 
-      <div class="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white">
+      <div class="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0f16]">
         <div class="flex gap-1">
           <button
-            class="px-3 py-1.5 text-sm rounded-md"
-            :class="mainTab === 'timeline' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            class="px-3 py-1.5 text-sm rounded-lg font-medium transition"
+            :class="mainTab === 'timeline' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'timeline'"
           >Timeline</button>
           <button
-            class="px-3 py-1.5 text-sm rounded-md"
-            :class="mainTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+            class="px-3 py-1.5 text-sm rounded-lg font-medium transition"
+            :class="mainTab === 'dashboard' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'dashboard'"
           >Action Items / Pain Points / Decisions</button>
         </div>
         <div class="flex items-center gap-4">
-          <span class="text-sm text-slate-500 whitespace-nowrap">Today: <span class="font-medium text-slate-700">{{ formatDate(todayStr()) }}</span></span>
+          <span class="text-sm text-slate-500 whitespace-nowrap">Today: <span class="font-medium text-slate-300">{{ formatDate(todayStr()) }}</span></span>
           <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
             <button
-              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
               @click="exportSituationReport"
             >
               <FileText class="w-4 h-4" /> Situation Report
             </button>
             <button
-              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
               @click="showImportEvents = true"
             >
               <FileUp class="w-4 h-4" /> Import Events
             </button>
             <button
-              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              class="flex items-center gap-1.5 text-sm px-3.5 py-1.5 rounded-lg bg-white text-slate-950 font-medium shadow-[0_10px_28px_rgba(255,255,255,.08)] transition hover:-translate-y-0.5 hover:bg-violet-50"
               @click="openNewEvent"
             >
               <Plus class="w-4 h-4" /> New Event
@@ -195,10 +195,12 @@ async function focusUpcoming() {
     <StakeholderDirectoryModal v-if="showStakeholders" @close="showStakeholders = false" />
     <MembersModal v-if="showMembers" @close="showMembers = false" />
     <NotificationsLogModal v-if="showNotifications" @close="showNotifications = false" />
-    <EventDetailModal
-      v-if="showEventDetail" :event="editingEvent" :default-date="newEventDate"
-      @close="showEventDetail = false"
-    />
+    <Transition name="drawer">
+      <EventDetailModal
+        v-if="showEventDetail" :event="editingEvent" :default-date="newEventDate"
+        @close="showEventDetail = false"
+      />
+    </Transition>
     <ImportEventsModal v-if="showImportEvents" @close="showImportEvents = false" />
   </div>
 </template>

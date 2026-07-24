@@ -1,14 +1,13 @@
 <script setup>
-import { FileDown, Plus, Repeat, Trash2 } from 'lucide-vue-next';
+import { FileDown, Plus, Repeat, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS } from '../lib/eventTypes.js';
+import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS, TYPE_COLORS } from '../lib/eventTypes.js';
 import { generateEventProtocolPdf } from '../lib/pdfReports.js';
 import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '../lib/recurrence.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
 
 const props = defineProps({
   event: { type: Object, default: null },
@@ -259,60 +258,85 @@ function removeStagedPain(idx) {
 </script>
 
 <template>
-  <ModalShell :title="isEdit ? liveEvent.title : 'New Event'" wide @close="emit('close')">
-    <div v-if="isEdit" class="flex items-center gap-2 mb-2 text-sm">
-      <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: liveEvent.project.color_hex }" />
-      <span class="font-medium">{{ liveEvent.project.name }}</span>
-      <span class="text-slate-400">·</span>
-      <span class="text-slate-500">Lead: {{ store.projectById(liveEvent.project_id)?.lead?.name ?? '—' }}</span>
-    </div>
-    <div v-if="isSeriesOccurrence" class="flex items-center gap-1.5 mb-4 text-xs text-indigo-700 bg-indigo-50 rounded-md px-2.5 py-1.5 w-fit">
-      <Repeat class="w-3.5 h-3.5" />
-      Part of a recurring series — occurrence {{ liveEvent.occurrence_index + 1 }} of {{ liveEvent.series.count }} ({{ liveEvent.series.frequency }})
-    </div>
+  <div class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[3px]" @click.self="emit('close')">
+    <aside
+      class="drawer-panel absolute bottom-2 right-2 top-2 flex w-[min(560px,calc(100vw-16px))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#121620] shadow-2xl"
+      role="dialog" aria-modal="true" aria-labelledby="event-drawer-title"
+    >
+      <div class="relative shrink-0 overflow-hidden border-b border-white/8 p-6">
+        <div
+          class="pointer-events-none absolute inset-x-0 top-0 h-28 opacity-25 blur-3xl"
+          :style="{ background: `radial-gradient(circle at 20% 0%, ${TYPE_COLORS[form.type]}, transparent 65%)` }"
+        />
+        <div class="relative flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.14em] text-slate-400">
+              <span class="h-1.5 w-1.5 rounded-full" :style="{ backgroundColor: TYPE_COLORS[form.type] }" />
+              {{ EVENT_TYPES[form.type].label }}
+            </div>
+            <h2 id="event-drawer-title" class="mt-3 truncate text-xl font-semibold tracking-[-.025em] text-white">{{ isEdit ? liveEvent.title : 'New Event' }}</h2>
+            <div v-if="isEdit" class="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+              <span class="h-2.5 w-2.5 shrink-0 rounded-full" :style="{ backgroundColor: liveEvent.project.color_hex }" />
+              <span class="font-medium text-slate-300">{{ liveEvent.project.name }}</span>
+              <span>·</span>
+              <span>Lead: {{ store.projectById(liveEvent.project_id)?.lead?.name ?? '—' }}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/5 text-slate-500 transition hover:bg-white/10 hover:text-white"
+            aria-label="Close" @click="emit('close')"
+          ><X class="h-4 w-4" /></button>
+        </div>
+        <div v-if="isSeriesOccurrence" class="relative mt-4 flex w-fit items-center gap-1.5 rounded-md bg-violet-500/15 px-2.5 py-1.5 text-xs text-violet-300">
+          <Repeat class="w-3.5 h-3.5" />
+          Part of a recurring series — occurrence {{ liveEvent.occurrence_index + 1 }} of {{ liveEvent.series.count }} ({{ liveEvent.series.frequency }})
+        </div>
+      </div>
 
-    <form class="space-y-4" @submit.prevent="save">
+      <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="save">
+      <div class="flex-1 overflow-y-auto p-6 space-y-4">
       <div class="grid grid-cols-2 gap-4">
         <div v-if="!isEdit">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Project</label>
-          <select v-model.number="form.project_id" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+          <label class="block text-xs font-medium text-slate-400 mb-1">Project</label>
+          <select v-model.number="form.project_id" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm">
             <option v-for="p in store.selectedProjects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
         </div>
         <div class="col-span-2" v-else />
         <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Title</label>
-          <input v-model="form.title" required :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Title</label>
+          <input v-model="form.title" required :disabled="!canContribute" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+          <label class="block text-xs font-medium text-slate-400 mb-1">Date</label>
           <div class="flex gap-2">
-            <input v-model="form.date" type="date" required :disabled="!canContribute" class="flex-1 min-w-0 border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
-            <input v-model="form.time" type="time" :disabled="!canContribute" title="Optional time" class="w-28 border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+            <input v-model="form.date" type="date" required :disabled="!canContribute" class="flex-1 min-w-0 border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
+            <input v-model="form.time" type="time" :disabled="!canContribute" title="Optional time" class="w-28 border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
           </div>
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
-          <select v-model="form.type" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
+          <label class="block text-xs font-medium text-slate-400 mb-1">Type</label>
+          <select v-model="form.type" :disabled="!canContribute" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500">
             <option v-for="key in EVENT_TYPE_KEYS" :key="key" :value="key">{{ EVENT_TYPES[key].label }}</option>
           </select>
         </div>
         <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Summary</label>
-          <textarea v-model="form.summary" rows="2" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Summary</label>
+          <textarea v-model="form.summary" rows="2" :disabled="!canContribute" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div class="col-span-2" v-if="!isForwardType">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Participants</label>
-          <select v-model="form.participants" multiple :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm h-24 disabled:bg-slate-50 disabled:text-slate-400">
+          <label class="block text-xs font-medium text-slate-400 mb-1">Participants</label>
+          <select v-model="form.participants" multiple :disabled="!canContribute" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm h-24 disabled:bg-white/[.03] disabled:text-slate-500">
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }} ({{ p.project_role }})</option>
           </select>
         </div>
         <div v-else>
-          <label class="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
+          <label class="flex items-center gap-1 text-xs font-medium text-slate-400 mb-1">
             Status
             <HelpTooltip :text="`Was this ${form.type} hit or missed once its date passed?`" />
           </label>
-          <select v-model="form.status" :disabled="!canContribute" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
+          <select v-model="form.status" :disabled="!canContribute" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500">
             <option v-for="key in STATUS_KEYS" :key="key" :value="key">{{ STATUS_LABELS[key] }}</option>
           </select>
         </div>
@@ -320,28 +344,28 @@ function removeStagedPain(idx) {
 
       <!-- Repeat: create-mode only — an existing series is managed afterwards
            via "save/delete entire series" rather than by re-editing its rule. -->
-      <div v-if="!isEdit && canContribute" class="border-t border-slate-200 pt-3">
-        <label class="flex items-center gap-2 text-xs font-medium text-slate-600 mb-2">
+      <div v-if="!isEdit && canContribute" class="border-t border-white/10 pt-3">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-400 mb-2">
           <input v-model="recurrence.enabled" type="checkbox" />
           <span class="flex items-center gap-1"><Repeat class="w-3.5 h-3.5" /> Repeat</span>
         </label>
         <div v-if="recurrence.enabled" class="grid grid-cols-3 gap-3">
           <div>
             <label class="block text-xs text-slate-500 mb-1">Frequency</label>
-            <select v-model="recurrence.frequency" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+            <select v-model="recurrence.frequency" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm">
               <option v-for="f in RECURRENCE_FREQUENCIES" :key="f.key" :value="f.key">{{ f.label }}</option>
             </select>
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">Every</label>
-            <input v-model.number="recurrence.interval" type="number" min="1" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+            <input v-model.number="recurrence.interval" type="number" min="1" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm" />
           </div>
           <div>
             <label class="flex items-center gap-1 text-xs text-slate-500 mb-1">
               Occurrences
               <HelpTooltip :text="`Repeating events are capped at ${MAX_OCCURRENCES} occurrences.`" />
             </label>
-            <input v-model.number="recurrence.count" type="number" min="2" :max="MAX_OCCURRENCES" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm" />
+            <input v-model.number="recurrence.count" type="number" min="2" :max="MAX_OCCURRENCES" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm" />
           </div>
         </div>
         <p v-if="recurrence.enabled && recurrenceEndDate" class="mt-2 text-xs text-slate-500">
@@ -350,95 +374,96 @@ function removeStagedPain(idx) {
       </div>
 
       <!-- Decisions -->
-      <div class="border-t border-slate-200 pt-3">
+      <div class="border-t border-white/10 pt-3">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Decisions</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="(d, idx) in (isEdit ? liveEvent.decisions : stagedDecisions)" :key="d.id ?? idx" class="flex items-center gap-2 text-sm">
             <span class="flex-1">{{ d.text }}</span>
-            <span class="text-xs text-slate-400">{{ d.decided_by_name || (d.decided_by && projectPeople.find(p => p.id === d.decided_by)?.name) || 'unassigned' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <span class="text-xs text-slate-500">{{ d.decided_by_name || (d.decided_by && projectPeople.find(p => p.id === d.decided_by)?.name) || 'unassigned' }}</span>
+            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
-          <li v-if="(isEdit ? liveEvent.decisions.length : stagedDecisions.length) === 0" class="text-sm text-slate-400">No decisions yet.</li>
+          <li v-if="(isEdit ? liveEvent.decisions.length : stagedDecisions.length) === 0" class="text-sm text-slate-500">No decisions yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
-          <input v-model="newDecisionText" placeholder="New decision…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision" />
-          <select v-model="newDecisionBy" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision">
+          <input v-model="newDecisionText" placeholder="New decision…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision" />
+          <select v-model="newDecisionBy" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addDecision">
             <option value="">Decided by…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <button type="button" class="text-indigo-600" @click="addDecision"><Plus class="w-4 h-4" /></button>
+          <button type="button" class="text-violet-400" @click="addDecision"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
       <!-- Action Items -->
-      <div class="border-t border-slate-200 pt-3">
+      <div class="border-t border-white/10 pt-3">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Action Items</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="(a, idx) in (isEdit ? liveEvent.action_items : stagedActionItems)" :key="a.id ?? idx" class="flex items-center gap-2 text-sm">
             <input v-if="isEdit" type="checkbox" :checked="!!a.done" :disabled="!canContribute" @change="toggleDone(a)" />
-            <span class="flex-1" :class="a.done ? 'line-through text-slate-400' : ''">{{ a.text }}</span>
-            <span class="text-xs text-slate-400">{{ a.assignee_name || (a.assignee_id && projectPeople.find(p => p.id === a.assignee_id)?.name) || 'unassigned' }}</span>
-            <span class="text-xs" :class="isOverdue(a) ? 'text-rose-600 font-medium' : 'text-slate-400'">{{ a.due_date ? formatDate(a.due_date) : 'no due date' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <span class="flex-1" :class="a.done ? 'line-through text-slate-500' : ''">{{ a.text }}</span>
+            <span class="text-xs text-slate-500">{{ a.assignee_name || (a.assignee_id && projectPeople.find(p => p.id === a.assignee_id)?.name) || 'unassigned' }}</span>
+            <span class="text-xs" :class="isOverdue(a) ? 'text-rose-400 font-medium' : 'text-slate-500'">{{ a.due_date ? formatDate(a.due_date) : 'no due date' }}</span>
+            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
-          <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-400">No action items yet.</li>
+          <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-500">No action items yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
-          <input v-model="newActionText" placeholder="New action item…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
-          <select v-model="newActionAssignee" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem">
+          <input v-model="newActionText" placeholder="New action item…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
+          <select v-model="newActionAssignee" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem">
             <option value="">Assignee…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <input v-model="newActionDue" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
-          <button type="button" class="text-indigo-600" @click="addActionItem"><Plus class="w-4 h-4" /></button>
+          <input v-model="newActionDue" type="date" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addActionItem" />
+          <button type="button" class="text-violet-400" @click="addActionItem"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
       <!-- Pain Points -->
-      <div class="border-t border-slate-200 pt-3">
+      <div class="border-t border-white/10 pt-3">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Pain Points</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="(p, idx) in (isEdit ? liveEvent.pain_points : stagedPainPoints)" :key="p.id ?? idx" class="flex items-center gap-2 text-sm">
             <input v-if="isEdit" type="checkbox" :checked="!!p.resolved" :disabled="!canContribute" @change="toggleResolved(p)" />
-            <span class="flex-1" :class="p.resolved ? 'line-through text-slate-400' : ''">{{ p.text }}</span>
+            <span class="flex-1" :class="p.resolved ? 'line-through text-slate-500' : ''">{{ p.text }}</span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
-              :class="p.kind === 'risk' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'"
+              :class="p.kind === 'risk' ? 'bg-violet-500/20 text-violet-300' : 'bg-white/10 text-slate-400'"
             >{{ p.kind === 'risk' ? 'Risk' : 'Issue' }}</span>
             <span
               class="text-xs px-1.5 py-0.5 rounded"
-              :class="{ High: 'bg-rose-100 text-rose-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-slate-100 text-slate-600' }[p.severity]"
+              :class="{ High: 'bg-rose-500/15 text-rose-300', Medium: 'bg-amber-500/15 text-amber-300', Low: 'bg-white/10 text-slate-400' }[p.severity]"
             >{{ p.severity }}</span>
-            <span class="text-xs text-slate-400">{{ p.owner_name || (p.owner_id && projectPeople.find(pp => pp.id === p.owner_id)?.name) || 'unowned' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <span class="text-xs text-slate-500">{{ p.owner_name || (p.owner_id && projectPeople.find(pp => pp.id === p.owner_id)?.name) || 'unowned' }}</span>
+            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
-          <li v-if="(isEdit ? liveEvent.pain_points.length : stagedPainPoints.length) === 0" class="text-sm text-slate-400">No pain points yet.</li>
+          <li v-if="(isEdit ? liveEvent.pain_points.length : stagedPainPoints.length) === 0" class="text-sm text-slate-500">No pain points yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
-          <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" />
-          <select v-model="newPainKind" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" title="Issue: already happened. Risk: might happen.">
+          <input v-model="newPainText" placeholder="New pain point…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" />
+          <select v-model="newPainKind" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint" title="Issue: already happened. Risk: might happen.">
             <option value="issue">Issue</option>
             <option value="risk">Risk</option>
           </select>
-          <select v-model="newPainSeverity" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
+          <select v-model="newPainSeverity" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option>Low</option><option>Medium</option><option>High</option>
           </select>
-          <select v-model="newPainOwner" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
+          <select v-model="newPainOwner" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addPainPoint">
             <option value="">Owner…</option>
             <option v-for="p in projectPeople" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <button type="button" class="text-indigo-600" @click="addPainPoint"><Plus class="w-4 h-4" /></button>
+          <button type="button" class="text-violet-400" @click="addPainPoint"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
+      </div>
 
-      <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+      <div class="flex shrink-0 items-center justify-between gap-2 border-t border-white/8 p-4">
         <div v-if="isEdit && canContribute" class="flex items-center gap-3">
-          <button type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeEvent">
+          <button type="button" class="text-sm text-rose-400 hover:underline flex items-center gap-1" @click="removeEvent">
             <Trash2 class="w-4 h-4" /> {{ isSeriesOccurrence ? 'Delete this occurrence' : 'Delete event' }}
           </button>
-          <button v-if="isSeriesOccurrence" type="button" class="text-sm text-rose-600 hover:underline" @click="removeSeries">
+          <button v-if="isSeriesOccurrence" type="button" class="text-sm text-rose-400 hover:underline" @click="removeSeries">
             Delete entire series
           </button>
         </div>
@@ -446,20 +471,44 @@ function removeStagedPain(idx) {
         <div class="flex gap-2">
           <button
             v-if="isEdit" type="button"
-            class="text-sm px-3 py-1.5 rounded-md border border-slate-300 flex items-center gap-1.5 hover:bg-slate-50"
+            class="text-sm px-3 py-1.5 rounded-md border border-white/15 flex items-center gap-1.5 hover:bg-white/[.03]"
             @click="exportProtocol"
           ><FileDown class="w-4 h-4" /> Export PDF</button>
-          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
+          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-white/15" @click="emit('close')">Cancel</button>
           <button
             v-if="canContribute && isSeriesOccurrence" type="button" :disabled="saving"
-            class="text-sm px-3 py-1.5 rounded-md border border-indigo-300 text-indigo-700 disabled:opacity-50"
+            class="text-sm px-3 py-1.5 rounded-md border border-violet-400/40 text-violet-300 disabled:opacity-50"
             @click="saveSeries"
           >Save entire series</button>
-          <button v-if="canContribute" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
+          <button v-if="canContribute" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50">
             {{ saving ? 'Saving…' : (isSeriesOccurrence ? 'Save this occurrence' : 'Save') }}
           </button>
         </div>
       </div>
-    </form>
-  </ModalShell>
+      </form>
+    </aside>
+  </div>
 </template>
+
+<style scoped>
+/* Backdrop fades; the panel itself slides in from the right — split across
+   two selectors because Vue's <Transition> only applies its enter/leave
+   classes to this component's root node (the backdrop), so the panel's own
+   motion has to be driven by a descendant-selector rule keyed off of them. */
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: opacity 0.2s ease;
+}
+.drawer-enter-active .drawer-panel,
+.drawer-leave-active .drawer-panel {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+}
+.drawer-enter-from .drawer-panel,
+.drawer-leave-to .drawer-panel {
+  transform: translateX(28px);
+}
+</style>

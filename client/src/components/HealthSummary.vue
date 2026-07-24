@@ -15,12 +15,12 @@ const scopeLabel = computed(() => (isScoped.value ? 'Selected:' : 'Portfolio:'))
 </script>
 
 <template>
-  <div class="flex items-center gap-6 px-6 py-3 border-b border-slate-200 bg-white text-sm">
-    <span class="text-xs font-medium uppercase tracking-wide text-slate-400">{{ scopeLabel }}</span>
+  <div class="flex items-center gap-6 px-6 py-3 border-b border-white/8 bg-[#0d0f16] text-sm">
+    <span class="text-xs font-medium uppercase tracking-wide text-slate-500">{{ scopeLabel }}</span>
     <button
       type="button"
       class="flex items-center gap-1.5 disabled:cursor-default enabled:hover:underline"
-      :class="summary.overdue_action_items > 0 ? 'text-rose-600' : 'text-slate-500'"
+      :class="summary.overdue_action_items > 0 ? 'text-rose-400' : 'text-slate-500'"
       :disabled="summary.overdue_action_items === 0"
       title="Show these in Action Items"
       @click="emit('focus-overdue')"
@@ -30,7 +30,7 @@ const scopeLabel = computed(() => (isScoped.value ? 'Selected:' : 'Portfolio:'))
     <button
       type="button"
       class="flex items-center gap-1.5 disabled:cursor-default enabled:hover:underline"
-      :class="summary.open_high_severity_pain_points > 0 ? 'text-amber-600' : 'text-slate-500'"
+      :class="summary.open_high_severity_pain_points > 0 ? 'text-amber-400' : 'text-slate-500'"
       :disabled="summary.open_high_severity_pain_points === 0"
       title="Show these in Pain Points"
       @click="emit('focus-pain')"

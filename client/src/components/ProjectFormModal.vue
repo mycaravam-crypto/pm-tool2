@@ -182,59 +182,59 @@ async function removeGoal(id) {
     <form class="space-y-4" @submit.prevent="save">
       <div class="grid grid-cols-2 gap-4">
         <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
-          <input v-model="form.name" required :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Name</label>
+          <input v-model="form.name" required :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div class="col-span-2">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Description (Scope)</label>
-          <textarea v-model="form.description" rows="2" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Description (Scope)</label>
+          <textarea v-model="form.description" rows="2" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Color</label>
-          <input v-model="form.color_hex" type="color" :disabled="!canManage" class="w-full h-9 border border-slate-300 rounded-md disabled:opacity-50" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Color</label>
+          <input v-model="form.color_hex" type="color" :disabled="!canManage" class="w-full h-9 border border-white/15 rounded-md disabled:opacity-50" />
         </div>
         <div v-if="isEdit">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-          <select v-model="form.status" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400">
+          <label class="block text-xs font-medium text-slate-400 mb-1">Status</label>
+          <select v-model="form.status" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500">
             <option value="active">Active</option>
             <option value="archived">Archived</option>
             <option value="completed">Completed</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Start date</label>
-          <input v-model="form.start_date" type="date" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Start date</label>
+          <input v-model="form.start_date" type="date" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Target end date</label>
-          <input v-model="form.target_end_date" type="date" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
-          <p v-if="scheduleSlip" class="text-xs mt-1" :class="scheduleSlip.days > 0 ? 'text-amber-600' : 'text-slate-400'">
+          <label class="block text-xs font-medium text-slate-400 mb-1">Target end date</label>
+          <input v-model="form.target_end_date" type="date" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
+          <p v-if="scheduleSlip" class="text-xs mt-1" :class="scheduleSlip.days > 0 ? 'text-amber-400' : 'text-slate-500'">
             Originally planned: {{ formatDate(scheduleSlip.originalDate) }}
             ({{ scheduleSlip.days > 0 ? `slipped ${scheduleSlip.days}d` : `moved up ${-scheduleSlip.days}d` }})
           </p>
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Budget planned</label>
-          <input v-model="form.budget_planned" type="number" step="0.01" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Budget planned</label>
+          <input v-model="form.budget_planned" type="number" step="0.01" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
         <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Budget spent</label>
-          <input v-model="form.budget_spent" type="number" step="0.01" :disabled="!canManage" class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400" />
+          <label class="block text-xs font-medium text-slate-400 mb-1">Budget spent</label>
+          <input v-model="form.budget_spent" type="number" step="0.01" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
         </div>
 
         <div v-if="!isEdit" class="col-span-2">
-          <label class="flex items-center gap-1 text-xs font-medium text-slate-600 mb-1">
-            Lead <span class="text-rose-500">*</span>
+          <label class="flex items-center gap-1 text-xs font-medium text-slate-400 mb-1">
+            Lead <span class="text-rose-400">*</span>
             <HelpTooltip text="Every project must have exactly one accountable lead — the person responsible for schedule, budget, and quality outcomes." />
           </label>
-          <select v-model="form.lead_stakeholder_id" required class="w-full border border-slate-300 rounded-md px-3 py-1.5 text-sm">
+          <select v-model="form.lead_stakeholder_id" required class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm">
             <option value="" disabled>Select a lead…</option>
             <option v-for="s in store.stakeholders" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
         </div>
       </div>
 
-      <div v-if="isEdit" class="border-t border-slate-200 pt-4">
+      <div v-if="isEdit" class="border-t border-white/10 pt-4">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">People</h3>
         <ul class="space-y-1 mb-3">
           <li v-for="p in people" :key="p.id" class="flex items-center gap-2 text-sm">
@@ -242,85 +242,85 @@ async function removeGoal(id) {
             <select
               v-if="p.project_role !== 'lead' && canManage"
               :value="p.project_role"
-              class="border border-slate-300 rounded px-1.5 py-0.5 text-xs"
+              class="border border-white/15 rounded px-1.5 py-0.5 text-xs"
               @change="changeRole(p.id, $event.target.value)"
             >
               <option value="sponsor">Sponsor</option>
               <option value="member">Member</option>
               <option value="stakeholder">Stakeholder</option>
             </select>
-            <span v-else-if="p.project_role === 'lead'" class="text-xs font-medium px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">Lead</span>
+            <span v-else-if="p.project_role === 'lead'" class="text-xs font-medium px-2 py-0.5 rounded bg-violet-500/20 text-violet-300">Lead</span>
             <span v-else class="text-xs text-slate-500 capitalize">{{ p.project_role }}</span>
             <button
               v-if="p.project_role !== 'lead' && canManage"
-              type="button" class="text-xs text-indigo-600 hover:underline"
+              type="button" class="text-xs text-violet-400 hover:underline"
               @click="makeLead(p.id)"
             >Make lead</button>
             <button
               v-if="p.project_role !== 'lead' && canManage"
-              type="button" class="text-slate-400 hover:text-rose-600"
+              type="button" class="text-slate-500 hover:text-rose-400"
               @click="removePerson(p.id)"
             ><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
         </ul>
         <div v-if="canManage" class="flex items-center gap-2">
-          <select v-model="newPersonId" class="flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
+          <select v-model="newPersonId" class="flex-1 border border-white/15 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
             <option value="" disabled>Add stakeholder…</option>
             <option v-for="s in availableToAdd" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
-          <select v-model="newPersonRole" class="border border-slate-300 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
+          <select v-model="newPersonRole" class="border border-white/15 rounded-md px-2 py-1 text-sm" @keydown.enter.prevent="addPerson">
             <option value="sponsor">Sponsor</option>
             <option value="member">Member</option>
             <option value="stakeholder">Stakeholder</option>
           </select>
-          <button type="button" class="text-sm text-indigo-600 hover:underline" @click="addPerson">Add</button>
+          <button type="button" class="text-sm text-violet-400 hover:underline" @click="addPerson">Add</button>
         </div>
       </div>
 
-      <div v-if="isEdit" class="border-t border-slate-200 pt-4">
+      <div v-if="isEdit" class="border-t border-white/10 pt-4">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Requirements</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="flex items-center gap-2 text-sm">
             <input type="checkbox" :checked="!!r.done" :disabled="!canContribute" @change="toggleRequirement(r)" />
-            <span class="flex-1" :class="r.done ? 'line-through text-slate-400' : ''">{{ r.text }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <span class="flex-1" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</span>
+            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
-          <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-400">No requirements yet.</li>
+          <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-500">No requirements yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
-          <input v-model="newRequirementText" placeholder="New requirement…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addRequirement" />
-          <button type="button" class="text-indigo-600" @click="addRequirement"><Plus class="w-4 h-4" /></button>
+          <input v-model="newRequirementText" placeholder="New requirement…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addRequirement" />
+          <button type="button" class="text-violet-400" @click="addRequirement"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
-      <div v-if="isEdit" class="border-t border-slate-200 pt-4">
+      <div v-if="isEdit" class="border-t border-white/10 pt-4">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Goals</h3>
         <ul class="space-y-1 mb-2">
           <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="flex items-center gap-2 text-sm">
             <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
-            <span class="flex-1" :class="g.achieved ? 'line-through text-slate-400' : ''">{{ g.text }}</span>
-            <span v-if="g.target_date" class="text-xs text-slate-400 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-400 hover:text-rose-600" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <span class="flex-1" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</span>
+            <span v-if="g.target_date" class="text-xs text-slate-500 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
+            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
-          <li v-if="!liveProject?.goals?.length" class="text-sm text-slate-400">No goals yet.</li>
+          <li v-if="!liveProject?.goals?.length" class="text-sm text-slate-500">No goals yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
-          <input v-model="newGoalText" placeholder="New goal…" class="flex-1 border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
-          <input v-model="newGoalTargetDate" type="date" class="border border-slate-300 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
-          <button type="button" class="text-indigo-600" @click="addGoal"><Plus class="w-4 h-4" /></button>
+          <input v-model="newGoalText" placeholder="New goal…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
+          <input v-model="newGoalTargetDate" type="date" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addGoal" />
+          <button type="button" class="text-violet-400" @click="addGoal"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
 
       <div class="flex items-center justify-between pt-2">
-        <button v-if="isEdit && store.isAdmin" type="button" class="text-sm text-rose-600 hover:underline flex items-center gap-1" @click="removeProject">
+        <button v-if="isEdit && store.isAdmin" type="button" class="text-sm text-rose-400 hover:underline flex items-center gap-1" @click="removeProject">
           <Trash2 class="w-4 h-4" /> Delete project
         </button>
         <span v-else />
         <div class="flex gap-2">
-          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-slate-300" @click="emit('close')">Cancel</button>
-          <button v-if="canManage" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-indigo-600 text-white disabled:opacity-50">
+          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-white/15" @click="emit('close')">Cancel</button>
+          <button v-if="canManage" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50">
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>

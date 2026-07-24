@@ -7,7 +7,7 @@ defineEmits(['select']);
 
 <template>
   <button
-    type="button" class="text-indigo-600 hover:underline text-left"
+    type="button" class="text-violet-400 hover:underline text-left"
     :title="`Open ${event.title} (${formatDate(event.date)})`"
     @click="$emit('select', event)"
   >{{ event.title }}</button>

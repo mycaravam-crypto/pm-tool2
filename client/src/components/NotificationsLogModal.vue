@@ -17,9 +17,9 @@ const TYPE_LABELS = {
   deadline_digest: 'Deadline digest',
 };
 const TYPE_COLORS = {
-  assigned: 'bg-indigo-100 text-indigo-700',
-  overdue_digest: 'bg-rose-100 text-rose-700',
-  deadline_digest: 'bg-amber-100 text-amber-700',
+  assigned: 'bg-violet-500/20 text-violet-300',
+  overdue_digest: 'bg-rose-500/15 text-rose-300',
+  deadline_digest: 'bg-amber-500/15 text-amber-300',
 };
 
 async function runDigest() {
@@ -42,7 +42,7 @@ async function runDigest() {
 
     <div class="flex items-center gap-3 mb-4">
       <button
-        class="flex items-center gap-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md px-3 py-1.5 hover:bg-indigo-700 disabled:opacity-50"
+        class="flex items-center gap-1.5 text-sm font-semibold text-slate-950 bg-white rounded-md px-3 py-1.5 hover:bg-violet-50 disabled:opacity-50"
         :disabled="running"
         @click="runDigest"
       >
@@ -52,21 +52,21 @@ async function runDigest() {
     </div>
 
     <ul class="space-y-2">
-      <li v-for="n in store.notifications" :key="n.id" class="border border-slate-200 rounded-md p-3">
+      <li v-for="n in store.notifications" :key="n.id" class="border border-white/10 rounded-md p-3">
         <div class="flex items-center gap-2 mb-1">
-          <Mail class="w-3.5 h-3.5 text-slate-400" />
+          <Mail class="w-3.5 h-3.5 text-slate-500" />
           <span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="TYPE_COLORS[n.type]">{{ TYPE_LABELS[n.type] }}</span>
           <span v-if="n.project_id && store.projectById(n.project_id)" class="flex items-center gap-1 text-xs text-slate-500">
             <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: store.projectById(n.project_id).color_hex }" />
             {{ store.projectById(n.project_id).name }}
           </span>
           <span class="text-sm font-medium">{{ n.subject }}</span>
-          <span class="text-xs text-slate-400 ml-auto">{{ formatDateTime(n.created_at) }}</span>
+          <span class="text-xs text-slate-500 ml-auto">{{ formatDateTime(n.created_at) }}</span>
         </div>
         <p class="text-xs text-slate-500 mb-1">To: {{ n.member_name }} &lt;{{ n.member_email }}&gt;</p>
-        <pre class="text-xs text-slate-600 whitespace-pre-wrap font-sans">{{ n.body }}</pre>
+        <pre class="text-xs text-slate-400 whitespace-pre-wrap font-sans">{{ n.body }}</pre>
       </li>
     </ul>
-    <p v-if="store.notifications.length === 0" class="text-sm text-slate-400 py-4">No notifications logged yet.</p>
+    <p v-if="store.notifications.length === 0" class="text-sm text-slate-500 py-4">No notifications logged yet.</p>
   </ModalShell>
 </template>
