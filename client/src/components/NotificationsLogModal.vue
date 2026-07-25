@@ -10,6 +10,7 @@ const emit = defineEmits(['close']);
 const store = useProjectStore();
 const running = ref(false);
 const lastRun = ref(null);
+const error = ref('');
 
 const TYPE_LABELS = {
   assigned: 'Assigned to you',
@@ -24,9 +25,12 @@ const TYPE_COLORS = {
 
 async function runDigest() {
   running.value = true;
+  error.value = '';
   try {
     const result = await store.runDigestNow();
     lastRun.value = result.generated;
+  } catch (e) {
+    error.value = e.message;
   } finally {
     running.value = false;
   }
@@ -50,6 +54,7 @@ async function runDigest() {
       </button>
       <span v-if="lastRun !== null" class="text-sm text-slate-500">Generated {{ lastRun }} digest notification(s).</span>
     </div>
+    <p v-if="error" class="text-sm text-rose-600 mb-3">{{ error }}</p>
 
     <ul class="space-y-2">
       <li v-for="n in store.notifications" :key="n.id" class="border border-white/10 rounded-md p-3">

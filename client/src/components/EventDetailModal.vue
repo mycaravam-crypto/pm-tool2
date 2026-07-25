@@ -95,17 +95,22 @@ function isOverdue(item) {
 
 async function addDecision() {
   if (!newDecisionText.value) return;
-  if (isEdit.value) {
-    await store.addDecision({
-      event_id: props.event.id,
-      text: newDecisionText.value,
-      decided_by: newDecisionBy.value || null,
-    });
-  } else {
-    stagedDecisions.value.push({ text: newDecisionText.value, decided_by: newDecisionBy.value || null });
+  error.value = '';
+  try {
+    if (isEdit.value) {
+      await store.addDecision({
+        event_id: props.event.id,
+        text: newDecisionText.value,
+        decided_by: newDecisionBy.value || null,
+      });
+    } else {
+      stagedDecisions.value.push({ text: newDecisionText.value, decided_by: newDecisionBy.value || null });
+    }
+    newDecisionText.value = '';
+    newDecisionBy.value = '';
+  } catch (e) {
+    error.value = e.message;
   }
-  newDecisionText.value = '';
-  newDecisionBy.value = '';
 }
 async function addActionItem() {
   if (!newActionText.value) return;
@@ -114,14 +119,19 @@ async function addActionItem() {
     assignee_id: newActionAssignee.value || null,
     due_date: newActionDue.value || null,
   };
-  if (isEdit.value) {
-    await store.addActionItem({ event_id: props.event.id, ...payload });
-  } else {
-    stagedActionItems.value.push(payload);
+  error.value = '';
+  try {
+    if (isEdit.value) {
+      await store.addActionItem({ event_id: props.event.id, ...payload });
+    } else {
+      stagedActionItems.value.push(payload);
+    }
+    newActionText.value = '';
+    newActionAssignee.value = '';
+    newActionDue.value = '';
+  } catch (e) {
+    error.value = e.message;
   }
-  newActionText.value = '';
-  newActionAssignee.value = '';
-  newActionDue.value = '';
 }
 async function addPainPoint() {
   if (!newPainText.value) return;
@@ -131,15 +141,20 @@ async function addPainPoint() {
     owner_id: newPainOwner.value || null,
     kind: newPainKind.value,
   };
-  if (isEdit.value) {
-    await store.addPainPoint({ event_id: props.event.id, ...payload });
-  } else {
-    stagedPainPoints.value.push(payload);
+  error.value = '';
+  try {
+    if (isEdit.value) {
+      await store.addPainPoint({ event_id: props.event.id, ...payload });
+    } else {
+      stagedPainPoints.value.push(payload);
+    }
+    newPainText.value = '';
+    newPainSeverity.value = 'Medium';
+    newPainOwner.value = '';
+    newPainKind.value = 'issue';
+  } catch (e) {
+    error.value = e.message;
   }
-  newPainText.value = '';
-  newPainSeverity.value = 'Medium';
-  newPainOwner.value = '';
-  newPainKind.value = 'issue';
 }
 
 const saving = ref(false);
@@ -215,8 +230,13 @@ function exportProtocol() {
 async function removeEvent() {
   if (!confirm(`Delete "${props.event.title}"? This also deletes its decisions, action items, and pain points.`))
     return;
-  await store.deleteEvent(props.event.id);
-  emit('close');
+  error.value = '';
+  try {
+    await store.deleteEvent(props.event.id);
+    emit('close');
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function removeSeries() {
@@ -227,24 +247,54 @@ async function removeSeries() {
     )
   )
     return;
-  await store.deleteEventSeries(liveEvent.value.series_id);
-  emit('close');
+  error.value = '';
+  try {
+    await store.deleteEventSeries(liveEvent.value.series_id);
+    emit('close');
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function toggleDone(item) {
-  await store.toggleActionItemDone(item.id, !item.done);
+  error.value = '';
+  try {
+    await store.toggleActionItemDone(item.id, !item.done);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function toggleResolved(pp) {
-  await store.togglePainPointResolved(pp.id, !pp.resolved);
+  error.value = '';
+  try {
+    await store.togglePainPointResolved(pp.id, !pp.resolved);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function removeDecision(id) {
-  await store.deleteDecision(id);
+  error.value = '';
+  try {
+    await store.deleteDecision(id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function removeActionItem(id) {
-  await store.deleteActionItem(id);
+  error.value = '';
+  try {
+    await store.deleteActionItem(id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function removePainPoint(id) {
-  await store.deletePainPoint(id);
+  error.value = '';
+  try {
+    await store.deletePainPoint(id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 function removeStagedDecision(idx) {
   stagedDecisions.value.splice(idx, 1);

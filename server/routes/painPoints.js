@@ -5,10 +5,15 @@ import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
 
+const SEVERITIES = ['Low', 'Medium', 'High'];
+const KINDS = ['issue', 'risk'];
+
 router.post('/', (req, res) => {
   const { event_id, text, severity, owner_id, kind = 'issue' } = req.body;
   if (!event_id || !text || !severity)
     return res.status(400).json({ error: 'event_id, text, and severity are required' });
+  if (!SEVERITIES.includes(severity)) return res.status(400).json({ error: 'invalid severity' });
+  if (!KINDS.includes(kind)) return res.status(400).json({ error: 'invalid kind' });
   if (!canAccessEvent(req.member, event_id)) return res.status(404).json({ error: 'event not found' });
   const ctx = getEventContext.get(event_id);
   if (!canContribute(req.member, ctx.project_id))
@@ -39,6 +44,8 @@ router.put('/:id', (req, res) => {
     owner_id = existing.owner_id,
     kind = existing.kind,
   } = req.body;
+  if (!SEVERITIES.includes(severity)) return res.status(400).json({ error: 'invalid severity' });
+  if (!KINDS.includes(kind)) return res.status(400).json({ error: 'invalid kind' });
   db.prepare('UPDATE pain_points SET text = ?, severity = ?, owner_id = ?, kind = ? WHERE id = ?').run(
     text,
     severity,

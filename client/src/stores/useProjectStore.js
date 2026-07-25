@@ -13,7 +13,6 @@ export const useProjectStore = defineStore('project', {
     scopedSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
     portfolioSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
     loading: false,
-    error: null,
   }),
 
   getters: {

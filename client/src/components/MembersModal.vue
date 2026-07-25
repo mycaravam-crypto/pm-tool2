@@ -93,19 +93,29 @@ async function save() {
 
 async function remove(id) {
   if (!confirm('Delete this member? Their notification history and project subscriptions will be removed.')) return;
-  await store.deleteMember(id);
-  if (editingId.value === id) cancel();
+  error.value = '';
+  try {
+    await store.deleteMember(id);
+    if (editingId.value === id) cancel();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 const isSubscribed = (projectId) => subscribedProjects.value.some((p) => p.id === projectId);
 
 async function toggleSubscription(project) {
-  if (isSubscribed(project.id)) {
-    await store.unsubscribeMemberFromProject(editingId.value, project.id);
-  } else {
-    await store.subscribeMemberToProject(editingId.value, project.id);
+  error.value = '';
+  try {
+    if (isSubscribed(project.id)) {
+      await store.unsubscribeMemberFromProject(editingId.value, project.id);
+    } else {
+      await store.subscribeMemberToProject(editingId.value, project.id);
+    }
+    await loadSubscriptions(editingId.value);
+  } catch (e) {
+    error.value = e.message;
   }
-  await loadSubscriptions(editingId.value);
 }
 </script>
 
@@ -115,6 +125,8 @@ async function toggleSubscription(project) {
       People who receive email notifications.
       <HelpTooltip text="Separate from the Stakeholder directory — a member can (optionally) link to their Stakeholder identity to get 'assigned to you' alerts, and subscribes to projects independently to get overdue/deadline digests. Sending is stubbed for now — see the Notifications log." />
     </p>
+
+    <p v-if="error && !showForm" class="text-sm text-rose-600 mb-3">{{ error }}</p>
 
     <div class="flex justify-end mb-3">
       <button
