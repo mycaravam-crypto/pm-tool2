@@ -1,5 +1,5 @@
 <script setup>
-import { Plus, Trash2 } from 'lucide-vue-next';
+import { Check, Crown, Loader2, Plus, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
@@ -308,12 +308,12 @@ async function removeGoal(id) {
             <span v-else class="text-xs text-slate-500 capitalize">{{ p.project_role }}</span>
             <button
               v-if="p.project_role !== 'lead' && canManage"
-              type="button" class="text-xs text-violet-400 hover:underline"
+              type="button" class="text-slate-500 hover:text-violet-400" title="Make lead"
               @click="makeLead(p.id)"
-            >Make lead</button>
+            ><Crown class="w-3.5 h-3.5" /></button>
             <button
               v-if="p.project_role !== 'lead' && canManage"
-              type="button" class="text-slate-500 hover:text-rose-400"
+              type="button" class="text-slate-500 hover:text-rose-400" title="Remove from project"
               @click="removePerson(p.id)"
             ><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
@@ -328,7 +328,7 @@ async function removeGoal(id) {
             <option value="member">Member</option>
             <option value="stakeholder">Stakeholder</option>
           </select>
-          <button type="button" class="text-sm text-violet-400 hover:underline" @click="addPerson">Add</button>
+          <button type="button" class="text-violet-400" title="Add" @click="addPerson"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
 
@@ -369,14 +369,19 @@ async function removeGoal(id) {
       <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
 
       <div class="flex items-center justify-between pt-2">
-        <button v-if="isEdit && store.isAdmin" type="button" class="text-sm text-rose-400 hover:underline flex items-center gap-1" @click="removeProject">
-          <Trash2 class="w-4 h-4" /> Delete project
-        </button>
+        <button
+          v-if="isEdit && store.isAdmin" type="button" title="Delete project"
+          class="grid h-9 w-9 place-items-center rounded-md text-rose-400 hover:bg-rose-500/10" @click="removeProject"
+        ><Trash2 class="w-4 h-4" /></button>
         <span v-else />
         <div class="flex gap-2">
-          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-white/15" @click="emit('close')">Cancel</button>
-          <button v-if="canManage" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50">
-            {{ saving ? 'Saving…' : 'Save' }}
+          <button type="button" title="Cancel" class="grid h-9 w-9 place-items-center rounded-md border border-white/15 text-slate-300 hover:bg-white/8" @click="emit('close')"><X class="w-4 h-4" /></button>
+          <button
+            v-if="canManage" type="submit" :disabled="saving" :title="saving ? 'Saving…' : 'Save'"
+            class="grid h-9 w-9 place-items-center rounded-md bg-white text-slate-950 hover:bg-violet-50 disabled:opacity-50"
+          >
+            <Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
+            <Check v-else class="w-4 h-4" />
           </button>
         </div>
       </div>

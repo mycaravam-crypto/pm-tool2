@@ -1,5 +1,5 @@
 <script setup>
-import { Mail, PlayCircle } from 'lucide-vue-next';
+import { Loader2, Mail, PlayCircle } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { formatDateTime } from '../lib/dateFormat.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
@@ -46,11 +46,12 @@ async function runDigest() {
 
     <div class="flex items-center gap-3 mb-4">
       <button
-        class="flex items-center gap-1.5 text-sm font-semibold text-slate-950 bg-white rounded-md px-3 py-1.5 hover:bg-violet-50 disabled:opacity-50"
-        :disabled="running"
+        class="grid h-9 w-9 place-items-center rounded-md bg-white text-slate-950 hover:bg-violet-50 disabled:opacity-50"
+        :disabled="running" :title="running ? 'Running…' : 'Run Digest Now'"
         @click="runDigest"
       >
-        <PlayCircle class="w-4 h-4" /> {{ running ? 'Running…' : 'Run Digest Now' }}
+        <Loader2 v-if="running" class="w-4 h-4 animate-spin" />
+        <PlayCircle v-else class="w-4 h-4" />
       </button>
       <span v-if="lastRun !== null" class="text-sm text-slate-500">Generated {{ lastRun }} digest notification(s).</span>
     </div>

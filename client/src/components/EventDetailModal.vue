@@ -1,5 +1,5 @@
 <script setup>
-import { FileDown, Plus, Repeat, Trash2, X } from 'lucide-vue-next';
+import { CalendarCheck, CalendarX, Check, FileDown, Loader2, Plus, Repeat, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
@@ -509,29 +509,36 @@ function removeStagedPain(idx) {
       </div>
 
       <div class="flex shrink-0 items-center justify-between gap-2 border-t border-white/8 p-4">
-        <div v-if="isEdit && canContribute" class="flex items-center gap-3">
-          <button type="button" class="text-sm text-rose-400 hover:underline flex items-center gap-1" @click="removeEvent">
-            <Trash2 class="w-4 h-4" /> {{ isSeriesOccurrence ? 'Delete this occurrence' : 'Delete event' }}
-          </button>
-          <button v-if="isSeriesOccurrence" type="button" class="text-sm text-rose-400 hover:underline" @click="removeSeries">
-            Delete entire series
-          </button>
+        <div v-if="isEdit && canContribute" class="flex items-center gap-2">
+          <button
+            type="button" :title="isSeriesOccurrence ? 'Delete this occurrence' : 'Delete event'"
+            class="grid h-9 w-9 place-items-center rounded-md text-rose-400 hover:bg-rose-500/10" @click="removeEvent"
+          ><Trash2 class="w-4 h-4" /></button>
+          <button
+            v-if="isSeriesOccurrence" type="button" title="Delete entire series"
+            class="grid h-9 w-9 place-items-center rounded-md text-rose-400 hover:bg-rose-500/10" @click="removeSeries"
+          ><CalendarX class="w-4 h-4" /></button>
         </div>
         <span v-else />
         <div class="flex gap-2">
           <button
-            v-if="isEdit" type="button"
-            class="text-sm px-3 py-1.5 rounded-md border border-white/15 flex items-center gap-1.5 hover:bg-white/[.03]"
+            v-if="isEdit" type="button" title="Export PDF"
+            class="grid h-9 w-9 place-items-center rounded-md border border-white/15 hover:bg-white/[.03]"
             @click="exportProtocol"
-          ><FileDown class="w-4 h-4" /> Export PDF</button>
-          <button type="button" class="text-sm px-3 py-1.5 rounded-md border border-white/15" @click="emit('close')">Cancel</button>
+          ><FileDown class="w-4 h-4" /></button>
+          <button type="button" title="Cancel" class="grid h-9 w-9 place-items-center rounded-md border border-white/15 text-slate-300 hover:bg-white/8" @click="emit('close')"><X class="w-4 h-4" /></button>
           <button
-            v-if="canContribute && isSeriesOccurrence" type="button" :disabled="saving"
-            class="text-sm px-3 py-1.5 rounded-md border border-violet-400/40 text-violet-300 disabled:opacity-50"
+            v-if="canContribute && isSeriesOccurrence" type="button" :disabled="saving" title="Save entire series"
+            class="grid h-9 w-9 place-items-center rounded-md border border-violet-400/40 text-violet-300 disabled:opacity-50"
             @click="saveSeries"
-          >Save entire series</button>
-          <button v-if="canContribute" type="submit" :disabled="saving" class="text-sm px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50">
-            {{ saving ? 'Saving…' : (isSeriesOccurrence ? 'Save this occurrence' : 'Save') }}
+          ><CalendarCheck class="w-4 h-4" /></button>
+          <button
+            v-if="canContribute" type="submit" :disabled="saving"
+            :title="saving ? 'Saving…' : (isSeriesOccurrence ? 'Save this occurrence' : 'Save')"
+            class="grid h-9 w-9 place-items-center rounded-md bg-white text-slate-950 hover:bg-violet-50 disabled:opacity-50"
+          >
+            <Loader2 v-if="saving" class="w-4 h-4 animate-spin" />
+            <Check v-else class="w-4 h-4" />
           </button>
         </div>
       </div>

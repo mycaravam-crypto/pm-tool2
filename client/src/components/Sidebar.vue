@@ -71,11 +71,11 @@ function toggleMuted() {
         <span class="text-xs font-medium uppercase tracking-wide text-slate-500">Projects</span>
         <button
           v-if="store.isAdmin"
-          class="flex items-center gap-1 text-xs font-medium text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 rounded px-1.5 py-0.5 -mr-1.5"
+          class="flex items-center text-violet-300 hover:text-violet-200 hover:bg-violet-500/10 rounded p-1 -mr-1"
           title="New project"
           @click="emit('open-project-form')"
         >
-          <Plus class="w-3.5 h-3.5" /> New
+          <Plus class="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -109,16 +109,16 @@ function toggleMuted() {
     <div v-if="store.isAdmin" class="p-4 border-t border-white/8">
       <div class="grid grid-cols-2 gap-2">
         <button
-          class="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-300 border border-white/10 bg-white/[.03] rounded-lg py-2 hover:bg-white/8 hover:text-white"
-          @click="emit('open-stakeholders')"
+          class="flex items-center justify-center text-slate-300 border border-white/10 bg-white/[.03] rounded-lg py-2 hover:bg-white/8 hover:text-white"
+          title="Stakeholders" @click="emit('open-stakeholders')"
         >
-          <Users class="w-4 h-4" /> Stakeholders
+          <Users class="w-4 h-4" />
         </button>
         <button
-          class="flex items-center justify-center gap-1.5 text-sm font-medium text-slate-300 border border-white/10 bg-white/[.03] rounded-lg py-2 hover:bg-white/8 hover:text-white"
-          @click="emit('open-members')"
+          class="flex items-center justify-center text-slate-300 border border-white/10 bg-white/[.03] rounded-lg py-2 hover:bg-white/8 hover:text-white"
+          title="Members" @click="emit('open-members')"
         >
-          <UserCog class="w-4 h-4" /> Members
+          <UserCog class="w-4 h-4" />
         </button>
       </div>
     </div>
