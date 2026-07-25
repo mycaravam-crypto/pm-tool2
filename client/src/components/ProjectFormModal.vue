@@ -117,63 +117,118 @@ async function removeProject() {
     )
   )
     return;
-  await store.deleteProject(props.project.id);
-  emit('close');
+  error.value = '';
+  try {
+    await store.deleteProject(props.project.id);
+    emit('close');
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function addPerson() {
   if (!newPersonId.value) return;
-  await store.assignStakeholderToProject(props.project.id, Number(newPersonId.value), newPersonRole.value);
-  newPersonId.value = '';
-  newPersonRole.value = 'member';
-  await loadPeople();
+  error.value = '';
+  try {
+    await store.assignStakeholderToProject(props.project.id, Number(newPersonId.value), newPersonRole.value);
+    newPersonId.value = '';
+    newPersonRole.value = 'member';
+    await loadPeople();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function makeLead(stakeholderId) {
-  await store.setProjectLead(props.project.id, stakeholderId);
-  await loadPeople();
+  error.value = '';
+  try {
+    await store.setProjectLead(props.project.id, stakeholderId);
+    await loadPeople();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function removePerson(stakeholderId) {
-  await api.projects.removeStakeholder(props.project.id, stakeholderId);
-  await loadPeople();
+  error.value = '';
+  try {
+    await api.projects.removeStakeholder(props.project.id, stakeholderId);
+    await loadPeople();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 async function changeRole(stakeholderId, role) {
-  await api.projects.setStakeholderRole(props.project.id, stakeholderId, role);
-  await loadPeople();
+  error.value = '';
+  try {
+    await api.projects.setStakeholderRole(props.project.id, stakeholderId, role);
+    await loadPeople();
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 const newRequirementText = ref('');
 async function addRequirement() {
   if (!newRequirementText.value.trim()) return;
-  await store.addRequirement({ project_id: props.project.id, text: newRequirementText.value.trim() });
-  newRequirementText.value = '';
+  error.value = '';
+  try {
+    await store.addRequirement({ project_id: props.project.id, text: newRequirementText.value.trim() });
+    newRequirementText.value = '';
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function toggleRequirement(r) {
-  await store.toggleRequirementDone(r.id, !r.done);
+  error.value = '';
+  try {
+    await store.toggleRequirementDone(r.id, !r.done);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function removeRequirement(id) {
-  await store.deleteRequirement(id);
+  error.value = '';
+  try {
+    await store.deleteRequirement(id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 
 const newGoalText = ref('');
 const newGoalTargetDate = ref('');
 async function addGoal() {
   if (!newGoalText.value.trim()) return;
-  await store.addGoal({
-    project_id: props.project.id,
-    text: newGoalText.value.trim(),
-    target_date: newGoalTargetDate.value || null,
-  });
-  newGoalText.value = '';
-  newGoalTargetDate.value = '';
+  error.value = '';
+  try {
+    await store.addGoal({
+      project_id: props.project.id,
+      text: newGoalText.value.trim(),
+      target_date: newGoalTargetDate.value || null,
+    });
+    newGoalText.value = '';
+    newGoalTargetDate.value = '';
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function toggleGoal(g) {
-  await store.toggleGoalAchieved(g.id, !g.achieved);
+  error.value = '';
+  try {
+    await store.toggleGoalAchieved(g.id, !g.achieved);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 async function removeGoal(id) {
-  await store.deleteGoal(id);
+  error.value = '';
+  try {
+    await store.deleteGoal(id);
+  } catch (e) {
+    error.value = e.message;
+  }
 }
 </script>
 

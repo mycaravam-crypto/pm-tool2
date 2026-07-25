@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
@@ -262,17 +263,64 @@ const knownAssignees = computed(() => {
   return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 });
 
+// This view spans every selected project at once, so — unlike EventDetailModal/
+// ProjectFormModal, which are scoped to a single project and can compute one
+// canContribute — each row here needs its own project's role checked. Mirrors
+// the server-side canContribute in server/utils/access.js (every committed role
+// except 'stakeholder', the RACI "Informed" tier). Refetched whenever the
+// selected-project set changes, once per project rather than once per row.
+const contributableProjectIds = ref(new Set());
+async function refreshContributableProjects() {
+  if (store.isAdmin) {
+    contributableProjectIds.value = new Set(store.selectedProjects.map((p) => p.id));
+    return;
+  }
+  const results = await Promise.all(
+    store.selectedProjects.map(async (p) => {
+      const people = await api.projects.stakeholders(p.id);
+      const role = people.find((person) => person.id === store.currentMember?.stakeholder_id)?.project_role ?? null;
+      return { id: p.id, canContribute: role !== null && role !== 'stakeholder' };
+    }),
+  );
+  contributableProjectIds.value = new Set(results.filter((r) => r.canContribute).map((r) => r.id));
+}
+watch(() => store.selectedProjectIds, refreshContributableProjects, { immediate: true });
+function canContributeToProject(projectId) {
+  return contributableProjectIds.value.has(projectId);
+}
+
+const toggleError = ref('');
 async function toggleDone(item) {
-  await store.toggleActionItemDone(item.id, !item.done);
+  toggleError.value = '';
+  try {
+    await store.toggleActionItemDone(item.id, !item.done);
+  } catch (e) {
+    toggleError.value = e.message;
+  }
 }
 async function toggleResolved(pp) {
-  await store.togglePainPointResolved(pp.id, !pp.resolved);
+  toggleError.value = '';
+  try {
+    await store.togglePainPointResolved(pp.id, !pp.resolved);
+  } catch (e) {
+    toggleError.value = e.message;
+  }
 }
 async function toggleRequirement(r) {
-  await store.toggleRequirementDone(r.id, !r.done);
+  toggleError.value = '';
+  try {
+    await store.toggleRequirementDone(r.id, !r.done);
+  } catch (e) {
+    toggleError.value = e.message;
+  }
 }
 async function toggleGoal(g) {
-  await store.toggleGoalAchieved(g.id, !g.achieved);
+  toggleError.value = '';
+  try {
+    await store.toggleGoalAchieved(g.id, !g.achieved);
+  } catch (e) {
+    toggleError.value = e.message;
+  }
 }
 </script>
 
@@ -327,6 +375,8 @@ async function toggleGoal(g) {
         </div>
       </div>
 
+      <p v-if="toggleError" class="text-sm text-rose-600 mb-3">{{ toggleError }}</p>
+
       <table v-if="subTab === 'overview'" class="w-full text-sm">
         <thead>
           <tr :class="TABLE_HEADER_ROW">
@@ -337,16 +387,16 @@ async function toggleGoal(g) {
           <tr v-for="r in allItems" :key="r.id" :class="TABLE_BODY_ROW">
             <td class="py-1.5">
               <input
-                v-if="r.kind === 'action'" type="checkbox" :checked="!!r.raw.done" @change="toggleDone(r.raw)"
+                v-if="r.kind === 'action'" type="checkbox" :checked="!!r.raw.done" :disabled="!canContributeToProject(r.project.id)" @change="toggleDone(r.raw)"
               />
               <input
-                v-else-if="r.kind === 'pain'" type="checkbox" :checked="!!r.raw.resolved" @change="toggleResolved(r.raw)"
+                v-else-if="r.kind === 'pain'" type="checkbox" :checked="!!r.raw.resolved" :disabled="!canContributeToProject(r.project.id)" @change="toggleResolved(r.raw)"
               />
               <input
-                v-else-if="r.kind === 'requirement'" type="checkbox" :checked="!!r.raw.done" @change="toggleRequirement(r.raw)"
+                v-else-if="r.kind === 'requirement'" type="checkbox" :checked="!!r.raw.done" :disabled="!canContributeToProject(r.project.id)" @change="toggleRequirement(r.raw)"
               />
               <input
-                v-else-if="r.kind === 'goal'" type="checkbox" :checked="!!r.raw.achieved" @change="toggleGoal(r.raw)"
+                v-else-if="r.kind === 'goal'" type="checkbox" :checked="!!r.raw.achieved" :disabled="!canContributeToProject(r.project.id)" @change="toggleGoal(r.raw)"
               />
             </td>
             <td class="py-1.5"><span class="text-xs px-1.5 py-0.5 rounded font-medium" :class="KIND_CLASSES[r.kind]">{{ KIND_LABELS[r.kind] }}</span></td>
@@ -372,7 +422,7 @@ async function toggleGoal(g) {
         </thead>
         <tbody>
           <tr v-for="a in actionItems" :key="a.id" :class="TABLE_BODY_ROW">
-            <td class="py-1.5"><input type="checkbox" :checked="!!a.done" @change="toggleDone(a)" /></td>
+            <td class="py-1.5"><input type="checkbox" :checked="!!a.done" :disabled="!canContributeToProject(a.event.project.id)" @change="toggleDone(a)" /></td>
             <td class="py-1.5" :class="a.done ? 'line-through text-slate-500' : ''">{{ a.text }}</td>
             <td class="py-1.5 text-slate-500">{{ a.assignee_name || '—' }}</td>
             <td class="py-1.5"><EventLink :event="a.event" @select="emit('select-event', $event)" /></td>
@@ -397,7 +447,7 @@ async function toggleGoal(g) {
         </thead>
         <tbody>
           <tr v-for="p in painPoints" :key="p.id" :class="TABLE_BODY_ROW">
-            <td class="py-1.5"><input type="checkbox" :checked="!!p.resolved" @change="toggleResolved(p)" /></td>
+            <td class="py-1.5"><input type="checkbox" :checked="!!p.resolved" :disabled="!canContributeToProject(p.event.project.id)" @change="toggleResolved(p)" /></td>
             <td class="py-1.5" :class="p.resolved ? 'line-through text-slate-500' : ''">{{ p.text }}</td>
             <td class="py-1.5">
               <span
@@ -452,7 +502,7 @@ async function toggleGoal(g) {
         </thead>
         <tbody>
           <tr v-for="r in requirementsList" :key="r.id" :class="TABLE_BODY_ROW">
-            <td class="py-1.5"><input type="checkbox" :checked="!!r.done" @change="toggleRequirement(r)" /></td>
+            <td class="py-1.5"><input type="checkbox" :checked="!!r.done" :disabled="!canContributeToProject(r.project.id)" @change="toggleRequirement(r)" /></td>
             <td class="py-1.5" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</td>
             <td class="py-1.5"><ProjectChip :project="r.project" /></td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.created_at.slice(0, 10)) }}</td>
@@ -475,7 +525,7 @@ async function toggleGoal(g) {
         </thead>
         <tbody>
           <tr v-for="g in goalsList" :key="g.id" :class="TABLE_BODY_ROW">
-            <td class="py-1.5"><input type="checkbox" :checked="!!g.achieved" @change="toggleGoal(g)" /></td>
+            <td class="py-1.5"><input type="checkbox" :checked="!!g.achieved" :disabled="!canContributeToProject(g.project.id)" @change="toggleGoal(g)" /></td>
             <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</td>
             <td class="py-1.5"><ProjectChip :project="g.project" /></td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>

@@ -109,7 +109,9 @@ Without Docker, `npm run build` (builds the client) followed by `npm run start` 
 | `npm run backup` (from `server/`) | Snapshot the live database to a timestamped file |
 | `npm run lint` | Check formatting/lint issues with Biome |
 | `npm run lint:fix` | Auto-fix formatting/lint issues with Biome |
+| `npm run test` | Run the client's Vitest unit tests |
+| `npm run test:e2e` | Run the Playwright end-to-end tests |
 
 ## Notes on scope
 
-A few things are deliberately left out to keep this a focused prototype rather than a production PM suite: SMS delivery (email only), SSO, CSRF tokens, automated tests, security headers, and cleanup of expired sessions/reset tokens. See [PLAN.md](PLAN.md) for the full technical specification, including the database schema and API reference.
+A few things are deliberately left out to keep this a focused prototype rather than a production PM suite: SMS delivery (email only), SSO, CSRF tokens, security headers, and cleanup of expired sessions/reset tokens. See [PLAN.md](PLAN.md) for the full technical specification, including the database schema and API reference.

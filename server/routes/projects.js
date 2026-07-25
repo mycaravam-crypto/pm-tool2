@@ -213,11 +213,19 @@ router.post('/:id/stakeholders', (req, res) => {
     return res.status(400).json({ error: 'invalid project_role' });
   }
 
-  db.prepare(`
-    INSERT INTO project_stakeholders (project_id, stakeholder_id, project_role) VALUES (?, ?, ?)
-  `).run(req.params.id, stakeholder_id, project_role);
+  const stakeholder = db.prepare('SELECT id FROM stakeholders WHERE id = ?').get(stakeholder_id);
+  if (!stakeholder) return res.status(400).json({ error: 'stakeholder_id does not reference an existing stakeholder' });
 
-  res.status(201).json({ project_id: Number(req.params.id), stakeholder_id, project_role });
+  try {
+    db.prepare(`
+      INSERT INTO project_stakeholders (project_id, stakeholder_id, project_role) VALUES (?, ?, ?)
+    `).run(req.params.id, stakeholder_id, project_role);
+    res.status(201).json({ project_id: Number(req.params.id), stakeholder_id, project_role });
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY')
+      return res.status(400).json({ error: 'this stakeholder is already on the project' });
+    throw e;
+  }
 });
 
 router.patch('/:id/stakeholders/:stakeholderId', (req, res) => {

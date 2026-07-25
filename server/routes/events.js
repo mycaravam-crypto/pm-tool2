@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { canAccessProject, canContribute, getAccessibleProjectIds } from '../utils/access.js';
 import { formatDate } from '../utils/dateFormat.js';
-import { parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
+import { EVENT_STATUSES, EVENT_TYPES, parseEventsCsv, validateEventRow } from '../utils/eventImport.js';
 import { notifyAssigned } from '../utils/notify.js';
 import { generateOccurrenceDates, validateRecurrence } from '../utils/recurrence.js';
 
@@ -77,6 +77,8 @@ router.post('/', (req, res) => {
   if (!project_id || !title || !date || !type) {
     return res.status(400).json({ error: 'project_id, title, date, and type are required' });
   }
+  if (!EVENT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
+  if (!EVENT_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
   if (!canContribute(req.member, project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
@@ -275,6 +277,8 @@ router.put('/:id', (req, res) => {
     status = event.status,
     participants,
   } = req.body;
+  if (!EVENT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
+  if (!EVENT_STATUSES.includes(status)) return res.status(400).json({ error: 'invalid status' });
 
   const update = db.transaction(() => {
     db.prepare(`
@@ -318,6 +322,7 @@ router.put('/series/:seriesId', (req, res) => {
     return res.status(403).json({ error: 'read-only access to this project' });
 
   const { title, time, type, summary, participants } = req.body;
+  if (type !== undefined && !EVENT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
   const eventIds = db
     .prepare('SELECT id FROM events WHERE series_id = ?')
     .all(req.params.seriesId)
