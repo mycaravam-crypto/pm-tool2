@@ -164,22 +164,22 @@ async function focusUpcoming() {
           <span class="text-sm text-slate-500 whitespace-nowrap">Today: <span class="font-medium text-slate-300">{{ formatDate(todayStr()) }}</span></span>
           <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
             <button
-              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
-              @click="exportSituationReport"
+              class="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+              title="Situation Report" @click="exportSituationReport"
             >
-              <FileText class="w-4 h-4" /> Situation Report
+              <FileText class="w-4 h-4" />
             </button>
             <button
-              class="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
-              @click="showImportEvents = true"
+              class="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+              title="Import Events" @click="showImportEvents = true"
             >
-              <FileUp class="w-4 h-4" /> Import Events
+              <FileUp class="w-4 h-4" />
             </button>
             <button
-              class="flex items-center gap-1.5 text-sm px-3.5 py-1.5 rounded-lg bg-white text-slate-950 font-medium shadow-[0_10px_28px_rgba(255,255,255,.08)] transition hover:-translate-y-0.5 hover:bg-violet-50"
-              @click="openNewEvent"
+              class="grid h-9 w-9 place-items-center rounded-lg bg-white text-slate-950 shadow-[0_10px_28px_rgba(255,255,255,.08)] transition hover:-translate-y-0.5 hover:bg-violet-50"
+              title="New Event" @click="openNewEvent"
             >
-              <Plus class="w-4 h-4" /> New Event
+              <Plus class="w-4 h-4" />
             </button>
           </div>
         </div>

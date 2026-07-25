@@ -96,7 +96,7 @@ test('opening a cluster overflow popover and selecting an event opens its detail
   // individual cards a cluster shows before collapsing (see MAX_VISIBLE_STACK
   // in Timeline.vue) so this doesn't sit right on the boundary.
   for (let i = 0; i < 6; i++) {
-    await page.locator('button', { hasText: 'New Event' }).first().click();
+    await page.locator('button[title="New Event"]').first().click();
     await page.locator('label:has-text("Title") + input').fill(`Overflow ${i + 1}`);
     await page.locator('label:has-text("Date") ~ div input[type="date"]').fill(sameDate);
     await page.locator('form button[type="submit"]').last().click();

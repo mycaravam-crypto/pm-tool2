@@ -1,5 +1,5 @@
 <script setup>
-import { Pencil, Plus, Trash2 } from 'lucide-vue-next';
+import { Check, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
@@ -72,10 +72,10 @@ async function remove(id) {
     <div class="flex items-center justify-between mb-3">
       <p class="text-sm text-slate-500">Global list of people referenced across projects.</p>
       <button
-        class="flex items-center gap-1.5 text-sm font-semibold text-slate-950 bg-white rounded-md px-3 py-1.5 hover:bg-violet-50"
-        @click="startNew"
+        class="grid h-9 w-9 place-items-center rounded-md bg-white text-slate-950 hover:bg-violet-50"
+        title="New Stakeholder" @click="startNew"
       >
-        <Plus class="w-4 h-4" /> New Stakeholder
+        <Plus class="w-4 h-4" />
       </button>
     </div>
 
@@ -87,8 +87,8 @@ async function remove(id) {
       </div>
       <p v-if="error" class="text-sm text-rose-400">{{ error }}</p>
       <div class="flex gap-2 justify-end">
-        <button type="button" class="text-xs px-2 py-1 rounded border border-white/15" @click="cancel">Cancel</button>
-        <button type="submit" class="text-xs px-2 py-1 rounded bg-white text-slate-950 font-semibold hover:bg-violet-50">Save</button>
+        <button type="button" title="Cancel" class="grid h-7 w-7 place-items-center rounded border border-white/15 text-slate-300" @click="cancel"><X class="w-3.5 h-3.5" /></button>
+        <button type="submit" title="Save" class="grid h-7 w-7 place-items-center rounded bg-white text-slate-950 hover:bg-violet-50"><Check class="w-3.5 h-3.5" /></button>
       </div>
     </form>
 

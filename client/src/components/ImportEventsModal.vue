@@ -1,5 +1,5 @@
 <script setup>
-import { CircleAlert, Download, Upload } from 'lucide-vue-next';
+import { CircleAlert, Download, Eye, FolderOpen, Upload, X } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
@@ -93,11 +93,11 @@ function downloadTemplate() {
           <HelpTooltip text="Columns: title, date (YYYY-MM-DD), type (kickoff/sync/workshop/review/decision/retro/milestone/deadline), summary, status (pending/achieved/missed, optional), participants (optional, stakeholder names separated by ;)." />
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <button type="button" class="text-violet-400 hover:underline flex items-center gap-1" @click="downloadTemplate">
-            <Download class="w-3.5 h-3.5" /> Template
+          <button type="button" title="Download template" class="grid h-9 w-9 place-items-center rounded-md text-violet-400 hover:bg-white/[.03]" @click="downloadTemplate">
+            <Download class="w-4 h-4" />
           </button>
-          <label class="px-3 py-1.5 rounded-md border border-white/15 hover:bg-white/[.03] cursor-pointer">
-            Browse…
+          <label class="grid h-9 w-9 place-items-center rounded-md border border-white/15 hover:bg-white/[.03] cursor-pointer" title="Browse for a CSV file">
+            <FolderOpen class="w-4 h-4" />
             <input type="file" accept=".csv" class="hidden" @change="onFileChange" />
           </label>
         </div>
@@ -143,21 +143,23 @@ function downloadTemplate() {
       </div>
 
       <div class="flex justify-end gap-2 pt-2">
-        <button type="button" class="px-3 py-1.5 rounded-md border border-white/15 hover:bg-white/[.03]" @click="emit('close')">Close</button>
+        <button type="button" title="Close" class="grid h-9 w-9 place-items-center rounded-md border border-white/15 hover:bg-white/[.03]" @click="emit('close')"><X class="w-4 h-4" /></button>
         <button
           v-if="!preview"
           type="button"
           :disabled="!projectId || !csvText || busy"
-          class="px-3 py-1.5 rounded-md border border-white/15 bg-white/10 text-white hover:bg-white/15 disabled:opacity-50"
+          title="Preview"
+          class="grid h-9 w-9 place-items-center rounded-md border border-white/15 bg-white/10 text-white hover:bg-white/15 disabled:opacity-50"
           @click="runPreview"
-        >Preview</button>
+        ><Eye class="w-4 h-4" /></button>
         <button
           v-else
           type="button"
           :disabled="!preview.validCount || busy"
-          class="px-3 py-1.5 rounded-md bg-white text-slate-950 font-semibold hover:bg-violet-50 disabled:opacity-50"
+          :title="`Import ${preview.validCount} event${preview.validCount === 1 ? '' : 's'}`"
+          class="grid h-9 w-9 place-items-center rounded-md bg-white text-slate-950 hover:bg-violet-50 disabled:opacity-50"
           @click="runImport"
-        >Import {{ preview.validCount }} event{{ preview.validCount === 1 ? '' : 's' }}</button>
+        ><Upload class="w-4 h-4" /></button>
       </div>
     </div>
   </ModalShell>

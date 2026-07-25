@@ -1,5 +1,5 @@
 <script setup>
-import { CalendarSearch, Repeat, RotateCcw, Search, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { Calendar, CalendarSearch, Repeat, RotateCcw, Search, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPE_KEYS, EVENT_TYPES, FORWARD_TYPES, resolveEventVisual, TYPE_COLORS } from '../lib/eventTypes.js';
@@ -497,9 +497,9 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
 
               <button
                 type="button"
-                class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/8 bg-white/[.045] px-3 text-xs font-medium text-slate-300 transition hover:bg-white/[.08] hover:text-white"
-                @click="scrollToToday"
-              >Today</button>
+                class="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/8 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+                title="Jump to today" @click="scrollToToday"
+              ><Calendar class="w-4 h-4" /></button>
 
               <div class="flex items-center rounded-lg border border-white/8 bg-black/15 p-1">
                 <button
