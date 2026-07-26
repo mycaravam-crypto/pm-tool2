@@ -243,3 +243,32 @@ CREATE TABLE IF NOT EXISTS goals (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_goals_project_id ON goals(project_id);
+
+-- 14. Requirement History — a snapshot of a requirement's text each time it's edited,
+-- so "what did this used to say, and who changed it" is answerable. Only text edits
+-- are logged here — done toggles and goal_id relinks have their own visible
+-- current-state indicator (the checkbox, the goal dropdown) and aren't "content."
+CREATE TABLE IF NOT EXISTS requirement_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requirement_id INTEGER NOT NULL,
+    previous_text TEXT NOT NULL,
+    changed_by INTEGER, -- member who made the edit; nulled (not cascaded) on member deletion,
+        -- same treatment as decided_by/owner_id/assignee_id elsewhere in this schema
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (requirement_id) REFERENCES requirements(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES members(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_requirement_history_requirement_id ON requirement_history(requirement_id);
+
+-- 15. Goal History — same idea as requirement_history, for a goal's text and target_date.
+CREATE TABLE IF NOT EXISTS goal_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    previous_text TEXT NOT NULL,
+    previous_target_date TEXT,
+    changed_by INTEGER,
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES members(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_goal_history_goal_id ON goal_history(goal_id);

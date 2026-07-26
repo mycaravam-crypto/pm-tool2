@@ -35,7 +35,21 @@ router.put('/:id', (req, res) => {
   const { text = existing.text, goal_id = existing.goal_id } = req.body;
   if (!goalBelongsToProject(goal_id, existing.project_id))
     return res.status(400).json({ error: 'goal_id does not reference a goal on this project' });
-  db.prepare('UPDATE requirements SET text = ?, goal_id = ? WHERE id = ?').run(text, goal_id, req.params.id);
+
+  // History only logs actual text edits — a goal_id-only relink (the dropdown next to
+  // each requirement) still hits this route but isn't "content history."
+  const update = db.transaction(() => {
+    if (text !== existing.text) {
+      db.prepare('INSERT INTO requirement_history (requirement_id, previous_text, changed_by) VALUES (?, ?, ?)').run(
+        existing.id,
+        existing.text,
+        req.member.id,
+      );
+    }
+    db.prepare('UPDATE requirements SET text = ?, goal_id = ? WHERE id = ?').run(text, goal_id, req.params.id);
+  });
+  update();
+
   res.json(db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id));
 });
 

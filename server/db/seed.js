@@ -94,7 +94,14 @@ const seed = db.transaction(() => {
     0,
   ).lastInsertRowid;
   insertRequirement.run(website, 'Homepage hero + navigation redesign', 1, websiteLaunchGoal);
-  insertRequirement.run(website, 'Checkout flow redesign', 0, websiteLaunchGoal);
+  // id captured for a seeded requirement_history row below (needs a member id, which
+  // doesn't exist yet at this point in the seed — see the Members section further down).
+  const checkoutFlowReq = insertRequirement.run(
+    website,
+    'Checkout flow redesign',
+    0,
+    websiteLaunchGoal,
+  ).lastInsertRowid;
   insertRequirement.run(website, 'Mobile-responsive layout across all pages', 1, websiteLaunchGoal);
   insertRequirement.run(website, 'Extract shared Button/Input/Form components', 1, websiteDesignSystemGoal);
   insertRequirement.run(website, 'Document design tokens (color/spacing/type scale)', 0, websiteDesignSystemGoal);
@@ -349,6 +356,19 @@ const seed = db.transaction(() => {
   insertMemberProject.run(memberGrace, website);
   insertMemberProject.run(memberGrace, campaign);
 
+  // Demonstrates requirement/goal edit history without needing a manual edit in the
+  // running app first — same "seed writes go straight to SQL, bypassing the route" idea
+  // as notifyAssigned() below, standing in for what PUT /api/requirements and
+  // PUT /api/goals record automatically on a real content edit.
+  db.prepare('INSERT INTO requirement_history (requirement_id, previous_text, changed_by) VALUES (?, ?, ?)').run(
+    checkoutFlowReq,
+    'Checkout flow rework',
+    memberBob,
+  );
+  db.prepare(
+    'INSERT INTO goal_history (goal_id, previous_text, previous_target_date, changed_by) VALUES (?, ?, ?, ?)',
+  ).run(websiteLaunchGoal, 'Launch redesigned marketing site', '2026-08-15', memberAlice);
+
   // Seed writes go straight to SQL, bypassing the route-level notifyAssigned() hooks —
   // these two calls stand in for that, showing what the real-time "assigned to you"
   // trigger produces for two of the assignments already seeded above.
@@ -369,7 +389,7 @@ const seed = db.transaction(() => {
 seed();
 
 console.log(
-  'Seed complete: 2 projects, 4 stakeholders, 13 events, 4 goals, 10 requirements, 4 members, 2 sample notifications.',
+  'Seed complete: 2 projects, 4 stakeholders, 13 events, 4 goals, 10 requirements, 4 members, 2 sample notifications, 2 edit history entries.',
 );
 console.log('Use the "Run Digest Now" button in the Notifications modal to generate overdue/deadline digests.');
 console.log('');

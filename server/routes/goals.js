@@ -23,7 +23,17 @@ router.put('/:id', (req, res) => {
   if (!canContribute(req.member, existing.project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
   const { text = existing.text, target_date = existing.target_date } = req.body;
-  db.prepare('UPDATE goals SET text = ?, target_date = ? WHERE id = ?').run(text, target_date, req.params.id);
+
+  const update = db.transaction(() => {
+    if (text !== existing.text || target_date !== existing.target_date) {
+      db.prepare(
+        'INSERT INTO goal_history (goal_id, previous_text, previous_target_date, changed_by) VALUES (?, ?, ?, ?)',
+      ).run(existing.id, existing.text, existing.target_date, req.member.id);
+    }
+    db.prepare('UPDATE goals SET text = ?, target_date = ? WHERE id = ?').run(text, target_date, req.params.id);
+  });
+  update();
+
   res.json(db.prepare('SELECT * FROM goals WHERE id = ?').get(req.params.id));
 });
 

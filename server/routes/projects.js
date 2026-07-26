@@ -14,6 +14,19 @@ const getLeadStmt = db.prepare(`
 `);
 const getRequirementsStmt = db.prepare('SELECT * FROM requirements WHERE project_id = ? ORDER BY created_at');
 const getGoalsStmt = db.prepare('SELECT * FROM goals WHERE project_id = ? ORDER BY created_at');
+// Joined to members for a display-ready name rather than a bare id — same "resolve at
+// read time" approach as decided_by_name/assignee_name/owner_name elsewhere, accepting
+// that a later member rename reflects retroactively and a deleted member reads as "—".
+const getRequirementHistoryStmt = db.prepare(`
+  SELECT h.id, h.previous_text, h.changed_at, m.name AS changed_by_name
+  FROM requirement_history h LEFT JOIN members m ON m.id = h.changed_by
+  WHERE h.requirement_id = ? ORDER BY h.changed_at DESC
+`);
+const getGoalHistoryStmt = db.prepare(`
+  SELECT h.id, h.previous_text, h.previous_target_date, h.changed_at, m.name AS changed_by_name
+  FROM goal_history h LEFT JOIN members m ON m.id = h.changed_by
+  WHERE h.goal_id = ? ORDER BY h.changed_at DESC
+`);
 
 function serializeProject(project) {
   const lead = getLeadStmt.get(project.id) || null;
@@ -21,8 +34,10 @@ function serializeProject(project) {
     ...project,
     lead,
     scorecard: computeScorecard(project),
-    requirements: getRequirementsStmt.all(project.id),
-    goals: getGoalsStmt.all(project.id),
+    requirements: getRequirementsStmt
+      .all(project.id)
+      .map((r) => ({ ...r, history: getRequirementHistoryStmt.all(r.id) })),
+    goals: getGoalsStmt.all(project.id).map((g) => ({ ...g, history: getGoalHistoryStmt.all(g.id) })),
   };
 }
 

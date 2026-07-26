@@ -1,5 +1,5 @@
 <script setup>
-import { Check, Crown, Loader2, Plus, Trash2, X } from 'lucide-vue-next';
+import { Check, Crown, History, Loader2, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
@@ -245,6 +245,63 @@ async function removeGoal(id) {
     error.value = e.message;
   }
 }
+
+// Content editing (text, and for goals target_date too) is separate from the
+// done/achieved checkbox and the goal-link dropdown above — those are status/
+// relationship changes with their own visible current-state indicator, not
+// "content," so they don't go through this edit flow or generate history rows
+// (see server/routes/requirements.js and goals.js, which only log on a text diff).
+const editingRequirementId = ref(null);
+const editRequirementText = ref('');
+function startEditRequirement(r) {
+  editingRequirementId.value = r.id;
+  editRequirementText.value = r.text;
+}
+function cancelEditRequirement() {
+  editingRequirementId.value = null;
+}
+async function saveRequirementEdit(r) {
+  if (!editRequirementText.value.trim()) return;
+  error.value = '';
+  try {
+    await store.updateRequirement(r.id, { text: editRequirementText.value.trim(), goal_id: r.goal_id });
+    editingRequirementId.value = null;
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+const editingGoalId = ref(null);
+const editGoalText = ref('');
+const editGoalTargetDate = ref('');
+function startEditGoal(g) {
+  editingGoalId.value = g.id;
+  editGoalText.value = g.text;
+  editGoalTargetDate.value = g.target_date ?? '';
+}
+function cancelEditGoal() {
+  editingGoalId.value = null;
+}
+async function saveGoalEdit(g) {
+  if (!editGoalText.value.trim()) return;
+  error.value = '';
+  try {
+    await store.updateGoal(g.id, { text: editGoalText.value.trim(), target_date: editGoalTargetDate.value || null });
+    editingGoalId.value = null;
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+
+// Only one history list open at a time per section — toggling the same id closes it.
+const openRequirementHistoryId = ref(null);
+function toggleRequirementHistory(id) {
+  openRequirementHistoryId.value = openRequirementHistoryId.value === id ? null : id;
+}
+const openGoalHistoryId = ref(null);
+function toggleGoalHistory(id) {
+  openGoalHistoryId.value = openGoalHistoryId.value === id ? null : id;
+}
 </script>
 
 <template>
@@ -353,19 +410,39 @@ async function removeGoal(id) {
           <HelpTooltip text="Optionally link a requirement to the Goal it serves — the Goals list below then shows how many of its linked requirements are done, so you can see whether the work underway actually adds up to the outcome." />
         </h3>
         <ul class="space-y-1 mb-2">
-          <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="flex items-center gap-2 text-sm">
-            <input type="checkbox" :checked="!!r.done" :disabled="!canContribute" @change="toggleRequirement(r)" />
-            <span class="flex-1" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</span>
-            <select
-              :value="r.goal_id ?? ''"
-              :disabled="!canContribute"
-              class="border border-white/15 rounded px-1.5 py-0.5 text-xs bg-transparent disabled:opacity-50"
-              @change="changeRequirementGoal(r, $event.target.value)"
-            >
-              <option value="">No goal</option>
-              <option v-for="g in liveProject?.goals ?? []" :key="g.id" :value="g.id">{{ g.text }}</option>
-            </select>
-            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+          <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="text-sm">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" :checked="!!r.done" :disabled="!canContribute" @change="toggleRequirement(r)" />
+              <template v-if="editingRequirementId === r.id">
+                <input
+                  v-model="editRequirementText" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm"
+                  @keydown.enter.prevent="saveRequirementEdit(r)" @keydown.esc="cancelEditRequirement"
+                />
+                <button type="button" title="Cancel" class="text-slate-500 hover:text-white" @click="cancelEditRequirement"><X class="w-3.5 h-3.5" /></button>
+                <button type="button" title="Save" class="text-violet-400 hover:text-violet-300" @click="saveRequirementEdit(r)"><Check class="w-3.5 h-3.5" /></button>
+              </template>
+              <template v-else>
+                <span class="flex-1" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</span>
+                <select
+                  :value="r.goal_id ?? ''"
+                  :disabled="!canContribute"
+                  class="border border-white/15 rounded px-1.5 py-0.5 text-xs bg-transparent disabled:opacity-50"
+                  @change="changeRequirementGoal(r, $event.target.value)"
+                >
+                  <option value="">No goal</option>
+                  <option v-for="g in liveProject?.goals ?? []" :key="g.id" :value="g.id">{{ g.text }}</option>
+                </select>
+                <button
+                  v-if="r.history?.length" type="button" title="Edit history" class="text-slate-500 hover:text-slate-300"
+                  @click="toggleRequirementHistory(r.id)"
+                ><History class="w-3.5 h-3.5" /></button>
+                <button v-if="canContribute" type="button" title="Edit" class="text-slate-500 hover:text-violet-400" @click="startEditRequirement(r)"><Pencil class="w-3.5 h-3.5" /></button>
+                <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+              </template>
+            </div>
+            <ul v-if="openRequirementHistoryId === r.id" class="ml-6 mt-1 space-y-0.5 border-l border-white/10 pl-2 text-xs text-slate-500">
+              <li v-for="h in r.history" :key="h.id">Was "{{ h.previous_text }}" — {{ h.changed_by_name || '—' }}, {{ formatDate(h.changed_at.slice(0, 10)) }}</li>
+            </ul>
           </li>
           <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-500">No requirements yet.</li>
         </ul>
@@ -382,16 +459,40 @@ async function removeGoal(id) {
       <div v-if="isEdit" class="border-t border-white/10 pt-4">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Goals</h3>
         <ul class="space-y-1 mb-2">
-          <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="flex items-center gap-2 text-sm">
-            <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
-            <span class="flex-1" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</span>
-            <span
-              v-if="goalProgress(g.id, liveProject?.requirements ?? []).total > 0"
-              class="text-xs text-slate-500 whitespace-nowrap"
-              title="Linked requirements done"
-            >{{ goalProgress(g.id, liveProject?.requirements ?? []).done }}/{{ goalProgress(g.id, liveProject?.requirements ?? []).total }} reqs</span>
-            <span v-if="g.target_date" class="text-xs text-slate-500 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+          <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="text-sm">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
+              <template v-if="editingGoalId === g.id">
+                <input
+                  v-model="editGoalText" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm"
+                  @keydown.enter.prevent="saveGoalEdit(g)" @keydown.esc="cancelEditGoal"
+                />
+                <input v-model="editGoalTargetDate" type="date" class="border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="saveGoalEdit(g)" />
+                <button type="button" title="Cancel" class="text-slate-500 hover:text-white" @click="cancelEditGoal"><X class="w-3.5 h-3.5" /></button>
+                <button type="button" title="Save" class="text-violet-400 hover:text-violet-300" @click="saveGoalEdit(g)"><Check class="w-3.5 h-3.5" /></button>
+              </template>
+              <template v-else>
+                <span class="flex-1" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</span>
+                <span
+                  v-if="goalProgress(g.id, liveProject?.requirements ?? []).total > 0"
+                  class="text-xs text-slate-500 whitespace-nowrap"
+                  title="Linked requirements done"
+                >{{ goalProgress(g.id, liveProject?.requirements ?? []).done }}/{{ goalProgress(g.id, liveProject?.requirements ?? []).total }} reqs</span>
+                <span v-if="g.target_date" class="text-xs text-slate-500 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
+                <button
+                  v-if="g.history?.length" type="button" title="Edit history" class="text-slate-500 hover:text-slate-300"
+                  @click="toggleGoalHistory(g.id)"
+                ><History class="w-3.5 h-3.5" /></button>
+                <button v-if="canContribute" type="button" title="Edit" class="text-slate-500 hover:text-violet-400" @click="startEditGoal(g)"><Pencil class="w-3.5 h-3.5" /></button>
+                <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+              </template>
+            </div>
+            <ul v-if="openGoalHistoryId === g.id" class="ml-6 mt-1 space-y-0.5 border-l border-white/10 pl-2 text-xs text-slate-500">
+              <li v-for="h in g.history" :key="h.id">
+                Was "{{ h.previous_text }}"<template v-if="h.previous_target_date"> (target: {{ formatDate(h.previous_target_date) }})</template>
+                — {{ h.changed_by_name || '—' }}, {{ formatDate(h.changed_at.slice(0, 10)) }}
+              </li>
+            </ul>
           </li>
           <li v-if="!liveProject?.goals?.length" class="text-sm text-slate-500">No goals yet.</li>
         </ul>
