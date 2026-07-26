@@ -5,6 +5,7 @@ import AggregatedTabs from './components/AggregatedTabs.vue';
 import EventDetailModal from './components/EventDetailModal.vue';
 import HealthSummary from './components/HealthSummary.vue';
 import ImportEventsModal from './components/ImportEventsModal.vue';
+import InitializeProjectModal from './components/InitializeProjectModal.vue';
 import LoginView from './components/LoginView.vue';
 import MembersModal from './components/MembersModal.vue';
 import NotificationsLogModal from './components/NotificationsLogModal.vue';
@@ -24,6 +25,7 @@ const store = useProjectStore();
 
 const mainTab = ref('timeline');
 const showProjectForm = ref(false);
+const showInitProject = ref(false);
 const editingProject = ref(null);
 const showStakeholders = ref(false);
 const showMembers = ref(false);
@@ -76,8 +78,7 @@ async function handleLogout() {
 }
 
 function openNewProject() {
-  editingProject.value = null;
-  showProjectForm.value = true;
+  showInitProject.value = true;
 }
 function openEditProject(project) {
   editingProject.value = project;
@@ -207,6 +208,7 @@ async function focusScopeCreep() {
     </main>
 
     <ProjectFormModal v-if="showProjectForm" :project="editingProject" @close="showProjectForm = false" />
+    <InitializeProjectModal v-if="showInitProject" @close="showInitProject = false" />
     <StakeholderDirectoryModal v-if="showStakeholders" @close="showStakeholders = false" />
     <MembersModal v-if="showMembers" @close="showMembers = false" />
     <NotificationsLogModal v-if="showNotifications" @close="showNotifications = false" />

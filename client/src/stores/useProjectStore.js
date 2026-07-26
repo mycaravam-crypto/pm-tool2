@@ -165,6 +165,31 @@ export const useProjectStore = defineStore('project', {
       await Promise.all([this.fetchProjects(), this.fetchPortfolioSummary()]);
     },
 
+    // Backs the step-by-step "Initialize Project" wizard: unlike createProject,
+    // this also seeds team/goals/requirements in one go instead of leaving them
+    // for a follow-up edit. Requirements can link to a goal created in the same
+    // call, so goals must be created (and their real ids known) before any
+    // requirement referencing one — team assignment has no such dependency, so
+    // it runs alongside the goal creation rather than after it.
+    async initializeProject({ team = [], goals = [], requirements = [], ...projectData }) {
+      const project = await api.projects.create(projectData);
+      const [createdGoals] = await Promise.all([
+        Promise.all(goals.map((g) => api.goals.create({ project_id: project.id, text: g.text, target_date: g.target_date }))),
+        Promise.all(team.map((t) => api.projects.assignStakeholder(project.id, t.stakeholder_id, t.project_role))),
+      ]);
+      await Promise.all(
+        requirements.map((r) =>
+          api.requirements.create({
+            project_id: project.id,
+            text: r.text,
+            goal_id: r.goalIndex == null ? null : createdGoals[r.goalIndex].id,
+          }),
+        ),
+      );
+      await Promise.all([this.fetchProjects(), this.fetchPortfolioSummary()]);
+      return project;
+    },
+
     async updateProject(id, data) {
       await api.projects.update(id, data);
       await this.fetchProjects();
