@@ -45,3 +45,13 @@ export function broadcastNotification(notification) {
     }
   }
 }
+
+// Called on SIGTERM/SIGINT (see index.js). Terminating open sockets directly
+// rather than relying on wss.close() alone — that only stops new connections
+// and waits for existing ones to close on their own, which idle keep-alive
+// clients may never do on their own before the shutdown grace period expires.
+export function closeWebSocketServer() {
+  if (!wss) return;
+  for (const client of wss.clients) client.terminate();
+  wss.close();
+}

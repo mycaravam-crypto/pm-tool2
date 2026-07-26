@@ -59,7 +59,7 @@ Monorepo with two workspaces:
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+ (`better-sqlite3` requires it)
 - npm
 
 ### Install
@@ -94,7 +94,7 @@ The app ships as a single Docker image: the server also serves the built client 
 docker compose up -d --build
 ```
 
-This builds the image, starts the container, and persists the SQLite database in a named Docker volume (`chronos-data`) so it survives rebuilds and `docker compose down`. Set `CLIENT_ORIGIN` (in a `.env` file next to `docker-compose.yml`, or exported in your shell) to the real origin you're serving this from — it's used both for password-reset links and to lock down CORS to that origin.
+This builds the image, starts the container, and persists the SQLite database in a named Docker volume (`chronos-data`) so it survives rebuilds and `docker compose down`. The container runs as a non-root user and creates the database (schema + migrations) on first boot automatically — nothing to run by hand. Copy [`.env.example`](.env.example) to `.env` next to `docker-compose.yml` and fill in what you need; at minimum, set `CLIENT_ORIGIN` to the real origin you're serving this from — it's used both for password-reset links and to lock down CORS to that origin. Set `SEED_DEMO_DATA=true` there to populate the demo projects/logins the first time the app starts against an empty volume (safe to leave `false`/unset for a real deployment — it never touches an existing database).
 
 **Backups:** `docker compose exec app npm run backup -w server` snapshots the live database to a timestamped file inside the same volume (safe to run while the app is up — it doesn't lock the database). Copy it out with `docker cp`, then get it off the host on whatever schedule/storage you use for backups elsewhere.
 

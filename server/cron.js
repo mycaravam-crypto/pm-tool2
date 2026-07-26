@@ -8,9 +8,10 @@ import { runDigest } from './utils/digest.js';
 const SCHEDULE = process.env.CRON_SCHEDULE || '0 7 * * *';
 
 export function startDigestCron() {
-  cron.schedule(SCHEDULE, () => {
+  const task = cron.schedule(SCHEDULE, () => {
     const generated = runDigest();
     console.log(`[cron] digest run generated ${generated.length} notification(s)`);
   });
   console.log(`[cron] digest scheduler active (${SCHEDULE})`);
+  return task;
 }

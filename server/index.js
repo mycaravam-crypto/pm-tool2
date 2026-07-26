@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
-import './db/connection.js';
+import { db } from './db/connection.js';
 
 import { startDigestCron } from './cron.js';
 import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
@@ -20,7 +20,7 @@ import painPointsRouter from './routes/painPoints.js';
 import projectsRouter from './routes/projects.js';
 import requirementsRouter from './routes/requirements.js';
 import stakeholdersRouter from './routes/stakeholders.js';
-import { initWebSocketServer } from './ws.js';
+import { closeWebSocketServer, initWebSocketServer } from './ws.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
@@ -86,4 +86,35 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
 initWebSocketServer(server);
-startDigestCron();
+const digestTask = startDigestCron();
+
+// Docker/orchestrators send SIGTERM on stop/redeploy (Ctrl-C sends SIGINT
+// locally) — without handling these, the default behavior kills the process
+// immediately mid-request and can leave the SQLite file mid-write. This drains
+// in-flight HTTP requests, drops WS connections and the cron job, then closes
+// the database cleanly before exiting.
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down gracefully...`);
+
+  digestTask.stop();
+  closeWebSocketServer();
+
+  // Force-exit if something (e.g. a request that never resolves) keeps the
+  // server from closing on its own within a reasonable grace period.
+  const forceExit = setTimeout(() => {
+    console.error('Shutdown timed out, forcing exit.');
+    process.exit(1);
+  }, 10_000);
+  forceExit.unref();
+
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
