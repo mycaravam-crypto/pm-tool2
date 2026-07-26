@@ -7,22 +7,23 @@ const PAGE_WIDTH = 210; // A4 portrait, mm
 const PAGE_HEIGHT = 297;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
-// Executive-report palette (spec): white page, near-black text, grey secondary/
-// borders/cards, and exactly four status colors reserved for communicating
-// status — no per-"kind" rainbow coding like the previous design used.
+// Design system (spec): dark, minimalist executive theme that mirrors the
+// app's own UI (near-black page, off-white text, violet/cyan brand accent)
+// instead of a generic light "corporate report" look. No decorative card
+// backgrounds or borders anywhere — hierarchy comes from type weight, color,
+// and whitespace alone. Exactly four status colors are reserved for
+// communicating status (schedule/cost/quality, KPI health, budget state,
+// risk severity) — no per-"kind" rainbow coding, and the brand accent
+// (violet/cyan) is never used to mean a status.
 const COLOR = {
-  text: [0x20, 0x21, 0x24], // #202124
-  textSecondary: [0x5f, 0x63, 0x68], // #5F6368
-  border: [0xe6, 0xe6, 0xe6], // #E6E6E6
-  card: [0xfa, 0xfa, 0xfa], // #FAFAFA
-  green: [0x2e, 0x7d, 0x32],
-  greenBg: [0xe8, 0xf5, 0xe9],
-  amber: [0xf9, 0xa8, 0x25],
-  amberBg: [0xff, 0xf8, 0xe1],
-  red: [0xd3, 0x2f, 0x2f],
-  redBg: [0xfd, 0xec, 0xea],
-  blue: [0x15, 0x65, 0xc0],
-  blueBg: [0xe3, 0xf2, 0xfd],
+  bg: [0x08, 0x0a, 0x0f], // #080a0f — matches app's --bg
+  text: [0xf6, 0xf7, 0xfb], // #f6f7fb — matches app's --text
+  textSecondary: [0x8b, 0x93, 0xa7], // #8b93a7 — matches app's --muted
+  border: [0x25, 0x28, 0x30], // subtle hairline against near-black
+  accent: [0x8b, 0x5c, 0xf6], // brand violet (app focus ring / logo family)
+  green: [0x34, 0xd3, 0x99],
+  amber: [0xfb, 0xbf, 0x24],
+  red: [0xf8, 0x71, 0x71],
 };
 
 const SEVERITY_ORDER = { High: 0, Medium: 1, Low: 2 };
@@ -59,21 +60,34 @@ function setText(doc, size, weight, color) {
   doc.setTextColor(...color);
 }
 
+// Every page is filled dark before content is drawn on it — jsPDF pages are
+// white by default, and this must run on every addPage(), not just the
+// first, or auto page-breaks (via ensureRoom) would leave a stray white page.
+function fillPageBackground(doc) {
+  doc.setFillColor(...COLOR.bg);
+  doc.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, 'F');
+}
+
+function addPage(doc) {
+  doc.addPage();
+  fillPageBackground(doc);
+}
+
 // The only place color communicates meaning (schedule/cost/quality, KPI
 // health, budget state, risk severity, decision markers) funnels through
 // this one map, so "red always means the same thing" everywhere in the report.
 function statusVisual(status) {
   switch (status) {
     case 'green':
-      return { fg: COLOR.green, bg: COLOR.greenBg, label: 'On Track' };
+      return { fg: COLOR.green, label: 'On Track' };
     case 'amber':
-      return { fg: COLOR.amber, bg: COLOR.amberBg, label: 'At Risk' };
+      return { fg: COLOR.amber, label: 'At Risk' };
     case 'red':
-      return { fg: COLOR.red, bg: COLOR.redBg, label: 'Critical' };
+      return { fg: COLOR.red, label: 'Critical' };
     case 'blue':
-      return { fg: COLOR.blue, bg: COLOR.blueBg, label: 'Info' };
+      return { fg: COLOR.accent, label: 'Info' };
     default:
-      return { fg: COLOR.textSecondary, bg: COLOR.card, label: 'N/A' };
+      return { fg: COLOR.textSecondary, label: 'N/A' };
   }
 }
 
@@ -93,39 +107,36 @@ function isOverdue(item, today) {
 // the bottom of a page with their content stranded on the next one.
 function ensureRoom(doc, y, minSpace = 30) {
   if (y > PAGE_HEIGHT - minSpace) {
-    doc.addPage();
+    addPage(doc);
     return MARGIN + 4;
   }
   return y;
 }
 
+// Plain muted text line, not a bordered/filled placeholder box — empty
+// sections should read as quiet, not as another card competing for attention.
 function drawEmptyState(doc, y, text) {
-  y = ensureRoom(doc, y, 20);
-  doc.setDrawColor(...COLOR.border);
-  doc.setFillColor(...COLOR.card);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(MARGIN, y - 4, CONTENT_WIDTH, 11, 2, 2, 'FD');
+  y = ensureRoom(doc, y, 16);
   setText(doc, 9.5, 'normal', COLOR.textSecondary);
-  doc.text(text, MARGIN + 4, y + 2.3);
-  return y + 16;
+  doc.text(text, MARGIN, y + 2);
+  return y + 14;
 }
 
+// Dot + bold colored label — no filled pill behind it, so status reads as
+// text-with-emphasis rather than another decorative chip.
 function drawStatusBadge(doc, x, y, status, labelOverride) {
   const sv = statusVisual(status);
   const label = labelOverride ?? sv.label;
-  setText(doc, 9, 'semibold', sv.fg);
-  const badgeW = doc.getTextWidth(label) + 13;
-  doc.setFillColor(...sv.bg);
-  doc.roundedRect(x, y, badgeW, 8, 4, 4, 'F');
   doc.setFillColor(...sv.fg);
-  doc.circle(x + 5.5, y + 4, 1.3, 'F');
-  doc.text(label, x + 9, y + 5.5);
-  return badgeW;
+  doc.circle(x + 1.4, y + 4, 1.5, 'F');
+  setText(doc, 10.5, 'bold', sv.fg);
+  doc.text(label, x + 6, y + 5.5);
+  return doc.getTextWidth(label) + 6;
 }
 
-// Cover block: small tracked eyebrow, big bold title, a metadata line, and an
-// optional overall-status badge — once per document, not repeated as a
-// banner on every page like the previous dark-theme design.
+// Cover block: small tracked eyebrow, big bold title, a thin brand-accent
+// rule, a metadata line, and an optional overall-status marker — once per
+// document, not repeated as a banner on every page.
 function drawReportHeader(doc, { eyebrow, title, generatedLabel, overallStatus }) {
   let y = MARGIN + 3;
   setText(doc, 10, 'semibold', COLOR.textSecondary);
@@ -135,7 +146,11 @@ function drawReportHeader(doc, { eyebrow, title, generatedLabel, overallStatus }
   setText(doc, 30, 'bold', COLOR.text);
   const titleLines = doc.splitTextToSize(title, CONTENT_WIDTH);
   doc.text(titleLines, MARGIN, y);
-  y += titleLines.length * 11 + 3;
+  y += titleLines.length * 11 + 5;
+
+  doc.setFillColor(...COLOR.accent);
+  doc.rect(MARGIN, y, 16, 1.1, 'F');
+  y += 8;
 
   setText(doc, 10.5, 'normal', COLOR.textSecondary);
   doc.text(generatedLabel, MARGIN, y);
@@ -146,17 +161,19 @@ function drawReportHeader(doc, { eyebrow, title, generatedLabel, overallStatus }
     doc.text('Overall Status', MARGIN, y + 5.5);
     const labelX = MARGIN + doc.getTextWidth('Overall Status') + 5;
     drawStatusBadge(doc, labelX, y, overallStatus.status, overallStatus.labelOverride);
-    y += 14;
+    y += 15;
   } else {
-    y += 5;
+    y += 6;
   }
 
   doc.setDrawColor(...COLOR.border);
   doc.setLineWidth(0.4);
   doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
-  return y + 13;
+  return y + 14;
 }
 
+// Page numbers only — no repeated "Generated" date on every page, since the
+// generation date already appears once on the cover.
 function addFooter(doc) {
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
@@ -165,95 +182,119 @@ function addFooter(doc) {
     doc.setLineWidth(0.3);
     doc.line(MARGIN, PAGE_HEIGHT - 15, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 15);
     setText(doc, 8, 'normal', COLOR.textSecondary);
-    doc.text(`Generated ${formatDate(todayStr())}`, MARGIN, PAGE_HEIGHT - 10);
     doc.text(`Page ${i} of ${pageCount}`, PAGE_WIDTH - MARGIN, PAGE_HEIGHT - 10, { align: 'right' });
   }
 }
 
-// 18-22pt bold section heading with breathing room above/below (spec:
-// "plenty of whitespace", "never place sections directly adjacent").
+// 18pt bold section heading, marked with a small brand-accent tick instead
+// of a rule/box, with generous whitespace above/below so sections never sit
+// directly adjacent to one another.
 function drawSectionHeader(doc, y, title) {
-  y = ensureRoom(doc, y + 6, 45);
+  y = ensureRoom(doc, y + 8, 45);
+  doc.setFillColor(...COLOR.accent);
+  doc.rect(MARGIN, y - 5.5, 1.2, 6.5, 'F');
   setText(doc, 18, 'bold', COLOR.text);
-  doc.text(title, MARGIN, y);
-  return y + 11;
+  doc.text(title, MARGIN + 5, y);
+  return y + 12;
 }
 
-// One bordered tile per KPI: small caps label, big number, small status dot —
-// mirrors the app's own dashboard stat tiles rather than a gridded table.
+// Portfolio Health as a single row of plain stat blocks (label / big number /
+// status dot) separated by hairline dividers — no card borders or fills, so
+// aggregated data reads as one unified overview rather than scattered tiles.
 function drawKpiCards(doc, y, cards) {
   y = ensureRoom(doc, y, 40);
-  const gap = 5;
+  const gap = 8;
   const cardWidth = (CONTENT_WIDTH - gap * (cards.length - 1)) / cards.length;
-  const cardHeight = 28;
+  const blockHeight = 26;
 
   cards.forEach((card, i) => {
     const x = MARGIN + i * (cardWidth + gap);
-    doc.setDrawColor(...COLOR.border);
-    doc.setLineWidth(0.3);
-    doc.setFillColor(...COLOR.card);
-    doc.roundedRect(x, y, cardWidth, cardHeight, 2, 2, 'FD');
+    if (i > 0) {
+      doc.setDrawColor(...COLOR.border);
+      doc.setLineWidth(0.3);
+      doc.line(x - gap / 2, y, x - gap / 2, y + blockHeight);
+    }
 
     setText(doc, 7.5, 'semibold', COLOR.textSecondary);
-    const labelLines = doc.splitTextToSize(card.label.toUpperCase(), cardWidth - 8).slice(0, 2);
-    doc.text(labelLines, x + 4, y + 7, { charSpace: 0.15 });
+    const labelLines = doc.splitTextToSize(card.label.toUpperCase(), cardWidth - 4).slice(0, 2);
+    doc.text(labelLines, x, y + 6, { charSpace: 0.15 });
 
-    setText(doc, 18, 'bold', COLOR.text);
+    setText(doc, 19, 'bold', COLOR.text);
     const valueStr = String(card.value);
-    doc.text(valueStr, x + 4, y + 20);
+    doc.text(valueStr, x, y + 20);
 
     const sv = statusVisual(card.status);
     doc.setFillColor(...sv.fg);
-    doc.circle(x + 4 + doc.getTextWidth(valueStr) + 4.5, y + 17.3, 1.6, 'F');
+    doc.circle(x + doc.getTextWidth(valueStr) + 4.5, y + 17.3, 1.6, 'F');
   });
 
-  return y + cardHeight + 12;
+  return y + blockHeight + 13;
 }
 
-// Structured panel: project name, lead/dates as labeled fields, then
-// schedule/cost/quality as large, immediately-recognisable colored dots
-// rather than the word "Red" in a table cell.
+// Project identity + a strict two-row table: labeled fields (lead/dates),
+// then Schedule/Budget/Quality as a column-divided row with bold colored
+// status words — a clean table instead of a bordered/filled summary card.
 function drawProjectSummaryPanel(doc, y, project) {
   y = ensureRoom(doc, y, 55);
-  const panelH = 38;
+
+  setText(doc, 15, 'bold', COLOR.text);
+  doc.text(project.name, MARGIN, y);
+  y += 9;
+
   doc.setDrawColor(...COLOR.border);
   doc.setLineWidth(0.3);
-  doc.setFillColor(...COLOR.card);
-  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, panelH, 2, 2, 'FD');
+  doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+  y += 9;
 
-  const px = MARGIN + 7;
-  let py = y + 11;
-  setText(doc, 13, 'semibold', COLOR.text);
-  doc.text(project.name, px, py);
-  py += 10;
-
-  const fieldW = (CONTENT_WIDTH - 14) / 3;
+  const fieldW = CONTENT_WIDTH / 3;
   const fields = [
     ['Lead', project.lead?.name ?? '—'],
     ['Start Date', formatDate(project.start_date)],
     ['Target Date', formatDate(project.target_end_date)],
   ];
   fields.forEach(([label, value], i) => {
-    const fx = px + i * fieldW;
+    const fx = MARGIN + i * fieldW;
     setText(doc, 7.5, 'semibold', COLOR.textSecondary);
-    doc.text(label.toUpperCase(), fx, py, { charSpace: 0.2 });
-    setText(doc, 10, 'normal', COLOR.text);
-    doc.text(value, fx, py + 5.5);
+    doc.text(label.toUpperCase(), fx, y, { charSpace: 0.2 });
+    setText(doc, 10.5, 'normal', COLOR.text);
+    doc.text(value, fx, y + 5.5);
   });
-  py += 13.5;
+  y += 13;
 
-  ['schedule', 'cost', 'quality'].forEach((key, i) => {
-    const fx = px + i * fieldW;
-    const sv = statusVisual(project.scorecard?.[key] ?? 'n/a');
+  doc.setDrawColor(...COLOR.border);
+  doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+  y += 9;
+
+  const metricW = CONTENT_WIDTH / 3;
+  [
+    ['Schedule', project.scorecard?.schedule],
+    ['Budget', project.scorecard?.cost],
+    ['Quality', project.scorecard?.quality],
+  ].forEach(([label, status], i) => {
+    const fx = MARGIN + i * metricW;
+    if (i > 0) {
+      doc.setDrawColor(...COLOR.border);
+      doc.setLineWidth(0.3);
+      doc.line(fx - 6, y - 6, fx - 6, y + 8);
+    }
+    const sv = statusVisual(status ?? 'n/a');
+    setText(doc, 7.5, 'semibold', COLOR.textSecondary);
+    doc.text(label.toUpperCase(), fx, y, { charSpace: 0.2 });
     doc.setFillColor(...sv.fg);
-    doc.circle(fx + 2, py - 1.4, 2, 'F');
-    setText(doc, 10, 'semibold', COLOR.text);
-    doc.text(`${key[0].toUpperCase()}${key.slice(1)}`, fx + 6.5, py);
+    doc.circle(fx + 1.3, y + 6.8, 1.5, 'F');
+    setText(doc, 10.5, 'bold', sv.fg);
+    doc.text(sv.label, fx + 5, y + 8);
   });
+  y += 13;
 
-  return y + panelH + 12;
+  doc.setDrawColor(...COLOR.border);
+  doc.line(MARGIN, y, PAGE_WIDTH - MARGIN, y);
+  return y + 13;
 }
 
+// Budget bar: an outlined track (not a filled grey box) so the colored fill
+// is the only thing carrying weight against the dark page — high contrast
+// without a decorative background.
 function drawBudgetSection(doc, y, project) {
   y = drawSectionHeader(doc, y, 'Budget');
 
@@ -269,19 +310,23 @@ function drawBudgetSection(doc, y, project) {
   const pct = planned > 0 ? spent / planned : 0;
   const over = spent > planned;
 
-  setText(doc, 11, 'normal', COLOR.text);
-  doc.text(`${fmtNum(spent)} of ${fmtNum(planned)}`, MARGIN, y);
+  setText(doc, 11.5, 'bold', COLOR.text);
+  doc.text(fmtNum(spent), MARGIN, y);
+  const spentW = doc.getTextWidth(fmtNum(spent));
+  setText(doc, 11.5, 'normal', COLOR.textSecondary);
+  doc.text(` of ${fmtNum(planned)}`, MARGIN + spentW, y);
   y += 7;
 
-  const barH = 5;
-  doc.setFillColor(...COLOR.border);
-  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, barH, 2.5, 2.5, 'F');
+  const barH = 4;
+  doc.setDrawColor(...COLOR.border);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(MARGIN, y, CONTENT_WIDTH, barH, 2, 2, 'D');
   const fillW = Math.max(barH, CONTENT_WIDTH * Math.min(pct, 1));
   doc.setFillColor(...(over ? COLOR.red : COLOR.green));
-  doc.roundedRect(MARGIN, y, fillW, barH, 2.5, 2.5, 'F');
+  doc.roundedRect(MARGIN, y, fillW, barH, 2, 2, 'F');
   y += barH + 6;
 
-  setText(doc, 9, 'semibold', over ? COLOR.red : COLOR.textSecondary);
+  setText(doc, 9, 'bold', over ? COLOR.red : COLOR.textSecondary);
   doc.text(
     over
       ? `Over budget by ${fmtNum(spent - planned)} (${Math.round(pct * 100)}%)`
@@ -292,39 +337,46 @@ function drawBudgetSection(doc, y, project) {
   return y + 14;
 }
 
-// Each risk/issue as its own card with a severity-colored left accent bar,
-// instead of a table row — matches the spec's "prioritised list" ask.
+// Risks/issues as a plain bulleted list — a colored severity dot, bold
+// severity + owner line, then the description — separated by hairlines
+// instead of individual bordered/filled cards.
 function drawRiskCards(doc, y, risks, emptyLabel) {
   if (risks.length === 0) return drawEmptyState(doc, y, emptyLabel);
 
-  risks.forEach((r) => {
-    const lines = doc.splitTextToSize(r.text, CONTENT_WIDTH - 14);
-    const cardH = Math.max(17, lines.length * 5 + 11);
-    y = ensureRoom(doc, y, cardH + 10);
+  risks.forEach((r, i) => {
+    const lines = doc.splitTextToSize(r.text, CONTENT_WIDTH - 10);
+    const rowH = lines.length * 5 + 9;
+    y = ensureRoom(doc, y, rowH + 8);
 
-    const barColor = r.severity === 'High' ? COLOR.red : r.severity === 'Medium' ? COLOR.amber : COLOR.border;
-    doc.setDrawColor(...COLOR.border);
-    doc.setLineWidth(0.3);
-    doc.setFillColor(...COLOR.card);
-    doc.roundedRect(MARGIN, y, CONTENT_WIDTH, cardH, 2, 2, 'FD');
-    doc.setFillColor(...barColor);
-    doc.roundedRect(MARGIN, y, 2.2, cardH, 1, 1, 'F');
+    const dotColor = r.severity === 'High' ? COLOR.red : r.severity === 'Medium' ? COLOR.amber : COLOR.textSecondary;
+    doc.setFillColor(...dotColor);
+    doc.circle(MARGIN + 1.3, y + 1.3, 1.5, 'F');
+
+    setText(doc, 9, 'bold', dotColor);
+    const sevLabel = `${r.severity.toUpperCase()} SEVERITY`;
+    doc.text(sevLabel, MARGIN + 6, y + 2);
+    const sevW = doc.getTextWidth(sevLabel);
+
+    const metaParts = [r.owner_name || 'Unassigned'];
+    if (r.resolved !== undefined) metaParts.push(r.resolved ? 'Resolved' : 'Open');
+    setText(doc, 9, 'normal', COLOR.textSecondary);
+    doc.text(`·   ${metaParts.join('   ·   ')}`, MARGIN + 6 + sevW + 4, y + 2);
 
     setText(doc, 10, 'normal', r.resolved ? COLOR.textSecondary : COLOR.text);
-    doc.text(lines, MARGIN + 7, y + 7);
+    doc.text(lines, MARGIN + 6, y + 8);
 
-    const metaParts = [`${r.severity} severity`, r.owner_name || 'Unassigned'];
-    if (r.resolved !== undefined) metaParts.push(r.resolved ? 'Resolved' : 'Open');
-    setText(doc, 8, 'normal', COLOR.textSecondary);
-    doc.text(metaParts.join('   ·   '), MARGIN + 7, y + cardH - 4);
-
-    y += cardH + 5;
+    y += rowH + 6;
+    if (i < risks.length - 1) {
+      doc.setDrawColor(...COLOR.border);
+      doc.setLineWidth(0.2);
+      doc.line(MARGIN, y - 3, PAGE_WIDTH - MARGIN, y - 3);
+    }
   });
-  return y + 5;
+  return y + 4;
 }
 
-// Clean list (labeled header row + horizontal rule + rows) rather than a
-// heavy-bordered table; overdue due-dates render in red automatically.
+// Strict labeled list (header row + hairline + rows); overdue due-dates
+// render bold red so the one thing that needs attention is unmissable.
 function drawTaskList(doc, y, tasks, emptyLabel) {
   y = ensureRoom(doc, y, 30);
   setText(doc, 8, 'semibold', COLOR.textSecondary);
@@ -344,67 +396,64 @@ function drawTaskList(doc, y, tasks, emptyLabel) {
     const rowH = Math.max(7, lines.length * 5);
     y = ensureRoom(doc, y, rowH + 12);
 
-    setText(doc, 9.5, t.overdue ? 'semibold' : 'normal', t.overdue ? COLOR.red : COLOR.textSecondary);
+    setText(doc, 9.5, t.overdue ? 'bold' : 'normal', t.overdue ? COLOR.red : COLOR.textSecondary);
     doc.text(t.dueLabel, MARGIN, y);
     setText(doc, 9.5, 'normal', COLOR.textSecondary);
     doc.text(t.owner, MARGIN + 30, y);
-    setText(doc, 10, 'normal', COLOR.text);
+    setText(doc, 10, t.overdue ? 'bold' : 'normal', t.overdue ? COLOR.red : COLOR.text);
     doc.text(lines, MARGIN + 65, y);
 
-    y += rowH + 4;
+    y += rowH + 5;
     if (i < tasks.length - 1) {
       doc.setDrawColor(...COLOR.border);
       doc.setLineWidth(0.2);
-      doc.line(MARGIN, y - 2, PAGE_WIDTH - MARGIN, y - 2);
-      y += 2;
+      doc.line(MARGIN, y - 2.5, PAGE_WIDTH - MARGIN, y - 2.5);
     }
   });
   return y + 6;
 }
 
-// Requirements/Goals as a checklist with a completion progress bar — hand-
-// drawn checkbox glyphs (not unicode ☐/☑, which most PDF-embedded fonts
-// don't carry) so the checked/unchecked state always renders reliably.
+// Requirements/Goals: a bold "X of Y complete" roll-up + thin progress bar
+// up top (so the aggregate is the first thing read), then the itemized list
+// below — kept, since the underlying text must not be dropped, but with a
+// minimal open/filled dot instead of a bordered checkbox glyph.
 function drawChecklist(doc, y, items, emptyLabel) {
   y = ensureRoom(doc, y, 30);
   const total = items.length;
   const done = items.filter((it) => it.done).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  setText(doc, 9.5, 'normal', COLOR.textSecondary);
+  setText(doc, 11, 'bold', COLOR.text);
   doc.text(total > 0 ? `${done} of ${total} complete` : emptyLabel, MARGIN, y);
 
   if (total > 0) {
-    setText(doc, 9.5, 'semibold', COLOR.textSecondary);
+    setText(doc, 11, 'bold', pct === 100 ? COLOR.green : COLOR.textSecondary);
     doc.text(`${pct}%`, PAGE_WIDTH - MARGIN, y, { align: 'right' });
-    y += 4;
+    y += 5;
     const barW = 50;
     const barX = PAGE_WIDTH - MARGIN - barW;
-    doc.setFillColor(...COLOR.border);
-    doc.roundedRect(barX, y - 2.6, barW, 2.6, 1.3, 1.3, 'F');
-    doc.setFillColor(...(pct === 100 ? COLOR.green : COLOR.blue));
+    doc.setDrawColor(...COLOR.border);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(barX, y - 2.6, barW, 2.6, 1.3, 1.3, 'D');
+    doc.setFillColor(...(pct === 100 ? COLOR.green : COLOR.accent));
     doc.roundedRect(barX, y - 2.6, Math.max(2.6, (barW * pct) / 100), 2.6, 1.3, 1.3, 'F');
   }
-  y += 9;
+  y += 10;
 
-  if (total === 0) return y + 6;
+  if (total === 0) return y + 4;
 
   items.forEach((it) => {
     const lines = doc.splitTextToSize(it.text, CONTENT_WIDTH - (it.meta ? 50 : 8));
     const rowH = Math.max(6.5, lines.length * 5);
     y = ensureRoom(doc, y, rowH + 8);
 
+    doc.setLineWidth(0.5);
     if (it.done) {
       doc.setFillColor(...COLOR.green);
-      doc.roundedRect(MARGIN, y - 3.6, 4, 4, 0.8, 0.8, 'F');
-      doc.setDrawColor(255, 255, 255);
-      doc.setLineWidth(0.5);
-      doc.line(MARGIN + 0.8, y - 1.7, MARGIN + 1.7, y - 0.7);
-      doc.line(MARGIN + 1.7, y - 0.7, MARGIN + 3.3, y - 3.1);
+      doc.circle(MARGIN + 1.3, y - 1.6, 1.5, 'F');
     } else {
       doc.setDrawColor(...COLOR.border);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(MARGIN, y - 3.6, 4, 4, 0.8, 0.8, 'D');
+      doc.circle(MARGIN + 1.3, y - 1.6, 1.5, 'D');
     }
 
     setText(doc, 10, 'normal', it.done ? COLOR.textSecondary : COLOR.text);
@@ -413,38 +462,39 @@ function drawChecklist(doc, y, items, emptyLabel) {
       setText(doc, 8.5, 'normal', COLOR.textSecondary);
       doc.text(it.meta, PAGE_WIDTH - MARGIN, y, { align: 'right' });
     }
-    y += rowH + 3.5;
+    y += rowH + 4;
   });
   return y + 6;
 }
 
-// Decisions as a vertical timeline: a connecting line down the left edge,
-// a dot per entry, bold date, then the decision text and who made it.
+// Decisions as a vertical timeline: connecting line down the left edge, a
+// brand-accent dot per entry, bold date, then the decision text and who made
+// it — generously spaced so entries never crowd each other.
 function drawDecisionTimeline(doc, y, decisions, emptyLabel) {
   if (decisions.length === 0) return drawEmptyState(doc, y, emptyLabel);
 
   const dotX = MARGIN + 2;
   decisions.forEach((d, i) => {
     const lines = doc.splitTextToSize(d.text, CONTENT_WIDTH - 16);
-    const blockH = lines.length * 5 + 11;
-    y = ensureRoom(doc, y, blockH + 10);
+    const blockH = lines.length * 5 + 14;
+    y = ensureRoom(doc, y, blockH + 12);
 
-    doc.setFillColor(...COLOR.blue);
+    doc.setFillColor(...COLOR.accent);
     doc.circle(dotX, y + 1, 1.5, 'F');
     if (i < decisions.length - 1) {
       doc.setDrawColor(...COLOR.border);
       doc.setLineWidth(0.5);
-      doc.line(dotX, y + 3, dotX, y + blockH + 1);
+      doc.line(dotX, y + 3, dotX, y + blockH + 3);
     }
 
-    setText(doc, 9, 'semibold', COLOR.textSecondary);
+    setText(doc, 9, 'bold', COLOR.textSecondary);
     doc.text(d.dateLabel, MARGIN + 9, y + 1.5);
     setText(doc, 10.5, 'normal', COLOR.text);
     doc.text(lines, MARGIN + 9, y + 7.5);
     setText(doc, 8.5, 'normal', COLOR.textSecondary);
     doc.text(`Decided by ${d.decidedBy || '—'}`, MARGIN + 9, y + 7.5 + lines.length * 5 + 3);
 
-    y += blockH + 6;
+    y += blockH + 8;
   });
   return y + 4;
 }
@@ -454,6 +504,7 @@ function drawDecisionTimeline(doc, y, decisions, emptyLabel) {
 export function generateEventProtocolPdf(event) {
   const doc = new jsPDF();
   registerFonts(doc);
+  fillPageBackground(doc);
 
   const overallStatus =
     event.status && event.status !== 'pending'
@@ -530,6 +581,7 @@ export function generateEventProtocolPdf(event) {
 export function generateSituationReportPdf({ projects, events, summary }) {
   const doc = new jsPDF();
   registerFonts(doc);
+  fillPageBackground(doc);
   const today = todayStr();
 
   const totalRequirements = projects.reduce((sum, p) => sum + (p.requirements?.length ?? 0), 0);
@@ -578,7 +630,7 @@ export function generateSituationReportPdf({ projects, events, summary }) {
 
   projects.forEach((project, idx) => {
     if (idx > 0) {
-      doc.addPage();
+      addPage(doc);
       y = MARGIN + 4;
     } else {
       y = ensureRoom(doc, y, 40);
@@ -611,7 +663,7 @@ export function generateSituationReportPdf({ projects, events, summary }) {
       'No open action items.',
     );
 
-    doc.addPage();
+    addPage(doc);
     y = MARGIN + 4;
 
     y = drawSectionHeader(doc, y, 'Requirements');
