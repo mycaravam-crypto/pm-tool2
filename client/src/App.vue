@@ -16,7 +16,6 @@ import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vu
 import Timeline from './components/Timeline.vue';
 import { api } from './lib/api.js';
 import { formatDate, todayStr } from './lib/dateFormat.js';
-import { generateSituationReportPdf } from './lib/pdfReports.js';
 import { playNotificationSound } from './lib/sound.js';
 import { connectNotificationSocket } from './lib/ws.js';
 import { useProjectStore } from './stores/useProjectStore.js';
@@ -98,7 +97,10 @@ function openNewEventOnDate(dateStr) {
   newEventDate.value = dateStr;
   showEventDetail.value = true;
 }
-function exportSituationReport() {
+async function exportSituationReport() {
+  // pdfReports.js embeds its own Inter font data (~300KB) — loaded on demand
+  // here rather than bundled into the main app chunk every visitor downloads.
+  const { generateSituationReportPdf } = await import('./lib/pdfReports.js');
   generateSituationReportPdf({
     projects: store.selectedProjects,
     events: store.events,

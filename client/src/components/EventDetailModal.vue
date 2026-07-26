@@ -4,7 +4,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS, TYPE_COLORS } from '../lib/eventTypes.js';
-import { generateEventProtocolPdf } from '../lib/pdfReports.js';
 import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '../lib/recurrence.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
@@ -223,7 +222,10 @@ async function saveSeries() {
   }
 }
 
-function exportProtocol() {
+async function exportProtocol() {
+  // pdfReports.js embeds its own Inter font data (~300KB) — loaded on demand
+  // here rather than bundled into the main app chunk every visitor downloads.
+  const { generateEventProtocolPdf } = await import('../lib/pdfReports.js');
   generateEventProtocolPdf(liveEvent.value);
 }
 
