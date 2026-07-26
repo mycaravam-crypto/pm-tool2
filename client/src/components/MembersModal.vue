@@ -17,6 +17,7 @@ const form = reactive({
   email: '',
   stakeholder_id: '',
   password: '',
+  role: 'member',
   notify_assigned: true,
   notify_overdue_action_items: true,
   notify_upcoming_deadlines: true,
@@ -36,6 +37,7 @@ function startNew() {
   form.email = '';
   form.stakeholder_id = '';
   form.password = '';
+  form.role = 'member';
   form.notify_assigned = true;
   form.notify_overdue_action_items = true;
   form.notify_upcoming_deadlines = true;
@@ -50,6 +52,7 @@ async function startEdit(m) {
   form.email = m.email;
   form.stakeholder_id = m.stakeholder_id ?? '';
   form.password = '';
+  form.role = m.role;
   form.notify_assigned = !!m.notify_assigned;
   form.notify_overdue_action_items = !!m.notify_overdue_action_items;
   form.notify_upcoming_deadlines = !!m.notify_upcoming_deadlines;
@@ -70,6 +73,7 @@ async function save() {
     email: form.email,
     stakeholder_id: form.stakeholder_id || null,
     password: form.password,
+    role: form.role,
     notify_assigned: form.notify_assigned,
     notify_overdue_action_items: form.notify_overdue_action_items,
     notify_upcoming_deadlines: form.notify_upcoming_deadlines,
@@ -150,6 +154,16 @@ async function toggleSubscription(project) {
         </select>
       </div>
       <div>
+        <label class="flex items-center gap-1 text-xs font-medium text-slate-400 mb-1">
+          Role
+          <HelpTooltip text="Admins have unrestricted access to every project plus the Stakeholder Directory and Members management. There must always be at least one admin." />
+        </label>
+        <select v-model="form.role" class="w-full border border-white/15 rounded px-2 py-1 text-sm">
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div>
         <label class="block text-xs font-medium text-slate-400 mb-1">
           {{ editingId ? 'Set/change password (leave blank to keep unchanged)' : 'Password (leave blank — notification-only, can\'t log in)' }}
         </label>
@@ -186,6 +200,7 @@ async function toggleSubscription(project) {
           <th class="py-1.5">Name</th>
           <th class="py-1.5">Email</th>
           <th class="py-1.5">Linked stakeholder</th>
+          <th class="py-1.5">Role</th>
           <th class="py-1.5">Login</th>
           <th class="py-1.5"></th>
         </tr>
@@ -195,6 +210,12 @@ async function toggleSubscription(project) {
           <td class="py-1.5">{{ m.name }}</td>
           <td class="py-1.5 text-slate-500">{{ m.email }}</td>
           <td class="py-1.5 text-slate-500">{{ m.stakeholder_name || '—' }}</td>
+          <td class="py-1.5">
+            <span
+              class="text-xs px-1.5 py-0.5 rounded"
+              :class="m.role === 'admin' ? 'bg-violet-500/15 text-violet-300' : 'bg-white/10 text-slate-500'"
+            >{{ m.role === 'admin' ? 'Admin' : 'Member' }}</span>
+          </td>
           <td class="py-1.5">
             <span
               class="text-xs px-1.5 py-0.5 rounded"

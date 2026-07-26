@@ -7,7 +7,7 @@ const router = Router();
 // Never select password_hash out to a client — has_password is the only signal
 // the UI gets about whether a member can log in.
 const MEMBER_COLUMNS = `
-  m.id, m.name, m.email, m.stakeholder_id,
+  m.id, m.name, m.email, m.stakeholder_id, m.role,
   m.notify_assigned, m.notify_overdue_action_items, m.notify_upcoming_deadlines,
   m.created_at, s.name AS stakeholder_name,
   (m.password_hash IS NOT NULL) AS has_password
@@ -22,6 +22,15 @@ const getMemberStmt = db.prepare(`
 const getStakeholderStmt = db.prepare('SELECT id FROM stakeholders WHERE id = ?');
 function stakeholderExists(id) {
   return !id || !!getStakeholderStmt.get(id);
+}
+
+const countAdminsStmt = db.prepare("SELECT COUNT(*) AS n FROM members WHERE role = 'admin'");
+// Losing the last admin would lock everyone out of Members/Stakeholders
+// management for good — there'd be no one left with permission to grant it
+// back. Mirrors the "can't remove the lead" guard in routes/projects.js.
+function isLastAdmin(memberId) {
+  const member = db.prepare('SELECT role FROM members WHERE id = ?').get(memberId);
+  return member?.role === 'admin' && countAdminsStmt.get().n <= 1;
 }
 
 router.get('/', (_req, res) => {
@@ -42,26 +51,29 @@ router.post('/', (req, res) => {
     email,
     stakeholder_id,
     password,
+    role = 'member',
     notify_assigned = true,
     notify_overdue_action_items = true,
     notify_upcoming_deadlines = true,
   } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
   if (password && password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
+  if (!['admin', 'member'].includes(role)) return res.status(400).json({ error: 'invalid role' });
   if (!stakeholderExists(stakeholder_id)) {
     return res.status(400).json({ error: 'stakeholder_id does not reference an existing stakeholder' });
   }
   try {
     const info = db
       .prepare(`
-      INSERT INTO members (name, email, stakeholder_id, password_hash, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO members (name, email, stakeholder_id, password_hash, role, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .run(
         name,
         email,
         stakeholder_id || null,
         password ? hashPassword(password) : null,
+        role,
         notify_assigned ? 1 : 0,
         notify_overdue_action_items ? 1 : 0,
         notify_upcoming_deadlines ? 1 : 0,
@@ -81,12 +93,17 @@ router.put('/:id', (req, res) => {
     name = existing.name,
     email = existing.email,
     stakeholder_id = existing.stakeholder_id,
+    role = existing.role,
     notify_assigned = existing.notify_assigned,
     notify_overdue_action_items = existing.notify_overdue_action_items,
     notify_upcoming_deadlines = existing.notify_upcoming_deadlines,
     password,
   } = req.body;
   if (password && password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
+  if (!['admin', 'member'].includes(role)) return res.status(400).json({ error: 'invalid role' });
+  if (role !== 'admin' && isLastAdmin(req.params.id)) {
+    return res.status(400).json({ error: 'cannot demote the last admin' });
+  }
   if (!stakeholderExists(stakeholder_id)) {
     return res.status(400).json({ error: 'stakeholder_id does not reference an existing stakeholder' });
   }
@@ -96,13 +113,14 @@ router.put('/:id', (req, res) => {
   const password_hash = password ? hashPassword(password) : existing.password_hash;
   try {
     db.prepare(`
-      UPDATE members SET name = ?, email = ?, stakeholder_id = ?, password_hash = ?, notify_assigned = ?,
+      UPDATE members SET name = ?, email = ?, stakeholder_id = ?, password_hash = ?, role = ?, notify_assigned = ?,
         notify_overdue_action_items = ?, notify_upcoming_deadlines = ? WHERE id = ?
     `).run(
       name,
       email,
       stakeholder_id || null,
       password_hash,
+      role,
       notify_assigned ? 1 : 0,
       notify_overdue_action_items ? 1 : 0,
       notify_upcoming_deadlines ? 1 : 0,
@@ -119,6 +137,7 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'member not found' });
+  if (isLastAdmin(req.params.id)) return res.status(400).json({ error: 'cannot delete the last admin' });
   db.prepare('DELETE FROM members WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });
