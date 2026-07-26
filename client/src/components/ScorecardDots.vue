@@ -10,7 +10,7 @@ const LABELS = { scope: 'Scope', schedule: 'Schedule', cost: 'Cost', quality: 'Q
 </script>
 
 <template>
-  <div class="flex items-center gap-1" role="group" aria-label="Project scorecard">
+  <div class="scorecard-dots flex items-center gap-1" role="group" aria-label="Project scorecard">
     <span
       v-for="key in ['scope', 'schedule', 'cost', 'quality']"
       :key="key"

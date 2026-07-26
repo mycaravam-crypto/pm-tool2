@@ -306,7 +306,7 @@ function toggleGoalHistory(id) {
 
 <template>
   <ModalShell :title="isEdit ? 'Edit Project' : 'New Project'" :wide="isEdit" @close="emit('close')">
-    <form class="space-y-4" @submit.prevent="save">
+    <form class="project-form-modal space-y-4" @submit.prevent="save">
       <div class="grid grid-cols-2 gap-4">
         <div class="col-span-2">
           <label class="block text-xs font-medium text-slate-400 mb-1">Name</label>

@@ -9,7 +9,7 @@ const emit = defineEmits(['toggle', 'select']);
 </script>
 
 <template>
-  <div class="relative">
+  <div class="cluster-detail-popover relative">
     <button
       type="button"
       class="flex h-[30px] items-center gap-1.5 rounded-full border border-white/16 bg-white/8 px-2.5 text-[11px] font-semibold text-slate-200 shadow-[0_6px_16px_rgba(0,0,0,.22)] transition hover:-translate-y-0.5 hover:bg-white/14 hover:border-white/28"

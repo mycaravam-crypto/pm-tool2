@@ -33,7 +33,7 @@ function toggleMuted() {
 </script>
 
 <template>
-  <aside class="w-72 shrink-0 border-r border-white/8 bg-[#0d0f16] flex flex-col h-full">
+  <aside class="sidebar w-72 shrink-0 border-r border-white/8 bg-[#0d0f16] flex flex-col h-full">
     <div class="p-4 border-b border-white/8">
       <h1 class="text-lg font-semibold text-white tracking-[-.02em]">ChronosPM</h1>
       <p class="text-xs text-slate-500">Multi-project timeline</p>

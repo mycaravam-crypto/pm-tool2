@@ -25,7 +25,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center">
+  <div class="reset-password-view min-h-screen flex items-center justify-center">
     <div class="glass rounded-2xl p-8 w-full max-w-sm space-y-4">
       <div>
         <h1 class="text-lg font-semibold text-white">ChronosPM</h1>

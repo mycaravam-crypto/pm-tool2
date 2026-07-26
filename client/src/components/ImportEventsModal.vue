@@ -78,7 +78,7 @@ function downloadTemplate() {
 
 <template>
   <ModalShell title="Import Events" wide @close="emit('close')">
-    <div class="space-y-4 text-sm">
+    <div class="import-events-modal space-y-4 text-sm">
       <div>
         <label class="block text-xs font-medium text-slate-400 mb-1">Project</label>
         <select v-model.number="projectId" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm">

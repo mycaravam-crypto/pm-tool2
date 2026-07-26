@@ -139,7 +139,7 @@ async function createProject() {
 
 <template>
   <ModalShell title="Initialize Project" wide @close="emit('close')">
-    <div class="space-y-5">
+    <div class="initialize-project-modal space-y-5">
       <!-- Step indicator -->
       <ol class="flex flex-wrap items-center gap-x-1 gap-y-2 text-xs">
         <li v-for="(label, i) in STEPS" :key="label" class="flex items-center">

@@ -39,6 +39,7 @@ async function runDigest() {
 
 <template>
   <ModalShell title="Notifications" wide @close="emit('close')">
+    <div class="notifications-log-modal">
     <p class="flex items-center gap-1 text-sm text-slate-500 mb-3">
       Everything the system has generated, most recent first.
       <HelpTooltip text="Each row was also emailed to its recipient (or logged to the server console if SMTP isn't configured). Real-time rows appear as soon as someone is assigned an action item, pain point, or decision. Digest rows are generated automatically every night — use the button below to also trigger one on demand." />
@@ -74,5 +75,6 @@ async function runDigest() {
       </li>
     </ul>
     <p v-if="store.notifications.length === 0" class="text-sm text-slate-500 py-4">No notifications logged yet.</p>
+    </div>
   </ModalShell>
 </template>

@@ -6,7 +6,7 @@ const emit = defineEmits(['close']);
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" @click.self="emit('close')">
+  <div class="modal-shell fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" @click.self="emit('close')">
     <div
       class="bg-[#121620] border border-white/10 rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-y-auto"
       :class="wide ? 'max-w-2xl' : 'max-w-md'"

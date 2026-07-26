@@ -46,7 +46,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center">
+  <div class="login-view min-h-screen flex items-center justify-center">
     <form class="glass rounded-2xl p-8 w-full max-w-sm space-y-4" @submit.prevent="submit">
       <div>
         <h1 class="text-lg font-semibold text-white">ChronosPM</h1>

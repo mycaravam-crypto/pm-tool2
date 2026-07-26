@@ -346,7 +346,7 @@ async function toggleGoal(g) {
 </script>
 
 <template>
-  <div class="p-6">
+  <div class="aggregated-tabs p-6">
     <div v-if="store.selectedProjectIds.length === 0" class="text-center py-24 text-slate-500">
       Select a project from the sidebar to see aggregated data.
     </div>

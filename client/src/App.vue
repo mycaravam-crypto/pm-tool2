@@ -1,5 +1,5 @@
 <script setup>
-import { FileText, FileUp, Plus } from 'lucide-vue-next';
+import { CalendarDays, FileText, FileUp, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import AggregatedTabs from './components/AggregatedTabs.vue';
 import EventDetailModal from './components/EventDetailModal.vue';
@@ -143,11 +143,11 @@ async function focusScopeCreep() {
 
 <template>
   <ResetPasswordView v-if="resetToken" :token="resetToken" @done="clearResetToken" />
-  <div v-else-if="!authChecked" class="min-h-screen flex items-center justify-center text-sm text-slate-500">
+  <div v-else-if="!authChecked" class="app-loading min-h-screen flex items-center justify-center text-sm text-slate-500">
     Loading…
   </div>
   <LoginView v-else-if="!store.currentMember" @login="handleLogin" />
-  <div v-else class="flex h-screen overflow-hidden">
+  <div v-else class="app-shell flex h-screen overflow-hidden">
     <Sidebar
       @open-stakeholders="showStakeholders = true"
       @open-project-form="openNewProject"
@@ -163,30 +163,33 @@ async function focusScopeCreep() {
         @focus-goals="focusGoals" @focus-scope-creep="focusScopeCreep"
       />
 
-      <div class="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0f16]">
-        <div class="flex gap-1">
+      <div class="main-toolbar flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0f16]">
+        <div class="main-toolbar__tabs inline-flex items-center gap-1 rounded-lg border border-white/8 bg-white/[.03] p-1">
           <button
-            class="px-3 py-1.5 text-sm rounded-lg font-medium transition"
+            class="px-3 py-1.5 text-sm rounded-md font-medium transition"
             :class="mainTab === 'timeline' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'timeline'"
           >Timeline</button>
           <button
-            class="px-3 py-1.5 text-sm rounded-lg font-medium transition"
+            class="px-3 py-1.5 text-sm rounded-md font-medium transition"
             :class="mainTab === 'dashboard' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'dashboard'"
           >Action Items / Pain Points / Decisions</button>
         </div>
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-slate-500 whitespace-nowrap">Today: <span class="font-medium text-slate-300">{{ formatDate(todayStr()) }}</span></span>
+        <div class="main-toolbar__actions flex items-center gap-4">
+          <span class="main-toolbar__today flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/[.03] px-3 py-1.5 text-sm text-slate-500 whitespace-nowrap">
+            <CalendarDays class="w-3.5 h-3.5" />
+            Today: <span class="font-medium text-slate-300">{{ formatDate(todayStr()) }}</span>
+          </span>
           <div v-if="store.selectedProjectIds.length > 0" class="flex items-center gap-2">
             <button
-              class="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+              class="grid h-9 w-9 place-items-center rounded-lg border border-white/8 bg-white/[.03] text-slate-300 transition hover:-translate-y-0.5 hover:bg-white/[.08] hover:text-white hover:border-white/15"
               title="Situation Report" @click="exportSituationReport"
             >
               <FileText class="w-4 h-4" />
             </button>
             <button
-              class="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[.045] text-slate-300 transition hover:bg-white/[.08] hover:text-white"
+              class="grid h-9 w-9 place-items-center rounded-lg border border-white/8 bg-white/[.03] text-slate-300 transition hover:-translate-y-0.5 hover:bg-white/[.08] hover:text-white hover:border-white/15"
               title="Import Events" @click="showImportEvents = true"
             >
               <FileUp class="w-4 h-4" />

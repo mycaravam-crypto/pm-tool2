@@ -83,7 +83,7 @@ function handleKeydown(e) {
 
 <template>
   <div
-    class="relative h-9 rounded-lg bg-white/[.035] border border-white/10 overflow-hidden cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+    class="timeline-minimap relative h-9 rounded-lg bg-white/[.035] border border-white/10 overflow-hidden cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
     role="scrollbar"
     aria-orientation="horizontal"
     aria-controls="timeline-scroll-viewport"

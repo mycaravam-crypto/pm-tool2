@@ -308,7 +308,7 @@ function removeStagedPain(idx) {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[3px]" @click.self="emit('close')">
+  <div class="event-detail-modal fixed inset-0 z-[100] bg-black/60 backdrop-blur-[3px]" @click.self="emit('close')">
     <aside
       class="drawer-panel absolute bottom-2 right-2 top-2 flex w-[min(560px,calc(100vw-16px))] flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#121620] shadow-2xl"
       role="dialog" aria-modal="true" aria-labelledby="event-drawer-title"

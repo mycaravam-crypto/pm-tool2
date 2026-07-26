@@ -69,6 +69,7 @@ async function remove(id) {
 
 <template>
   <ModalShell title="Stakeholder Directory" wide @close="emit('close')">
+    <div class="stakeholder-directory-modal">
     <div class="flex items-center justify-between mb-3">
       <p class="text-sm text-slate-500">Global list of people referenced across projects.</p>
       <button
@@ -122,5 +123,6 @@ async function remove(id) {
       </tbody>
     </table>
     <p v-if="store.stakeholders.length === 0" class="text-sm text-slate-500 py-2">No stakeholders yet.</p>
+    </div>
   </ModalShell>
 </template>

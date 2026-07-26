@@ -125,6 +125,7 @@ async function toggleSubscription(project) {
 
 <template>
   <ModalShell title="Members &amp; Notifications" wide @close="emit('close')">
+    <div class="members-modal">
     <p class="flex items-center gap-1 text-sm text-slate-500 mb-3">
       People who receive email notifications.
       <HelpTooltip text="Separate from the Stakeholder directory — a member can (optionally) link to their Stakeholder identity to get 'assigned to you' alerts, and subscribes to projects independently to get overdue/deadline digests. Sending is stubbed for now — see the Notifications log." />
@@ -230,5 +231,6 @@ async function toggleSubscription(project) {
       </tbody>
     </table>
     <p v-if="store.members.length === 0" class="text-sm text-slate-500 py-2">No members yet.</p>
+    </div>
   </ModalShell>
 </template>

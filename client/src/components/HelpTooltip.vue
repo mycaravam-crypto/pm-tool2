@@ -64,7 +64,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <span ref="root" class="relative inline-flex align-middle">
+  <span ref="root" class="help-tooltip relative inline-flex align-middle">
     <button
       type="button"
       class="text-slate-500 hover:text-violet-400"
