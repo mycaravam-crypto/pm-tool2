@@ -129,7 +129,9 @@ async function focusUpcoming() {
 async function focusGoals() {
   await ensureProjectsSelected();
   mainTab.value = 'dashboard';
-  dashboardFocus.value = { subTab: 'goals', openOnly: true, token: Date.now() };
+  // atRiskOnly, not openOnly — matches what the stat itself counts (at_risk_goals:
+  // unachieved AND overdue-or-due-within-14d), not just "unachieved."
+  dashboardFocus.value = { subTab: 'goals', atRiskOnly: true, token: Date.now() };
 }
 async function focusScopeCreep() {
   await ensureProjectsSelected();

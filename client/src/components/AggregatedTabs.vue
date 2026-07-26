@@ -31,6 +31,7 @@ const painKindFilter = ref('');
 const requirementOpenOnly = ref(false);
 const requirementUnlinkedOnly = ref(false);
 const goalOpenOnly = ref(false);
+const goalAtRiskFilter = ref(false);
 
 watch(
   () => props.focus,
@@ -45,6 +46,7 @@ watch(
       painSeverityFilter.value = f.severity ?? '';
     } else if (f.subTab === 'goals') {
       goalOpenOnly.value = !!f.openOnly;
+      goalAtRiskFilter.value = !!f.atRiskOnly;
     } else if (f.subTab === 'requirements') {
       requirementUnlinkedOnly.value = !!f.unlinkedOnly;
     }
@@ -236,10 +238,15 @@ const goalsInScope = computed(() => {
 const goalsList = computed(() => {
   let rows = goalsInScope.value;
   if (goalOpenOnly.value) rows = rows.filter((g) => !g.achieved);
+  // Same "at risk" definition as GET /api/dashboard/summary's at_risk_goals: unachieved
+  // and either already overdue or due within 14 days — a portfolio-wide lens on the Goals
+  // tab, mirroring Pain Points' risk/issue filter (ALIGNMENT_ROADMAP.md Phase 2, item 3).
+  if (goalAtRiskFilter.value) rows = rows.filter((g) => !g.achieved && g.target_date && g.target_date <= in14DaysStr);
   return [...rows].sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'));
 });
 function clearGoalFilters() {
   goalOpenOnly.value = false;
+  goalAtRiskFilter.value = false;
 }
 
 // Milestone/deadline events aren't decisions/action items/pain points — they're
@@ -384,6 +391,9 @@ async function toggleGoal(g) {
           </label>
           <label v-if="subTab === 'goals'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="goalOpenOnly" /> Open only
+          </label>
+          <label v-if="subTab === 'goals'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
+            <input type="checkbox" v-model="goalAtRiskFilter" /> At risk only
           </label>
           <select v-model="projectFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
             <option value="">All selected projects</option>
