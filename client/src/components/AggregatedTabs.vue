@@ -29,6 +29,7 @@ const painOpenOnly = ref(false);
 const painSeverityFilter = ref('');
 const painKindFilter = ref('');
 const requirementOpenOnly = ref(false);
+const requirementUnlinkedOnly = ref(false);
 const goalOpenOnly = ref(false);
 
 watch(
@@ -44,6 +45,8 @@ watch(
       painSeverityFilter.value = f.severity ?? '';
     } else if (f.subTab === 'goals') {
       goalOpenOnly.value = !!f.openOnly;
+    } else if (f.subTab === 'requirements') {
+      requirementUnlinkedOnly.value = !!f.unlinkedOnly;
     }
   },
   { immediate: true },
@@ -211,10 +214,18 @@ const requirementsInScope = computed(() => {
 const requirementsList = computed(() => {
   let rows = requirementsInScope.value;
   if (requirementOpenOnly.value) rows = rows.filter((r) => !r.done);
+  if (requirementUnlinkedOnly.value) rows = rows.filter((r) => r.goal_id == null);
   return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
 });
 function clearRequirementFilters() {
   requirementOpenOnly.value = false;
+  requirementUnlinkedOnly.value = false;
+}
+// Requirements/goals are both nested off the same project, so a requirement's linked
+// goal text is a lookup into its own project's goals rather than a join — mirrors how
+// goalProgress() already reads requirements off project.requirements for the inverse direction.
+function requirementGoalText(requirement) {
+  return requirement.project.goals.find((g) => g.id === requirement.goal_id)?.text ?? null;
 }
 
 const goalsInScope = computed(() => {
@@ -368,6 +379,9 @@ async function toggleGoal(g) {
           <label v-if="subTab === 'requirements'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="requirementOpenOnly" /> Open only
           </label>
+          <label v-if="subTab === 'requirements'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
+            <input type="checkbox" v-model="requirementUnlinkedOnly" /> No goal only
+          </label>
           <label v-if="subTab === 'goals'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="goalOpenOnly" /> Open only
           </label>
@@ -500,7 +514,7 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'requirements'" class="w-full text-sm">
         <thead>
           <tr :class="TABLE_HEADER_ROW">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Requirement</th><th class="py-1.5">Project</th><th class="py-1.5">Created</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Requirement</th><th class="py-1.5">Project</th><th class="py-1.5">Goal</th><th class="py-1.5">Created</th>
           </tr>
         </thead>
         <tbody>
@@ -508,6 +522,10 @@ async function toggleGoal(g) {
             <td class="py-1.5"><input type="checkbox" :checked="!!r.done" :disabled="!canContributeToProject(r.project.id)" @change="toggleRequirement(r)" /></td>
             <td class="py-1.5" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</td>
             <td class="py-1.5"><ProjectChip :project="r.project" /></td>
+            <td class="py-1.5">
+              <span v-if="requirementGoalText(r)" class="text-slate-500">{{ requirementGoalText(r) }}</span>
+              <span v-else class="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-500/15 text-amber-300">No goal</span>
+            </td>
             <td class="py-1.5 text-slate-500">{{ formatDate(r.created_at.slice(0, 10)) }}</td>
           </tr>
         </tbody>

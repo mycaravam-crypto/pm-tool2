@@ -1,9 +1,9 @@
 <script setup>
-import { AlertCircle, CalendarClock, ShieldAlert, Target } from 'lucide-vue-next';
+import { AlertCircle, CalendarClock, ShieldAlert, Target, Unlink2 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { useProjectStore } from '../stores/useProjectStore.js';
 
-const emit = defineEmits(['focus-overdue', 'focus-pain', 'focus-upcoming', 'focus-goals']);
+const emit = defineEmits(['focus-overdue', 'focus-pain', 'focus-upcoming', 'focus-goals', 'focus-scope-creep']);
 const store = useProjectStore();
 
 // Falls back to the portfolio-wide summary when no project is selected, so this
@@ -55,6 +55,16 @@ const scopeLabel = computed(() => (isScoped.value ? 'Selected:' : 'Portfolio:'))
       @click="emit('focus-goals')"
     >
       <Target class="w-4 h-4" /> {{ summary.at_risk_goals }} goal(s) at risk
+    </button>
+    <button
+      type="button"
+      class="flex items-center gap-1.5 disabled:cursor-default enabled:hover:underline"
+      :class="summary.unlinked_requirements > 0 ? 'text-amber-400' : 'text-slate-500'"
+      :disabled="summary.unlinked_requirements === 0"
+      title="Show these in Requirements"
+      @click="emit('focus-scope-creep')"
+    >
+      <Unlink2 class="w-4 h-4" /> {{ summary.unlinked_requirements }} requirement(s) with no goal
     </button>
   </div>
 </template>

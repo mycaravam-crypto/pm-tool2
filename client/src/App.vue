@@ -131,6 +131,11 @@ async function focusGoals() {
   mainTab.value = 'dashboard';
   dashboardFocus.value = { subTab: 'goals', openOnly: true, token: Date.now() };
 }
+async function focusScopeCreep() {
+  await ensureProjectsSelected();
+  mainTab.value = 'dashboard';
+  dashboardFocus.value = { subTab: 'requirements', unlinkedOnly: true, token: Date.now() };
+}
 </script>
 
 <template>
@@ -150,7 +155,10 @@ async function focusGoals() {
     />
 
     <main class="flex-1 flex flex-col overflow-hidden">
-      <HealthSummary @focus-overdue="focusOverdueActions" @focus-pain="focusHighSeverityPain" @focus-upcoming="focusUpcoming" @focus-goals="focusGoals" />
+      <HealthSummary
+        @focus-overdue="focusOverdueActions" @focus-pain="focusHighSeverityPain" @focus-upcoming="focusUpcoming"
+        @focus-goals="focusGoals" @focus-scope-creep="focusScopeCreep"
+      />
 
       <div class="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0f16]">
         <div class="flex gap-1">

@@ -15,12 +15,14 @@ export const useProjectStore = defineStore('project', {
       open_high_severity_pain_points: 0,
       upcoming_deadlines: 0,
       at_risk_goals: 0,
+      unlinked_requirements: 0,
     },
     portfolioSummary: {
       overdue_action_items: 0,
       open_high_severity_pain_points: 0,
       upcoming_deadlines: 0,
       at_risk_goals: 0,
+      unlinked_requirements: 0,
     },
     loading: false,
   }),
@@ -111,6 +113,7 @@ export const useProjectStore = defineStore('project', {
           open_high_severity_pain_points: 0,
           upcoming_deadlines: 0,
           at_risk_goals: 0,
+          unlinked_requirements: 0,
         };
         return;
       }
@@ -298,13 +301,16 @@ export const useProjectStore = defineStore('project', {
     // Requirements/goals are project-scoped, not event-scoped, and are delivered
     // nested on GET /api/projects (like lead/scorecard) rather than through a
     // separate fetch — so a single fetchProjects() refresh is all these need.
+    // Requirement mutations additionally refresh both summaries: unlike goals,
+    // requirements feed the server-computed unlinked_requirements count (scope-creep
+    // signal), so linking/unlinking/deleting one needs to be reflected there too.
     async addRequirement(data) {
       await api.requirements.create(data);
-      await this.fetchProjects();
+      await Promise.all([this.fetchProjects(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
     },
     async updateRequirement(id, data) {
       await api.requirements.update(id, data);
-      await this.fetchProjects();
+      await Promise.all([this.fetchProjects(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
     },
     async toggleRequirementDone(id, done) {
       await api.requirements.toggleDone(id, done);
@@ -312,7 +318,7 @@ export const useProjectStore = defineStore('project', {
     },
     async deleteRequirement(id) {
       await api.requirements.remove(id);
-      await this.fetchProjects();
+      await Promise.all([this.fetchProjects(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
     },
 
     async addGoal(data) {

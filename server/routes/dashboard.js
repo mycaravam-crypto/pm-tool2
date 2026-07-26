@@ -28,6 +28,7 @@ router.get('/summary', (req, res) => {
       open_high_severity_pain_points: 0,
       upcoming_deadlines: 0,
       at_risk_goals: 0,
+      unlinked_requirements: 0,
     });
   }
 
@@ -69,11 +70,23 @@ router.get('/summary', (req, res) => {
   `)
     .get(...ids, in14Days).n;
 
+  // Scope-creep signal (ALIGNMENT_ROADMAP.md Phase 2, item 2): a requirement with no
+  // linked goal has no stated outcome it serves. Deliberately just the "unlinked" half
+  // of the roadmap's "unlinked and/or added after the schedule baseline" — that variant
+  // needs no new date-comparison logic and has an existing seed-data example to demo it.
+  const unlinkedRequirements = db
+    .prepare(`
+    SELECT COUNT(*) AS n FROM requirements r
+    WHERE r.project_id IN (${placeholders}) AND r.goal_id IS NULL
+  `)
+    .get(...ids).n;
+
   res.json({
     overdue_action_items: overdueActionItems,
     open_high_severity_pain_points: openHighSeverity,
     upcoming_deadlines: upcomingDeadlines,
     at_risk_goals: atRiskGoals,
+    unlinked_requirements: unlinkedRequirements,
   });
 });
 
