@@ -21,7 +21,7 @@ Full analysis lives in the conversation that started this; this doc carries forw
 - No new API endpoints needed: `requirements` create/update already forward an arbitrary body object end-to-end, so `goal_id` slots in with zero route-plumbing changes in `api.js`/`useProjectStore.js`.
 - Amber Scope state is *not* represented in seed data (only 2 seed projects, both have a cleaner red/green story already) — verify amber manually by editing a goal's target date in the running app.
 
-## Phase 1 — Goal traceability + Scope health signal (done, uncommitted on `feature/goal-alignment`)
+## Phase 1 — Goal traceability + Scope health signal (done, committed on `feature/goal-alignment`)
 
 - [x] Schema: `requirements.goal_id` column + index (`schema.sql`, `migrations.js`)
 - [x] `server/routes/requirements.js`: accept + same-project-validate `goal_id` on POST/PUT
@@ -38,7 +38,7 @@ Full analysis lives in the conversation that started this; this doc carries forw
 - [x] `PLAN.md` §11 + `README.md`: documented
 - [x] Verification pass: `npm run lint` clean; API-level checks (scorecard colors, cross-project `goal_id` rejected with 400, dashboard `at_risk_goals`, digest producing a goal notification) all passed against a throwaway server instance; UI walked end-to-end with Playwright (4-dot scorecard, requirement→goal picker, "X/Y reqs" progress, health-strip stat) — screenshots matched expectations, no regressions in console errors beyond a pre-existing/benign 401 on the unauthenticated `GET /api/auth/me` check at app boot.
 
-**Resume here:** Phase 1 is functionally complete and verified but was sitting uncommitted on `feature/goal-alignment` as of 2026-07-26 — check `git log feature/goal-alignment` / `git status` first to see whether it's since been committed. If still uncommitted, review the diff and commit it, then move on to Phase 2 below.
+**Resume here:** Phase 1 is complete, verified, and committed as `b8b1fbd` on `feature/goal-alignment` (2026-07-26). Not yet merged to `main`, not pushed. Next: either open a PR for Phase 1, or start on Phase 2 below.
 
 ## Phase 2 — backlog (not started, no code yet)
 
