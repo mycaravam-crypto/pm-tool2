@@ -7,6 +7,7 @@ import {
   History,
   RefreshCw,
   Rocket,
+  Target,
   Users,
   XCircle,
 } from 'lucide-vue-next';
@@ -65,4 +66,27 @@ export function resolveEventVisual(event, todayStr) {
     return { icon: base.icon, shape: base.shape, iconClass: 'text-amber-600', bgClass: 'bg-amber-50' };
   }
   return { icon: base.icon, shape: base.shape, iconClass: 'text-slate-700', bgClass: 'bg-white' };
+}
+
+// Goals aren't a real event type (no DB row, no CHECK-constraint membership) — they're
+// a synthetic marker built client-side from project.goals for the timeline's "Goals"
+// lens (ALIGNMENT_ROADMAP.md Phase 2). Deliberately NOT added to EVENT_TYPES/
+// EVENT_TYPE_KEYS: that map also drives the real "create/edit event" type <select>
+// (EventDetailModal.vue), and events.type has a CHECK(type IN (...)) that doesn't
+// include 'goal' — leaking it in there would offer a selectable type the API rejects.
+// Fuchsia/Target mirror the existing "goal" hue used elsewhere (AggregatedTabs' Goals
+// pill, the Health Summary "at risk" stat) so the marker reads as the same concept.
+export const GOAL_COLOR = '#e879f9';
+
+// Mirrors resolveEventVisual's forward-type branch, minus the "missed" state — a goal
+// only has achieved/unachieved, no equivalent of a milestone being explicitly marked missed.
+export function resolveGoalVisual(goal, todayStr) {
+  if (goal.status === 'achieved') {
+    return { icon: CheckCircle2, shape: 'diamond', iconClass: 'text-emerald-600', bgClass: 'bg-emerald-50' };
+  }
+  const isOverduePending = goal.date < todayStr;
+  if (isOverduePending) {
+    return { icon: Target, shape: 'diamond', iconClass: 'text-amber-600', bgClass: 'bg-amber-50' };
+  }
+  return { icon: Target, shape: 'diamond', iconClass: 'text-slate-700', bgClass: 'bg-white' };
 }

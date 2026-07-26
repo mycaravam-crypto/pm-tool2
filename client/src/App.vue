@@ -191,7 +191,7 @@ async function focusGoals() {
       </div>
 
       <div class="flex-1 overflow-auto">
-        <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" @new-event="openNewEventOnDate" />
+        <Timeline v-if="mainTab === 'timeline'" @select-event="openEvent" @select-goal="openEditProject" @new-event="openNewEventOnDate" />
         <AggregatedTabs v-else :focus="dashboardFocus" @select-event="openEvent" />
       </div>
     </main>

@@ -1,8 +1,16 @@
 <script setup>
-import { Calendar, CalendarSearch, Repeat, RotateCcw, Search, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { Calendar, CalendarSearch, Repeat, RotateCcw, Search, Target, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { EVENT_TYPE_KEYS, EVENT_TYPES, FORWARD_TYPES, resolveEventVisual, TYPE_COLORS } from '../lib/eventTypes.js';
+import {
+  EVENT_TYPE_KEYS,
+  EVENT_TYPES,
+  FORWARD_TYPES,
+  GOAL_COLOR,
+  resolveEventVisual,
+  resolveGoalVisual,
+  TYPE_COLORS,
+} from '../lib/eventTypes.js';
 import { computeClusters as computeClustersPure, computePositionedEvents } from '../lib/timelineAggregation.js';
 import {
   computeRange,
@@ -15,7 +23,7 @@ import ClusterDetailPopover from './ClusterDetailPopover.vue';
 import HelpTooltip from './HelpTooltip.vue';
 import TimelineMiniMap from './TimelineMiniMap.vue';
 
-const emit = defineEmits(['select-event', 'new-event']);
+const emit = defineEmits(['select-event', 'select-goal', 'new-event']);
 const store = useProjectStore();
 
 const todayStr = getTodayStr();
@@ -69,6 +77,7 @@ const trackEl = ref(null);
 const isPanning = ref(false);
 const search = ref('');
 const activeTypes = ref([...EVENT_TYPE_KEYS]);
+const showGoals = ref(true);
 
 function toggleType(key) {
   const idx = activeTypes.value.indexOf(key);
@@ -88,9 +97,14 @@ const semanticZoomLabel = computed(() =>
   computeSemanticZoomLabel(BASE_PX_PER_DAY * zoomLevel.value, DAY_GRID_MIN_PX_PER_DAY),
 );
 
+// Goal target dates feed the range too (not just when the "Goals" pill is on) so the
+// visible date span doesn't jump around as that toggle is flipped.
 const range = computed(() =>
   computeRange(
-    store.events.map((e) => e.date),
+    [
+      ...store.events.map((e) => e.date),
+      ...store.selectedProjects.flatMap((p) => (p.goals || []).map((g) => g.target_date).filter(Boolean)),
+    ],
     todayStr,
   ),
 );
@@ -116,6 +130,31 @@ const visibleEvents = computed(() => {
   );
 });
 
+// Goals rendered as their own lens on the timeline (ALIGNMENT_ROADMAP.md Phase 2) —
+// synthetic pseudo-events built from each selected project's goals, not real `events`
+// rows. Shares the same search term as events so search covers both; gated separately
+// by the "Goals" pill rather than the type-filter pills, since a goal isn't a real event type.
+const visibleGoalMarkers = computed(() => {
+  if (!showGoals.value) return [];
+  const term = search.value.trim().toLowerCase();
+  return store.selectedProjects.flatMap((p) =>
+    (p.goals || [])
+      .filter((g) => g.target_date && (!term || g.text.toLowerCase().includes(term)))
+      .map((g) => ({
+        id: `goal-${g.id}`,
+        date: g.target_date,
+        title: g.text,
+        status: g.achieved ? 'achieved' : 'pending',
+        isGoal: true,
+        project: p,
+      })),
+  );
+});
+
+function resolveVisual(event, todayStrArg) {
+  return event.isGoal ? resolveGoalVisual(event, todayStrArg) : resolveEventVisual(event, todayStrArg);
+}
+
 const summaryStats = computed(() => {
   const visible = visibleEvents.value;
   const achieved = visible.filter((e) => e.status === 'achieved').length;
@@ -138,12 +177,12 @@ const summaryStats = computed(() => {
 // so zooming in is the fix for "labels are colliding." Logic lives in
 // timelineAggregation.js so it's unit-testable without mounting the component.
 const clusters = computed(() =>
-  computeClustersPure(visibleEvents.value, {
+  computeClustersPure([...visibleEvents.value, ...visibleGoalMarkers.value], {
     range: range.value,
     trackWidth: trackWidth.value,
     todayStr,
     thresholdPx: CLUSTER_THRESHOLD_PX,
-    resolveVisual: resolveEventVisual,
+    resolveVisual,
   }),
 );
 
@@ -162,7 +201,8 @@ function closeOverflow() {
 }
 function selectOverflowEvent(event) {
   closeOverflow();
-  emit('select-event', event);
+  if (event.isGoal) emit('select-goal', event.project);
+  else emit('select-event', event);
 }
 
 function cardTitle(event) {
@@ -475,6 +515,17 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
                 <span class="h-2 w-2 rounded-full" :style="{ backgroundColor: TYPE_COLORS[key], boxShadow: activeTypes.includes(key) ? `0 0 10px ${TYPE_COLORS[key]}` : 'none' }" />
                 {{ EVENT_TYPES[key].label }}
               </button>
+              <span class="h-4 w-px shrink-0 bg-white/10" />
+              <button
+                type="button"
+                class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                :class="showGoals ? 'border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-200' : 'border-white/6 bg-transparent text-slate-600 hover:text-slate-300'"
+                title="Toggle goal target-date markers"
+                @click="showGoals = !showGoals"
+              >
+                <Target class="h-3 w-3" />Goals
+                <span class="text-[10px] text-slate-500">{{ visibleGoalMarkers.length }}</span>
+              </button>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
@@ -630,9 +681,9 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
                   type="button"
                   class="event-card"
                   :class="event.visual.shape === 'diamond' ? 'event-card--diamond' : ''"
-                  :style="{ left: `${event.leftPercent}%`, top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px`, width: `${CARD_WIDTH}px`, borderColor: `${TYPE_COLORS[event.type]}55` }"
+                  :style="{ left: `${event.leftPercent}%`, top: `${BASELINE_TOP - (STACK_BASE + event.stackIndex * STACK_STEP)}px`, width: `${CARD_WIDTH}px`, borderColor: `${event.isGoal ? GOAL_COLOR : TYPE_COLORS[event.type]}55` }"
                   :title="cardTitle(event)"
-                  @click="emit('select-event', event)"
+                  @click="event.isGoal ? emit('select-goal', event.project) : emit('select-event', event)"
                 >
                   <span
                     class="event-badge"
@@ -660,6 +711,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
           <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full border-2 border-slate-400" /> Record</span>
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border-2 border-slate-400 rotate-45" /> Milestone / Deadline</span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 border-2 rotate-45" :style="{ borderColor: GOAL_COLOR }" /> Goal (target date)</span>
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-50 border-2 border-emerald-500" /> Achieved</span>
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-50 border-2 border-rose-500" /> Missed</span>
             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-50 border-2 border-amber-500" /> Overdue, unmarked</span>
