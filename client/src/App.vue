@@ -1,5 +1,5 @@
 <script setup>
-import { CalendarDays, FileText, FileUp, Plus } from 'lucide-vue-next';
+import { CalendarDays, CalendarRange, FileText, FileUp, ListChecks, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import AggregatedTabs from './components/AggregatedTabs.vue';
 import EventDetailModal from './components/EventDetailModal.vue';
@@ -166,15 +166,15 @@ async function focusScopeCreep() {
       <div class="main-toolbar flex items-center justify-between px-6 py-3 border-b border-white/8 bg-[#0d0f16]">
         <div class="main-toolbar__tabs inline-flex items-center gap-1 rounded-lg border border-white/8 bg-white/[.03] p-1">
           <button
-            class="px-3 py-1.5 text-sm rounded-md font-medium transition"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition"
             :class="mainTab === 'timeline' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'timeline'"
-          >Timeline</button>
+          ><CalendarRange class="w-3.5 h-3.5" />Timeline</button>
           <button
-            class="px-3 py-1.5 text-sm rounded-md font-medium transition"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium transition"
             :class="mainTab === 'dashboard' ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-white/8 hover:text-white'"
             @click="mainTab = 'dashboard'"
-          >Action Items / Pain Points / Decisions</button>
+          ><ListChecks class="w-3.5 h-3.5" />Items</button>
         </div>
         <div class="main-toolbar__actions flex items-center gap-4">
           <span class="main-toolbar__today flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/[.03] px-3 py-1.5 text-sm text-slate-500 whitespace-nowrap">
