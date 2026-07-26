@@ -69,6 +69,50 @@ const seed = db.transaction(() => {
   insertPS.run(campaign, alice, 'sponsor');
   insertPS.run(campaign, carol, 'member');
 
+  // Goals/Requirements — project-scoped (not event-scoped), so they're seeded
+  // here rather than alongside the events below. Requirements optionally link
+  // to the goal they serve via goal_id; Website's set demonstrates a healthy,
+  // on-track goal (green Scope scorecard) plus one deliberately unlinked
+  // requirement, while Campaign's demonstrates an overdue, unachieved goal
+  // (red Scope) alongside one achieved despite its own date having passed —
+  // proving "achieved" exempts a goal from the overdue check.
+  const insertGoal = db.prepare('INSERT INTO goals (project_id, text, target_date, achieved) VALUES (?, ?, ?, ?)');
+  const insertRequirement = db.prepare(
+    'INSERT INTO requirements (project_id, text, done, goal_id) VALUES (?, ?, ?, ?)',
+  );
+
+  const websiteLaunchGoal = insertGoal.run(
+    website,
+    'Launch redesigned marketing site with improved conversion rate',
+    '2026-09-30',
+    0,
+  ).lastInsertRowid;
+  const websiteDesignSystemGoal = insertGoal.run(
+    website,
+    'Establish a reusable design system for all product surfaces',
+    null,
+    0,
+  ).lastInsertRowid;
+  insertRequirement.run(website, 'Homepage hero + navigation redesign', 1, websiteLaunchGoal);
+  insertRequirement.run(website, 'Checkout flow redesign', 0, websiteLaunchGoal);
+  insertRequirement.run(website, 'Mobile-responsive layout across all pages', 1, websiteLaunchGoal);
+  insertRequirement.run(website, 'Extract shared Button/Input/Form components', 1, websiteDesignSystemGoal);
+  insertRequirement.run(website, 'Document design tokens (color/spacing/type scale)', 0, websiteDesignSystemGoal);
+  // Deliberately unlinked — shows the "requirement not tied to any stated goal" case.
+  insertRequirement.run(website, 'WCAG 2.1 AA accessibility audit', 0, null);
+
+  const campaignLeadsGoal = insertGoal.run(
+    campaign,
+    'Generate 500 qualified leads from the Q3 campaign',
+    '2026-07-10',
+    0,
+  ).lastInsertRowid;
+  const campaignPressGoal = insertGoal.run(campaign, 'Land at least 3 press mentions', '2026-06-01', 1).lastInsertRowid;
+  insertRequirement.run(campaign, 'Paid social creative set (3 variants)', 1, campaignLeadsGoal);
+  insertRequirement.run(campaign, 'Landing page with lead capture form', 1, campaignLeadsGoal);
+  insertRequirement.run(campaign, 'Retargeting audience segments configured', 0, campaignLeadsGoal);
+  insertRequirement.run(campaign, 'Press kit distributed to 10 outlets', 1, campaignPressGoal);
+
   const insertEvent = db.prepare(`
     INSERT INTO events (project_id, title, date, type, summary, status)
     VALUES (@project_id, @title, @date, @type, @summary, @status)
@@ -324,7 +368,9 @@ const seed = db.transaction(() => {
 
 seed();
 
-console.log('Seed complete: 2 projects, 4 stakeholders, 13 events, 4 members, 2 sample notifications.');
+console.log(
+  'Seed complete: 2 projects, 4 stakeholders, 13 events, 4 goals, 10 requirements, 4 members, 2 sample notifications.',
+);
 console.log('Use the "Run Digest Now" button in the Notifications modal to generate overdue/deadline digests.');
 console.log('');
 console.log('Demo logins (password: chronos123):');

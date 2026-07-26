@@ -218,10 +218,18 @@ CREATE TABLE IF NOT EXISTS requirements (
     project_id INTEGER NOT NULL,
     text TEXT NOT NULL,
     done INTEGER NOT NULL DEFAULT 0,
+    goal_id INTEGER, -- optional link to the outcome (goals) this requirement (deliverable) serves;
+        -- nulled rather than cascaded on goal deletion, same as decided_by/owner_id/assignee_id —
+        -- losing the goal shouldn't erase the requirement's own history
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_requirements_project_id ON requirements(project_id);
+-- idx_requirements_goal_id is created in migrations.js, not here: on a database
+-- that predates the goal_id column, an unconditional CREATE INDEX in this file
+-- would run (and fail — no such column) before migrations.js gets a chance to
+-- ALTER TABLE it in. Same pattern as idx_events_series_id below.
 
 -- 13. Goals — what success looks like for the project. target_date is optional;
 -- a goal doesn't have to be time-bound.

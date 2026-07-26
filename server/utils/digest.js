@@ -92,6 +92,50 @@ export function runDigest() {
             );
             generatedIds.push(info.lastInsertRowid);
           }
+
+          // Goals get the same overdue/upcoming treatment as milestones/deadlines
+          // above, reusing the same toggle and notification type — a goal's
+          // target_date is the same kind of "date something should happen by"
+          // signal, just scoped to the project rather than to an event.
+          const overdueGoals = db
+            .prepare(`
+            SELECT text, target_date FROM goals
+            WHERE project_id = ? AND achieved = 0 AND target_date IS NOT NULL AND target_date < ?
+            ORDER BY target_date
+          `)
+            .all(projectId, today);
+          if (overdueGoals.length > 0) {
+            const body = overdueGoals
+              .map((g) => `- ${g.text} (target ${formatDate(g.target_date)}, overdue)`)
+              .join('\n');
+            const info = insertNotification.run(
+              member.id,
+              'deadline_digest',
+              `${overdueGoals.length} overdue goal(s)`,
+              body,
+              projectId,
+            );
+            generatedIds.push(info.lastInsertRowid);
+          }
+
+          const upcomingGoals = db
+            .prepare(`
+            SELECT text, target_date FROM goals
+            WHERE project_id = ? AND achieved = 0 AND target_date BETWEEN ? AND ?
+            ORDER BY target_date
+          `)
+            .all(projectId, today, in14);
+          if (upcomingGoals.length > 0) {
+            const body = upcomingGoals.map((g) => `- ${g.text} (target ${formatDate(g.target_date)})`).join('\n');
+            const info = insertNotification.run(
+              member.id,
+              'deadline_digest',
+              `${upcomingGoals.length} upcoming goal(s)`,
+              body,
+              projectId,
+            );
+            generatedIds.push(info.lastInsertRowid);
+          }
         }
       }
     }

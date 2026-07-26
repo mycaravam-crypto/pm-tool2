@@ -4,13 +4,25 @@ import { canAccessProject, canContribute } from '../utils/access.js';
 
 const router = Router();
 
+// A goal_id must reference a goal on the same project — otherwise a requirement
+// could claim to serve an outcome from a project it isn't even part of.
+function goalBelongsToProject(goalId, projectId) {
+  if (goalId == null) return true;
+  const goal = db.prepare('SELECT project_id FROM goals WHERE id = ?').get(goalId);
+  return !!goal && goal.project_id === Number(projectId);
+}
+
 router.post('/', (req, res) => {
-  const { project_id, text } = req.body;
+  const { project_id, text, goal_id = null } = req.body;
   if (!project_id || !text) return res.status(400).json({ error: 'project_id and text are required' });
   if (!canAccessProject(req.member, project_id)) return res.status(404).json({ error: 'project not found' });
   if (!canContribute(req.member, project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
-  const info = db.prepare('INSERT INTO requirements (project_id, text) VALUES (?, ?)').run(project_id, text);
+  if (!goalBelongsToProject(goal_id, project_id))
+    return res.status(400).json({ error: 'goal_id does not reference a goal on this project' });
+  const info = db
+    .prepare('INSERT INTO requirements (project_id, text, goal_id) VALUES (?, ?, ?)')
+    .run(project_id, text, goal_id);
   res.status(201).json(db.prepare('SELECT * FROM requirements WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -20,8 +32,10 @@ router.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'requirement not found' });
   if (!canContribute(req.member, existing.project_id))
     return res.status(403).json({ error: 'read-only access to this project' });
-  const { text = existing.text } = req.body;
-  db.prepare('UPDATE requirements SET text = ? WHERE id = ?').run(text, req.params.id);
+  const { text = existing.text, goal_id = existing.goal_id } = req.body;
+  if (!goalBelongsToProject(goal_id, existing.project_id))
+    return res.status(400).json({ error: 'goal_id does not reference a goal on this project' });
+  db.prepare('UPDATE requirements SET text = ?, goal_id = ? WHERE id = ?').run(text, goal_id, req.params.id);
   res.json(db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id));
 });
 

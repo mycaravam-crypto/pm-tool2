@@ -10,8 +10,18 @@ export const useProjectStore = defineStore('project', {
     notifications: [],
     selectedProjectIds: [],
     events: [],
-    scopedSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
-    portfolioSummary: { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 },
+    scopedSummary: {
+      overdue_action_items: 0,
+      open_high_severity_pain_points: 0,
+      upcoming_deadlines: 0,
+      at_risk_goals: 0,
+    },
+    portfolioSummary: {
+      overdue_action_items: 0,
+      open_high_severity_pain_points: 0,
+      upcoming_deadlines: 0,
+      at_risk_goals: 0,
+    },
     loading: false,
   }),
 
@@ -96,7 +106,12 @@ export const useProjectStore = defineStore('project', {
 
     async fetchScopedSummary() {
       if (this.selectedProjectIds.length === 0) {
-        this.scopedSummary = { overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 };
+        this.scopedSummary = {
+          overdue_action_items: 0,
+          open_high_severity_pain_points: 0,
+          upcoming_deadlines: 0,
+          at_risk_goals: 0,
+        };
         return;
       }
       this.scopedSummary = await api.dashboard.summary(this.selectedProjectIds);

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
 import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
+import { goalProgress } from '../lib/goalProgress.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import EventLink from './EventLink.vue';
@@ -41,6 +42,8 @@ watch(
     } else if (f.subTab === 'pain') {
       painOpenOnly.value = !!f.openOnly;
       painSeverityFilter.value = f.severity ?? '';
+    } else if (f.subTab === 'goals') {
+      goalOpenOnly.value = !!f.openOnly;
     }
   },
   { immediate: true },
@@ -520,7 +523,7 @@ async function toggleGoal(g) {
       <table v-if="subTab === 'goals'" class="w-full text-sm">
         <thead>
           <tr :class="TABLE_HEADER_ROW">
-            <th class="py-1.5 w-8"></th><th class="py-1.5">Goal</th><th class="py-1.5">Project</th><th class="py-1.5">Target date</th>
+            <th class="py-1.5 w-8"></th><th class="py-1.5">Goal</th><th class="py-1.5">Project</th><th class="py-1.5">Linked</th><th class="py-1.5">Target date</th>
           </tr>
         </thead>
         <tbody>
@@ -528,6 +531,12 @@ async function toggleGoal(g) {
             <td class="py-1.5"><input type="checkbox" :checked="!!g.achieved" :disabled="!canContributeToProject(g.project.id)" @change="toggleGoal(g)" /></td>
             <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</td>
             <td class="py-1.5"><ProjectChip :project="g.project" /></td>
+            <td class="py-1.5 text-slate-500">
+              <template v-if="goalProgress(g.id, g.project.requirements).total > 0">
+                {{ goalProgress(g.id, g.project.requirements).done }}/{{ goalProgress(g.id, g.project.requirements).total }} reqs
+              </template>
+              <template v-else>—</template>
+            </td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>
           </tr>
         </tbody>

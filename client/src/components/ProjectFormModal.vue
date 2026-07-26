@@ -3,6 +3,7 @@ import { Check, Crown, Loader2, Plus, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { api } from '../lib/api.js';
 import { formatDate } from '../lib/dateFormat.js';
+import { goalProgress } from '../lib/goalProgress.js';
 import { useProjectStore } from '../stores/useProjectStore.js';
 import HelpTooltip from './HelpTooltip.vue';
 import ModalShell from './ModalShell.vue';
@@ -170,12 +171,18 @@ async function changeRole(stakeholderId, role) {
 }
 
 const newRequirementText = ref('');
+const newRequirementGoalId = ref('');
 async function addRequirement() {
   if (!newRequirementText.value.trim()) return;
   error.value = '';
   try {
-    await store.addRequirement({ project_id: props.project.id, text: newRequirementText.value.trim() });
+    await store.addRequirement({
+      project_id: props.project.id,
+      text: newRequirementText.value.trim(),
+      goal_id: newRequirementGoalId.value || null,
+    });
     newRequirementText.value = '';
+    newRequirementGoalId.value = '';
   } catch (e) {
     error.value = e.message;
   }
@@ -184,6 +191,14 @@ async function toggleRequirement(r) {
   error.value = '';
   try {
     await store.toggleRequirementDone(r.id, !r.done);
+  } catch (e) {
+    error.value = e.message;
+  }
+}
+async function changeRequirementGoal(r, goalId) {
+  error.value = '';
+  try {
+    await store.updateRequirement(r.id, { text: r.text, goal_id: goalId || null });
   } catch (e) {
     error.value = e.message;
   }
@@ -333,17 +348,33 @@ async function removeGoal(id) {
       </div>
 
       <div v-if="isEdit" class="border-t border-white/10 pt-4">
-        <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Requirements</h3>
+        <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1">
+          Requirements
+          <HelpTooltip text="Optionally link a requirement to the Goal it serves — the Goals list below then shows how many of its linked requirements are done, so you can see whether the work underway actually adds up to the outcome." />
+        </h3>
         <ul class="space-y-1 mb-2">
           <li v-for="r in liveProject?.requirements ?? []" :key="r.id" class="flex items-center gap-2 text-sm">
             <input type="checkbox" :checked="!!r.done" :disabled="!canContribute" @change="toggleRequirement(r)" />
             <span class="flex-1" :class="r.done ? 'line-through text-slate-500' : ''">{{ r.text }}</span>
+            <select
+              :value="r.goal_id ?? ''"
+              :disabled="!canContribute"
+              class="border border-white/15 rounded px-1.5 py-0.5 text-xs bg-transparent disabled:opacity-50"
+              @change="changeRequirementGoal(r, $event.target.value)"
+            >
+              <option value="">No goal</option>
+              <option v-for="g in liveProject?.goals ?? []" :key="g.id" :value="g.id">{{ g.text }}</option>
+            </select>
             <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="!liveProject?.requirements?.length" class="text-sm text-slate-500">No requirements yet.</li>
         </ul>
         <div v-if="canContribute" class="flex gap-2">
           <input v-model="newRequirementText" placeholder="New requirement…" class="flex-1 border border-white/15 rounded px-2 py-1 text-sm" @keydown.enter.prevent="addRequirement" />
+          <select v-model="newRequirementGoalId" class="border border-white/15 rounded-md px-2 py-1 text-sm">
+            <option value="">No goal</option>
+            <option v-for="g in liveProject?.goals ?? []" :key="g.id" :value="g.id">{{ g.text }}</option>
+          </select>
           <button type="button" class="text-violet-400" @click="addRequirement"><Plus class="w-4 h-4" /></button>
         </div>
       </div>
@@ -354,6 +385,11 @@ async function removeGoal(id) {
           <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="flex items-center gap-2 text-sm">
             <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
             <span class="flex-1" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</span>
+            <span
+              v-if="goalProgress(g.id, liveProject?.requirements ?? []).total > 0"
+              class="text-xs text-slate-500 whitespace-nowrap"
+              title="Linked requirements done"
+            >{{ goalProgress(g.id, liveProject?.requirements ?? []).done }}/{{ goalProgress(g.id, liveProject?.requirements ?? []).total }} reqs</span>
             <span v-if="g.target_date" class="text-xs text-slate-500 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
             <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>

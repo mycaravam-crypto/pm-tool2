@@ -23,7 +23,12 @@ router.get('/summary', (req, res) => {
   if (accessibleIds !== null) ids = ids.filter((id) => accessibleIds.includes(id));
 
   if (ids.length === 0) {
-    return res.json({ overdue_action_items: 0, open_high_severity_pain_points: 0, upcoming_deadlines: 0 });
+    return res.json({
+      overdue_action_items: 0,
+      open_high_severity_pain_points: 0,
+      upcoming_deadlines: 0,
+      at_risk_goals: 0,
+    });
   }
 
   const placeholders = ids.map(() => '?').join(',');
@@ -54,10 +59,21 @@ router.get('/summary', (req, res) => {
   `)
     .get(...ids, today, in14Days).n;
 
+  // "At risk" covers both overdue and due-within-14-days in one number, same
+  // as the timeline's amber nudge treats both as "needs attention now" — unlike
+  // upcoming_deadlines above, which only looks forward.
+  const atRiskGoals = db
+    .prepare(`
+    SELECT COUNT(*) AS n FROM goals g
+    WHERE g.project_id IN (${placeholders}) AND g.achieved = 0 AND g.target_date IS NOT NULL AND g.target_date <= ?
+  `)
+    .get(...ids, in14Days).n;
+
   res.json({
     overdue_action_items: overdueActionItems,
     open_high_severity_pain_points: openHighSeverity,
     upcoming_deadlines: upcomingDeadlines,
+    at_risk_goals: atRiskGoals,
   });
 });
 

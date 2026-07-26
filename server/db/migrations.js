@@ -37,9 +37,13 @@ export function runMigrations(db) {
   if (!hasColumn(db, 'events', 'occurrence_index')) {
     db.exec('ALTER TABLE events ADD COLUMN occurrence_index INTEGER');
   }
+  if (!hasColumn(db, 'requirements', 'goal_id')) {
+    db.exec('ALTER TABLE requirements ADD COLUMN goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL');
+  }
   // Outside the check above, not inside it: on a brand-new database the column
   // already exists (created directly by schema.sql), so the ALTER is skipped —
   // but the index still needs to be created either way.
   db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_events_series_id ON events(series_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_requirements_goal_id ON requirements(goal_id)');
 }

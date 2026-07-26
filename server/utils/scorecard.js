@@ -9,6 +9,8 @@ const highSeverityOpenCount = db.prepare(`
   WHERE e.project_id = ? AND pp.severity = 'High' AND pp.resolved = 0
 `);
 
+const projectGoals = db.prepare('SELECT target_date, achieved FROM goals WHERE project_id = ?');
+
 export function computeScorecard(project) {
   const today = todayStmt();
 
@@ -35,5 +37,18 @@ export function computeScorecard(project) {
   const highOpen = highSeverityOpenCount.get(project.id).n;
   const quality = highOpen >= 3 ? 'red' : highOpen >= 1 ? 'amber' : 'green';
 
-  return { schedule, cost, quality };
+  // Scope: the 4th leg of the iron triangle (PLAN.md §3), alongside Schedule/
+  // Cost/Quality above — red/amber mirror Schedule's own overdue/due-soon
+  // thresholds, just against goals.target_date/achieved instead of the
+  // project's own target_end_date.
+  const goals = projectGoals.all(project.id);
+  let scope = 'n/a';
+  if (goals.length > 0) {
+    const open = goals.filter((g) => !g.achieved && g.target_date);
+    const overdue = open.some((g) => g.target_date < today);
+    const dueSoon = open.some((g) => (new Date(g.target_date) - new Date(today)) / 86400000 <= 14);
+    scope = overdue ? 'red' : dueSoon ? 'amber' : 'green';
+  }
+
+  return { schedule, cost, quality, scope };
 }
