@@ -14,12 +14,17 @@ const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 // instead of every section looking like undifferentiated gray.
 const ACCENT = {
   neutral: [71, 85, 105], // slate-600 — headers/dividers with no specific concern
+  brand: [139, 92, 246], // violet-500 — matches the app's own focus-ring/selection accent (style.css), used wherever a section has no project/kind color of its own
   decision: [124, 58, 237], // violet-600
   action: [2, 132, 199], // sky-600
   pain: [217, 119, 6], // amber-600
   requirement: [8, 145, 178], // cyan-600
   goal: [192, 38, 211], // fuchsia-600
 };
+
+// Matches the app shell's actual --bg (style.css) rather than a generic Tailwind
+// navy, so the banner reads as the same product instead of a stock report theme.
+const INK = [8, 10, 15];
 
 const SLATE_50 = [248, 250, 252];
 const SLATE_200 = [226, 232, 240];
@@ -49,15 +54,21 @@ const SCORECARD_LABELS = { green: 'Green', amber: 'Amber', red: 'Red', 'n/a': 'n
 // read as the same document family. `eyebrow` is the small caps label above
 // the big title (e.g. "EVENT PROTOCOL"); `accentRgb` tints the stripe under
 // the banner (project color, when there is one relevant to the whole document).
-function drawHeaderBanner(doc, { eyebrow, title, accentRgb = ACCENT.neutral }) {
-  doc.setFillColor(...SLATE_900);
+function drawHeaderBanner(doc, { eyebrow, title, accentRgb = ACCENT.brand }) {
+  doc.setFillColor(...INK);
   doc.rect(0, 0, PAGE_WIDTH, 30, 'F');
   doc.setFillColor(...accentRgb);
   doc.rect(0, 30, PAGE_WIDTH, 1.6, 'F');
 
+  // Small brand dot ahead of the eyebrow — always violet regardless of the
+  // stripe's own accent (project/section color), so every report carries a
+  // consistent ChronosPM mark rather than only naming the product in the footer.
+  doc.setFillColor(...ACCENT.brand);
+  doc.circle(MARGIN + 1, 9.1, 0.9, 'F');
+
   doc.setFontSize(8.5);
   doc.setTextColor(...SLATE_400);
-  doc.text(eyebrow.toUpperCase(), MARGIN, 11);
+  doc.text(eyebrow.toUpperCase(), MARGIN + 4, 11);
 
   doc.setFontSize(17);
   doc.setFont(undefined, 'bold');
@@ -133,6 +144,41 @@ function sectionTable(doc, y, title, head, rows, emptyLabel, accentKey = 'neutra
     alternateRowStyles: { fillColor: SLATE_50 },
   });
   return doc.lastAutoTable.finalY + 10;
+}
+
+// Renders one bordered tile per stat — a colored marker, a big number, a
+// wrapped label underneath — mirroring the "SELECTED" stat tiles in the app's
+// own HealthSummary bar (App.vue) rather than a plain gridded table, so the
+// portfolio-health snapshot reads as the same component instead of a
+// spreadsheet dropped into the report.
+function drawStatCards(doc, y, cards) {
+  const gap = 4;
+  const cardWidth = (CONTENT_WIDTH - gap * (cards.length - 1)) / cards.length;
+  const cardHeight = 26;
+
+  cards.forEach((card, i) => {
+    const x = MARGIN + i * (cardWidth + gap);
+    doc.setDrawColor(...SLATE_200);
+    doc.setLineWidth(0.3);
+    doc.setFillColor(...SLATE_50);
+    doc.roundedRect(x, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+
+    doc.setFillColor(...card.accentRgb);
+    doc.roundedRect(x + 3, y + 3, 3, 3, 0.8, 0.8, 'F');
+
+    doc.setFontSize(15);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(...SLATE_900);
+    doc.text(String(card.value), x + 3, y + 14.5);
+    doc.setFont(undefined, 'normal');
+
+    doc.setFontSize(7);
+    doc.setTextColor(...SLATE_500);
+    const labelLines = doc.splitTextToSize(card.label, cardWidth - 6).slice(0, 2);
+    doc.text(labelLines, x + 3, y + 19.5);
+  });
+
+  return y + cardHeight + 10;
 }
 
 // Per-event "meeting minutes" style export: title/project/date block, participants,
@@ -232,42 +278,30 @@ export function generateSituationReportPdf({ projects, events, summary }) {
   doc.text(`Generated ${formatDate(todayStr())}  ·  Projects: ${projects.map((p) => p.name).join(', ')}`, MARGIN, y);
   y += 9;
 
+  doc.setFillColor(...ACCENT.brand);
+  doc.roundedRect(MARGIN, y - 3.3, 2.8, 2.8, 0.6, 0.6, 'F');
   doc.setFontSize(10.5);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(...SLATE_900);
-  doc.text('PORTFOLIO HEALTH', MARGIN, y);
+  doc.text('PORTFOLIO HEALTH', MARGIN + 5.5, y);
   doc.setFont(undefined, 'normal');
-  y += 4.5;
+  y += 6;
   const totalRequirements = projects.reduce((sum, p) => sum + (p.requirements?.length ?? 0), 0);
   const doneRequirements = projects.reduce((sum, p) => sum + (p.requirements?.filter((r) => r.done).length ?? 0), 0);
   const totalGoals = projects.reduce((sum, p) => sum + (p.goals?.length ?? 0), 0);
   const achievedGoals = projects.reduce((sum, p) => sum + (p.goals?.filter((g) => g.achieved).length ?? 0), 0);
-  autoTable(doc, {
-    startY: y,
-    margin: { left: MARGIN, right: MARGIN },
-    head: [
-      [
-        'Overdue action items',
-        'Open high-severity pain points',
-        'Upcoming milestones/deadlines (14d)',
-        'Requirements fulfilled',
-        'Goals achieved',
-      ],
-    ],
-    body: [
-      [
-        summary.overdue_action_items,
-        summary.open_high_severity_pain_points,
-        summary.upcoming_deadlines,
-        `${doneRequirements}/${totalRequirements}`,
-        `${achievedGoals}/${totalGoals}`,
-      ],
-    ],
-    theme: 'grid',
-    styles: { fontSize: 9, halign: 'center', textColor: [30, 41, 59] },
-    headStyles: { fillColor: ACCENT.neutral, fontSize: 8 },
-  });
-  y = doc.lastAutoTable.finalY + 14;
+  y = drawStatCards(doc, y, [
+    { value: summary.overdue_action_items, label: 'Overdue action items', accentRgb: ACCENT.action },
+    { value: summary.open_high_severity_pain_points, label: 'Open high-severity pain points', accentRgb: ACCENT.pain },
+    { value: summary.upcoming_deadlines, label: 'Upcoming milestones/deadlines (14d)', accentRgb: ACCENT.brand },
+    {
+      value: `${doneRequirements}/${totalRequirements}`,
+      label: 'Requirements fulfilled',
+      accentRgb: ACCENT.requirement,
+    },
+    { value: `${achievedGoals}/${totalGoals}`, label: 'Goals achieved', accentRgb: ACCENT.goal },
+  ]);
+  y += 4;
 
   for (const project of projects) {
     y = ensureRoom(doc, y, 55);
