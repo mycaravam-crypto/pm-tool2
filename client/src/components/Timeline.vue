@@ -8,7 +8,6 @@ import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from
 import {
   EVENT_TYPE_KEYS,
   EVENT_TYPES,
-  FORWARD_TYPES,
   GOAL_COLOR,
   resolveEventVisual,
   resolveGoalVisual,
@@ -137,21 +136,6 @@ function resolveVisual(event, todayStrArg) {
   return event.isGoal ? resolveGoalVisual(event, todayStrArg) : resolveEventVisual(event, todayStrArg);
 }
 
-const summaryStats = computed(() => {
-  const visible = visibleEvents.value;
-  const achieved = visible.filter((e) => e.status === 'achieved').length;
-  const missed = visible.filter((e) => e.status === 'missed').length;
-  const overdue = visible.filter(
-    (e) => FORWARD_TYPES.includes(e.type) && e.status === 'pending' && e.date < todayStr,
-  ).length;
-  return [
-    { label: 'Visible events', value: visible.length, note: `of ${store.events.length}` },
-    { label: 'Achieved', value: achieved, note: 'milestones & deadlines' },
-    { label: 'Missed', value: missed, note: 'milestones & deadlines' },
-    { label: 'Overdue, unmarked', value: overdue, note: 'needs a status' },
-  ];
-});
-
 // Groups events close enough in *rendered pixel space* to collide, not just events
 // sharing an exact date — recomputes with trackWidth, so zooming in is what
 // un-clusters them. Logic lives in timelineAggregation.js so it's unit-testable.
@@ -214,22 +198,29 @@ const monthMarkers = computed(() => {
   return markers;
 });
 
-// Heaviest gridline tier — anchors "which year" over a multi-year range, since month labels alone are easy to lose track of.
-const yearMarkers = computed(() => {
+// Heaviest gridline tier — anchors "which year" over a multi-year range, since
+// month labels alone are easy to lose track of. Rendered as full-height bands
+// (left border + top-left-pinned label) rather than a single line, matching
+// the year axis in prototypes/timeline-ui-prototype.html. leftPercent's own
+// clamping handles years that only partially overlap the visible range.
+const yearBands = computed(() => {
   const { min, max } = range.value;
-  const markers = [];
+  const bands = [];
   const cursor = new Date(min.getFullYear(), 0, 1);
-  if (cursor < min) cursor.setFullYear(cursor.getFullYear() + 1);
   while (cursor <= max) {
-    const dateStr = cursor.toISOString().slice(0, 10);
-    markers.push({
-      key: dateStr,
-      leftPercent: leftPercent(dateStr),
+    const startStr = cursor.toISOString().slice(0, 10);
+    const nextYear = new Date(cursor.getFullYear() + 1, 0, 1);
+    const endStr = nextYear.toISOString().slice(0, 10);
+    const left = leftPercent(startStr);
+    bands.push({
+      key: startStr,
+      leftPercent: left,
+      widthPercent: Math.max(0, leftPercent(endStr) - left),
       label: formatYear(cursor),
     });
     cursor.setFullYear(cursor.getFullYear() + 1);
   }
-  return markers;
+  return bands;
 });
 
 // Uses the actual rendered trackWidth (post-clamping), not the nominal zoom-derived
@@ -556,14 +547,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
           <span v-if="store.loading" class="mt-2 block text-xs italic text-slate-500">Updating…</span>
         </div>
 
-        <!-- Summary stats strip -->
-        <div class="grid grid-cols-2 border-b border-white/7 bg-black/10 sm:grid-cols-4">
-          <div v-for="stat in summaryStats" :key="stat.label" class="border-r border-white/6 px-4 py-3 last:border-r-0 sm:px-6">
-            <div class="text-[10px] font-semibold uppercase tracking-[.14em] text-slate-500">{{ stat.label }}</div>
-            <div class="mt-1 flex items-end gap-2"><strong class="text-xl font-semibold tracking-tight text-slate-100">{{ stat.value }}</strong><span class="pb-0.5 text-[11px] text-slate-500">{{ stat.note }}</span></div>
-          </div>
-        </div>
-
         <!-- Timeline viewport -->
         <div
           id="timeline-scroll-viewport"
@@ -628,20 +611,15 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
               >{{ m.label }}</div>
             </TransitionGroup>
 
-            <!-- year gridlines: heaviest tier, painted last so it wins visually on shared ticks -->
+            <!-- year bands: heaviest tier, painted last so it wins visually on shared ticks -->
             <TransitionGroup name="fade-pop" tag="div">
               <div
-                v-for="y in yearMarkers" :key="y.key"
-                class="absolute top-0 w-px bg-white/[.14] transition-[left] duration-300 ease-out"
-                :style="{ left: y.leftPercent + '%', height: BASELINE_TOP + 'px' }"
-              />
-            </TransitionGroup>
-            <TransitionGroup name="fade-pop" tag="div">
-              <div
-                v-for="y in yearMarkers" :key="'label-' + y.key"
-                class="absolute text-[11px] font-semibold text-slate-300 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
-                :style="{ left: y.leftPercent + '%', top: (BASELINE_TOP + 28) + 'px' }"
-              >{{ y.label }}</div>
+                v-for="y in yearBands" :key="y.key"
+                class="absolute top-0 border-l border-white/10 transition-[left,width] duration-300 ease-out"
+                :style="{ left: y.leftPercent + '%', width: y.widthPercent + '%', height: BASELINE_TOP + 'px' }"
+              >
+                <div class="absolute left-3 top-3 text-[11px] font-bold tracking-[.08em] text-slate-300">{{ y.label }}</div>
+              </div>
             </TransitionGroup>
 
             <!-- baseline -->
