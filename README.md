@@ -14,7 +14,7 @@ ChronosPM deliberately maps onto the classic PM "iron triangle" — scope, time,
 |---|---|
 | **Scope** | A project's description, its Decisions log, and its Goals/Requirements — what was agreed to build, and whether it's tracking toward the outcomes it's for |
 | **Time** | Start/target-end/actual-end dates, plus `milestone` and `deadline` events on the timeline itself; the original target date is kept alongside the current one so schedule slip stays visible |
-| **Cost** | Planned vs. spent budget, tracked as a single running total |
+| **Cost** | Planned vs. spent budget, tracked as a single running total; the originally planned budget is kept alongside the current one so a later re-plan stays visible as a delta, same as schedule slip |
 | **Quality** | Pain Points, each with a severity, a resolution state, and a risk/issue distinction — a risk is a pain point that hasn't happened yet |
 | **People** | Stakeholders assigned to a project with a governance role: `lead`, `sponsor`, `member`, or `stakeholder` |
 | **Accountability** | Every project has exactly one `lead` — the person accountable for its schedule, budget, and quality — enforced by the data model, not just convention |

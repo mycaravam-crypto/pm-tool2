@@ -22,6 +22,10 @@ export function runMigrations(db) {
     // read as "slipped from nothing" — best available proxy for "what it was at creation".
     db.exec('UPDATE projects SET original_target_end_date = target_end_date WHERE original_target_end_date IS NULL');
   }
+  if (!hasColumn(db, 'projects', 'original_budget_planned')) {
+    db.exec('ALTER TABLE projects ADD COLUMN original_budget_planned REAL');
+    db.exec('UPDATE projects SET original_budget_planned = budget_planned WHERE original_budget_planned IS NULL');
+  }
   if (!hasColumn(db, 'pain_points', 'kind')) {
     db.exec("ALTER TABLE pain_points ADD COLUMN kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk'))");
   }
