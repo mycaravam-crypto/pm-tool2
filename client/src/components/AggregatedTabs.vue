@@ -21,9 +21,13 @@ const emit = defineEmits(['select-event']);
 
 const store = useProjectStore();
 const subTab = ref('overview');
-// Defaults "My Tasks" to whoever's logged in, when their account is linked to a
-// Stakeholder identity — still just a starting point, the dropdown stays editable.
-const assigneeFilter = ref(store.currentMember?.stakeholder_id ?? '');
+// Focus mode: defaults to showing only what's assigned/owned by the logged-in
+// user (Action Items' assignee, Pain Points' owner) across Overview/Actions/Pain,
+// so the app opens on "what do I need to get done" rather than the full portfolio.
+// Has no effect when the account isn't linked to a Stakeholder identity (nothing
+// to filter to), or on Decisions/Requirements/Goals, which have no personal owner.
+const onlyMine = ref(true);
+const myStakeholderId = computed(() => store.currentMember?.stakeholder_id ?? null);
 const projectFilter = ref('');
 const actionOverdueOnly = ref(false);
 const painOpenOnly = ref(false);
@@ -40,9 +44,10 @@ watch(
     if (!f) return;
     subTab.value = f.subTab;
     if (f.subTab === 'actions') {
-      assigneeFilter.value = ''; // drilling in from a portfolio-wide count shouldn't stay scoped to "My Tasks"
+      onlyMine.value = false; // drilling in from a portfolio-wide count shouldn't stay scoped to "Only mine"
       actionOverdueOnly.value = !!f.overdueOnly;
     } else if (f.subTab === 'pain') {
+      onlyMine.value = false;
       painOpenOnly.value = !!f.openOnly;
       painSeverityFilter.value = f.severity ?? '';
     } else if (f.subTab === 'goals') {
@@ -63,8 +68,10 @@ const isOverdue = (item) => isOverdueOn(item, todayStr);
 // Combines every trackable item — event-sourced (decisions/action items/pain points)
 // and project-sourced (requirements/goals) — into one chronological log for the
 // Overview tab. Requirements/goals carry no `event`, so `project` is set explicitly
-// on each row and the Event column renders '—' for them.
-const allItems = computed(() => {
+// on each row and the Event column renders '—' for them. `personId` is only set on
+// action/pain rows (the two kinds with a real assignee/owner) — undefined on the
+// rest, so the "Only mine" filter below leaves decisions/requirements/goals alone.
+const allItemsInScope = computed(() => {
   let rows = store.events.flatMap((e) => [
     ...e.action_items.map((a) => ({
       kind: 'action',
@@ -75,6 +82,7 @@ const allItems = computed(() => {
       event: e,
       project: e.project,
       person: a.assignee_name,
+      personId: a.assignee_id,
       statusLabel: a.done ? 'Done' : isOverdue(a) ? 'Overdue' : 'Open',
       statusClass: a.done
         ? 'bg-emerald-500/15 text-emerald-300'
@@ -91,6 +99,7 @@ const allItems = computed(() => {
       event: e,
       project: e.project,
       person: p.owner_name,
+      personId: p.owner_id,
       statusLabel: p.resolved ? 'Resolved' : p.severity,
       statusClass: p.resolved
         ? 'bg-emerald-500/15 text-emerald-300'
@@ -144,6 +153,10 @@ const allItems = computed(() => {
   if (projectFilter.value) rows = rows.filter((r) => r.project.id === Number(projectFilter.value));
   return rows.sort((a, b) => b.date.localeCompare(a.date));
 });
+const allItems = computed(() => {
+  if (!onlyMine.value || !myStakeholderId.value) return allItemsInScope.value;
+  return allItemsInScope.value.filter((r) => r.personId === undefined || r.personId === myStakeholderId.value);
+});
 
 const KIND_LABELS = {
   action: 'Action Item',
@@ -169,12 +182,12 @@ const actionItemsInScope = computed(() => {
 });
 const actionItems = computed(() => {
   let rows = actionItemsInScope.value;
-  if (assigneeFilter.value) rows = rows.filter((a) => a.assignee_id === Number(assigneeFilter.value));
+  if (onlyMine.value && myStakeholderId.value) rows = rows.filter((a) => a.assignee_id === myStakeholderId.value);
   if (actionOverdueOnly.value) rows = rows.filter(isOverdue);
   return [...rows].sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
 });
 function clearActionFilters() {
-  assigneeFilter.value = '';
+  onlyMine.value = false;
   actionOverdueOnly.value = false;
 }
 
@@ -185,6 +198,7 @@ const painPointsInScope = computed(() => {
 });
 const painPoints = computed(() => {
   let rows = painPointsInScope.value;
+  if (onlyMine.value && myStakeholderId.value) rows = rows.filter((p) => p.owner_id === myStakeholderId.value);
   if (painOpenOnly.value) rows = rows.filter((p) => !p.resolved);
   if (painSeverityFilter.value) rows = rows.filter((p) => p.severity === painSeverityFilter.value);
   if (painKindFilter.value) rows = rows.filter((p) => p.kind === painKindFilter.value);
@@ -192,6 +206,7 @@ const painPoints = computed(() => {
   return [...rows].sort((a, b) => order[a.severity] - order[b.severity]);
 });
 function clearPainFilters() {
+  onlyMine.value = false;
   painOpenOnly.value = false;
   painSeverityFilter.value = '';
   painKindFilter.value = '';
@@ -257,22 +272,6 @@ const decisions = computed(() => {
   return rows.sort((a, b) => b.event.date.localeCompare(a.event.date));
 });
 
-// The Stakeholder Directory is admin-only, so a non-admin can't fetch
-// store.stakeholders to populate this filter — build it instead from assignees
-// visible in this user's own events, plus their own entry.
-const knownAssignees = computed(() => {
-  const byId = new Map();
-  for (const e of store.events) {
-    for (const a of e.action_items) {
-      if (a.assignee_id && !byId.has(a.assignee_id)) byId.set(a.assignee_id, a.assignee_name);
-    }
-  }
-  if (store.currentMember?.stakeholder_id && !byId.has(store.currentMember.stakeholder_id)) {
-    byId.set(store.currentMember.stakeholder_id, store.currentMember.name);
-  }
-  return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-});
-
 // This view spans every selected project, so each row needs its own project's role
 // checked (unlike EventDetailModal/ProjectFormModal, which compute one canContribute
 // for their single project). Mirrors server-side canContribute in server/utils/access.js.
@@ -329,13 +328,16 @@ async function toggleGoal(g) {
           >{{ t[1] }}</button>
         </div>
         <div class="flex items-center gap-2">
+          <label
+            v-if="['overview', 'actions', 'pain'].includes(subTab)"
+            class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap"
+            :title="myStakeholderId ? '' : 'Your account isn\'t linked to a stakeholder identity, so there\'s nothing to filter to.'"
+          >
+            <input type="checkbox" v-model="onlyMine" :disabled="!myStakeholderId" /> Only mine
+          </label>
           <label v-if="subTab === 'actions'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="actionOverdueOnly" /> Overdue only
           </label>
-          <select v-if="subTab === 'actions'" v-model="assigneeFilter" class="border border-white/15 rounded px-2 py-1 text-sm">
-            <option value="">My Tasks: all assignees</option>
-            <option v-for="s in knownAssignees" :key="s.id" :value="s.id">{{ s.name }}</option>
-          </select>
           <label v-if="subTab === 'pain'" class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap">
             <input type="checkbox" v-model="painOpenOnly" /> Open only
           </label>
@@ -406,7 +408,13 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'overview' && allItems.length === 0" class="text-sm text-slate-500 py-4">Nothing to show yet.</p>
+      <div v-if="subTab === 'overview' && allItems.length === 0" class="text-sm text-slate-500 py-4">
+        <template v-if="allItemsInScope.length > 0">
+          Nothing of yours right now — {{ allItemsInScope.length }} other item{{ allItemsInScope.length === 1 ? '' : 's' }} hidden.
+          <button type="button" class="text-violet-400 hover:underline" @click="onlyMine = false">Show all</button>
+        </template>
+        <template v-else>Nothing to show yet.</template>
+      </div>
 
       <table v-if="subTab === 'actions'" class="w-full text-sm">
         <thead>
