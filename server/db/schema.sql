@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS projects (
         -- schedule slip (current vs. originally planned) stays visible even after target_end_date moves
     actual_end_date TEXT,
     budget_planned REAL,
+    original_budget_planned REAL, -- snapshotted once at creation; never touched again, so
+        -- budget slip (current plan vs. originally planned) stays visible even after budget_planned moves
     budget_spent REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
