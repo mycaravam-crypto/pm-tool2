@@ -25,11 +25,9 @@ export const EVENT_TYPES = {
 
 export const EVENT_TYPE_KEYS = Object.keys(EVENT_TYPES);
 
-// Purely presentational — lets an event's type read as its own hue at a
-// glance (filter pills, timeline card accents, the event drawer's header
-// glow) independent of the status colors resolveEventVisual applies below.
-// Shared here so Timeline.vue and EventDetailModal.vue can't drift onto two
-// different palettes for the same type.
+// Purely presentational — lets an event's type read as its own hue (filter pills,
+// card accents, drawer header glow), independent of status colors below. Shared
+// here so Timeline.vue and EventDetailModal.vue can't drift onto different palettes.
 export const TYPE_COLORS = {
   kickoff: '#38bdf8',
   sync: '#22d3ee',
@@ -68,14 +66,10 @@ export function resolveEventVisual(event, todayStr) {
   return { icon: base.icon, shape: base.shape, iconClass: 'text-slate-700', bgClass: 'bg-white' };
 }
 
-// Goals aren't a real event type (no DB row, no CHECK-constraint membership) — they're
-// a synthetic marker built client-side from project.goals for the timeline's "Goals"
-// lens (ALIGNMENT_ROADMAP.md Phase 2). Deliberately NOT added to EVENT_TYPES/
-// EVENT_TYPE_KEYS: that map also drives the real "create/edit event" type <select>
-// (EventDetailModal.vue), and events.type has a CHECK(type IN (...)) that doesn't
-// include 'goal' — leaking it in there would offer a selectable type the API rejects.
-// Fuchsia/Target mirror the existing "goal" hue used elsewhere (AggregatedTabs' Goals
-// pill, the Health Summary "at risk" stat) so the marker reads as the same concept.
+// Goals aren't a real event type — a synthetic marker built client-side from
+// project.goals for the timeline's "Goals" lens. Deliberately NOT added to
+// EVENT_TYPES/EVENT_TYPE_KEYS: that map also drives the real event-type <select>,
+// and events.type has a CHECK(type IN (...)) that doesn't include 'goal'.
 export const GOAL_COLOR = '#e879f9';
 
 // Mirrors resolveEventVisual's forward-type branch, minus the "missed" state — a goal

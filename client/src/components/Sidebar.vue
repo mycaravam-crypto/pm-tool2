@@ -1,9 +1,9 @@
 <script setup>
 import { Bell, LogOut, Pencil, Plus, UserCog, Users, Volume2, VolumeX } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { isMuted, setMuted } from '../lib/sound.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import ScorecardDots from './ScorecardDots.vue';
+import ScorecardDots from '@/components/ScorecardDots.vue';
+import { isMuted, setMuted } from '@/lib/sound.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits([
   'open-stakeholders',

@@ -1,12 +1,13 @@
 <script setup>
 import { CircleAlert, Download, Eye, FolderOpen, Upload, X } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate } from '../lib/dateFormat.js';
-import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
+import { api } from '@/lib/api.js';
+import { formatDate } from '@/lib/dateFormat.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['close']);
 const store = useProjectStore();
@@ -18,6 +19,7 @@ const preview = ref(null);
 const result = ref(null);
 const error = ref('');
 const busy = ref(false);
+const runAction = useAsyncAction(error);
 
 function onFileChange(e) {
   const file = e.target.files[0];
@@ -34,30 +36,22 @@ function onFileChange(e) {
 }
 
 async function runPreview() {
-  error.value = '';
   result.value = null;
   busy.value = true;
-  try {
+  await runAction(async () => {
     preview.value = await api.events.import(projectId.value, csvText.value, false);
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    busy.value = false;
-  }
+  });
+  busy.value = false;
 }
 
 async function runImport() {
-  error.value = '';
   busy.value = true;
-  try {
+  await runAction(async () => {
     result.value = await api.events.import(projectId.value, csvText.value, true);
     preview.value = null;
     await store.refreshAll();
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    busy.value = false;
-  }
+  });
+  busy.value = false;
 }
 
 function downloadTemplate() {

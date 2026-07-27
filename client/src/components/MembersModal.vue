@@ -1,11 +1,12 @@
 <script setup>
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
-import { api } from '../lib/api.js';
-import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
+import { api } from '@/lib/api.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['close']);
 const store = useProjectStore();
@@ -23,6 +24,7 @@ const form = reactive({
   notify_upcoming_deadlines: true,
 });
 const error = ref('');
+const runAction = useAsyncAction(error);
 const subscribedProjects = ref([]);
 
 async function loadSubscriptions(memberId) {
@@ -67,7 +69,6 @@ function cancel() {
 
 async function save() {
   if (!form.name || !form.email) return;
-  error.value = '';
   const payload = {
     name: form.name,
     email: form.email,
@@ -78,7 +79,7 @@ async function save() {
     notify_overdue_action_items: form.notify_overdue_action_items,
     notify_upcoming_deadlines: form.notify_upcoming_deadlines,
   };
-  try {
+  await runAction(async () => {
     if (editingId.value) {
       await store.updateMember(editingId.value, payload);
     } else {
@@ -90,36 +91,28 @@ async function save() {
       return;
     }
     cancel();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function remove(id) {
   if (!confirm('Delete this member? Their notification history and project subscriptions will be removed.')) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.deleteMember(id);
     if (editingId.value === id) cancel();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 const isSubscribed = (projectId) => subscribedProjects.value.some((p) => p.id === projectId);
 
 async function toggleSubscription(project) {
-  error.value = '';
-  try {
+  await runAction(async () => {
     if (isSubscribed(project.id)) {
       await store.unsubscribeMemberFromProject(editingId.value, project.id);
     } else {
       await store.subscribeMemberToProject(editingId.value, project.id);
     }
     await loadSubscriptions(editingId.value);
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 </script>
 

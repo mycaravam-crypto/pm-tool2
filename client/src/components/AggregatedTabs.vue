@@ -1,19 +1,20 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
-import { goalProgress } from '../lib/goalProgress.js';
-import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import EventLink from './EventLink.vue';
-import ProjectChip from './ProjectChip.vue';
+import EventLink from '@/components/EventLink.vue';
+import ProjectChip from '@/components/ProjectChip.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
+import { api } from '@/lib/api.js';
+import { formatDate, todayStr as getTodayStr, isOverdue as isOverdueOn } from '@/lib/dateFormat.js';
+import { EVENT_TYPES, STATUS_LABELS } from '@/lib/eventTypes.js';
+import { goalProgress } from '@/lib/goalProgress.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { DAY_MS } from '@/lib/timelineScale.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({
-  // Set by the parent (e.g. clicking a Health Summary stat) to jump straight to
-  // a filtered view instead of making the user hunt for it themselves. Include a
-  // `token` (a new value each time) so re-clicking the same stat still re-applies
-  // the filter even if subTab/flags were already at those values.
+  // Set by the parent (e.g. clicking a Health Summary stat) to jump straight to a
+  // filtered view; include a `token` so re-clicking the same stat re-applies the
+  // filter even when subTab/flags are already at those values.
   focus: { type: Object, default: null },
 });
 const emit = defineEmits(['select-event']);
@@ -55,22 +56,14 @@ watch(
 );
 
 const todayStr = getTodayStr();
-const in14DaysStr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+const in14DaysStr = new Date(Date.now() + 14 * DAY_MS).toISOString().slice(0, 10);
 
-function isOverdue(item) {
-  return item.due_date && !item.done && item.due_date < todayStr;
-}
+const isOverdue = (item) => isOverdueOn(item, todayStr);
 
-// Combines every trackable item — event-sourced (decisions/action items/pain
-// points) and project-sourced (requirements/goals) — into one chronological
-// log for a general overview; the dedicated tabs below stay for focused
-// per-type work/filtering. Requirements/goals carry no `event` (they aren't
-// tied to a meeting), so `project` is set explicitly on every row rather than
-// read via `.event.project`, and the Event column just renders '—' for them.
-// Action items sort/display by their own due_date (falling back to the parent
-// event's date if unset) rather than the event date, since due_date is what
-// actually determines whether one reads as overdue; goals similarly use
-// target_date when set, since that's what determines whether they're on track.
+// Combines every trackable item — event-sourced (decisions/action items/pain points)
+// and project-sourced (requirements/goals) — into one chronological log for the
+// Overview tab. Requirements/goals carry no `event`, so `project` is set explicitly
+// on each row and the Event column renders '—' for them.
 const allItems = computed(() => {
   let rows = store.events.flatMap((e) => [
     ...e.action_items.map((a) => ({
@@ -167,9 +160,8 @@ const KIND_CLASSES = {
   goal: 'bg-fuchsia-500/15 text-fuchsia-300',
 };
 
-// Scoped by project only (not assignee/overdue/etc.) so the empty states below can
-// tell "genuinely nothing here" apart from "filtered down to nothing" and offer to
-// clear the filter instead of just looking broken.
+// Scoped by project only, so the empty state below can tell "genuinely nothing
+// here" apart from "filtered down to nothing" and offer to clear the filter.
 const actionItemsInScope = computed(() => {
   let rows = store.events.flatMap((e) => e.action_items.map((a) => ({ ...a, event: e })));
   if (projectFilter.value) rows = rows.filter((a) => a.event.project_id === Number(projectFilter.value));
@@ -223,9 +215,8 @@ function clearRequirementFilters() {
   requirementOpenOnly.value = false;
   requirementUnlinkedOnly.value = false;
 }
-// Requirements/goals are both nested off the same project, so a requirement's linked
-// goal text is a lookup into its own project's goals rather than a join — mirrors how
-// goalProgress() already reads requirements off project.requirements for the inverse direction.
+// Requirements and goals are both nested off the same project, so a requirement's
+// linked goal text is a lookup into its own project's goals rather than a join.
 function requirementGoalText(requirement) {
   return requirement.project.goals.find((g) => g.id === requirement.goal_id)?.text ?? null;
 }
@@ -239,18 +230,18 @@ const goalsList = computed(() => {
   let rows = goalsInScope.value;
   if (goalOpenOnly.value) rows = rows.filter((g) => !g.achieved);
   // Same "at risk" definition as GET /api/dashboard/summary's at_risk_goals: unachieved
-  // and either already overdue or due within 14 days — a portfolio-wide lens on the Goals
-  // tab, mirroring Pain Points' risk/issue filter (ALIGNMENT_ROADMAP.md Phase 2, item 3).
+  // and either already overdue or due within 14 days.
   if (goalAtRiskFilter.value) rows = rows.filter((g) => !g.achieved && g.target_date && g.target_date <= in14DaysStr);
-  return [...rows].sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'));
+  return [...rows]
+    .sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'))
+    .map((g) => ({ ...g, progress: goalProgress(g.id, g.project.requirements) }));
 });
 function clearGoalFilters() {
   goalOpenOnly.value = false;
   goalAtRiskFilter.value = false;
 }
 
-// Milestone/deadline events aren't decisions/action items/pain points — they're
-// events themselves — so they get their own tab rather than folding into Overview.
+// Milestone/deadline events get their own tab rather than folding into Overview.
 // Mirrors the 14-day window GET /api/dashboard/summary uses server-side.
 const upcomingEvents = computed(() => {
   let rows = store.events.filter(
@@ -266,11 +257,9 @@ const decisions = computed(() => {
   return rows.sort((a, b) => b.event.date.localeCompare(a.event.date));
 });
 
-// The Stakeholder Directory is admin-only now (PLAN.md Section 3.H), so a
-// non-admin can't fetch store.stakeholders to populate this filter — build it
-// instead from assignees who actually appear in the events this user can already
-// see, plus their own entry (so "My Tasks" always has something to select even
-// before they have any tasks assigned).
+// The Stakeholder Directory is admin-only, so a non-admin can't fetch
+// store.stakeholders to populate this filter — build it instead from assignees
+// visible in this user's own events, plus their own entry.
 const knownAssignees = computed(() => {
   const byId = new Map();
   for (const e of store.events) {
@@ -284,12 +273,9 @@ const knownAssignees = computed(() => {
   return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 });
 
-// This view spans every selected project at once, so — unlike EventDetailModal/
-// ProjectFormModal, which are scoped to a single project and can compute one
-// canContribute — each row here needs its own project's role checked. Mirrors
-// the server-side canContribute in server/utils/access.js (every committed role
-// except 'stakeholder', the RACI "Informed" tier). Refetched whenever the
-// selected-project set changes, once per project rather than once per row.
+// This view spans every selected project, so each row needs its own project's role
+// checked (unlike EventDetailModal/ProjectFormModal, which compute one canContribute
+// for their single project). Mirrors server-side canContribute in server/utils/access.js.
 const contributableProjectIds = ref(new Set());
 async function refreshContributableProjects() {
   if (store.isAdmin) {
@@ -311,37 +297,18 @@ function canContributeToProject(projectId) {
 }
 
 const toggleError = ref('');
+const runToggle = useAsyncAction(toggleError);
 async function toggleDone(item) {
-  toggleError.value = '';
-  try {
-    await store.toggleActionItemDone(item.id, !item.done);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleActionItemDone(item.id, !item.done));
 }
 async function toggleResolved(pp) {
-  toggleError.value = '';
-  try {
-    await store.togglePainPointResolved(pp.id, !pp.resolved);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.togglePainPointResolved(pp.id, !pp.resolved));
 }
 async function toggleRequirement(r) {
-  toggleError.value = '';
-  try {
-    await store.toggleRequirementDone(r.id, !r.done);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleRequirementDone(r.id, !r.done));
 }
 async function toggleGoal(g) {
-  toggleError.value = '';
-  try {
-    await store.toggleGoalAchieved(g.id, !g.achieved);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleGoalAchieved(g.id, !g.achieved));
 }
 </script>
 
@@ -560,9 +527,7 @@ async function toggleGoal(g) {
             <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</td>
             <td class="py-1.5"><ProjectChip :project="g.project" /></td>
             <td class="py-1.5 text-slate-500">
-              <template v-if="goalProgress(g.id, g.project.requirements).total > 0">
-                {{ goalProgress(g.id, g.project.requirements).done }}/{{ goalProgress(g.id, g.project.requirements).total }} reqs
-              </template>
+              <template v-if="g.progress.total > 0">{{ g.progress.done }}/{{ g.progress.total }} reqs</template>
               <template v-else>—</template>
             </td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>

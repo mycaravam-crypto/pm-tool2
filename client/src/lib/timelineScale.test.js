@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeRange, computeSemanticZoomLabel, computeTrackWidth, leftPercent } from './timelineScale.js';
+import { computeRange, computeSemanticZoomLabel, computeTrackWidth, leftPercent } from '@/lib/timelineScale.js';
 
 describe('computeRange', () => {
   const DAY_MS = 86400000;

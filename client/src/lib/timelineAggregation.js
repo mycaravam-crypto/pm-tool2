@@ -3,17 +3,14 @@
 // into a stacked, render-ready list with a bounded overflow badge. Pulled out
 // of the component so it can be unit-tested without mounting Vue.
 
-import { computeLanes } from './timelineLanes.js';
-import { leftPercent } from './timelineScale.js';
+import { computeLanes } from '@/lib/timelineLanes.js';
+import { leftPercent } from '@/lib/timelineScale.js';
 
-// Groups events close enough in *rendered pixel space* to collide, not just
-// events sharing an exact date — at low zoom many days collapse into the same
-// handful of pixels, so nearby-but-different-date events need to cluster too.
-// Each cluster is measured against its anchor (first member), not the previous
-// event, so a chain of near-threshold gaps can't merge into one cluster
-// spanning many multiples of the threshold. A cluster never straddles "today":
-// mixing a based-on-arrival past/future split into the same visual group would
-// place an after-today event on the wrong side of the today marker.
+// Groups events close enough in *rendered pixel space* to collide, not just events
+// sharing an exact date. Each cluster is measured against its anchor (first member),
+// not the previous event, so a chain of near-threshold gaps can't merge into one
+// cluster spanning many multiples of the threshold. A cluster never straddles
+// "today", so an after-today event never lands on the wrong side of the marker.
 export function computeClusters(events, { range, trackWidth, todayStr, thresholdPx, resolveVisual }) {
   const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
   const result = [];
@@ -36,18 +33,12 @@ export function computeClusters(events, { range, trackWidth, todayStr, threshold
   return result;
 }
 
-// Flattens clusters into a single render-ready list. Every cluster member
-// renders at the same x position (the cluster's anchor), so their vertical
-// stacking order is decided by running them through the same deterministic
-// lane-assignment algorithm used for individual-event layout elsewhere
-// (timelineLanes.js) — here every member's footprint is identical (they
-// share one x), so the algorithm degenerates to "one lane per member, in
-// date order" (their existing sort order stands in as the tie-break), which
-// is exactly the stacking order this produced before it was expressed as a
-// lane assignment. Clusters at or under maxVisibleStack render every event
-// normally; larger ones show the first (maxVisibleStack - 1) events and fold
-// the rest into one overflow badge in the last slot, so the tallest a
-// cluster ever gets is the same regardless of how many events it contains.
+// Flattens clusters into a single render-ready list. Every cluster member shares
+// the same x position (the cluster's anchor), so computeLanes degenerates to "one
+// lane per member, in date order" — reused here purely for that stacking order.
+// Clusters at or under maxVisibleStack render every event; larger ones show the
+// first (maxVisibleStack - 1) and fold the rest into one overflow badge, so a
+// cluster's height is capped regardless of how many events it contains.
 export function computePositionedEvents(clusters, maxVisibleStack) {
   return clusters.flatMap((cluster) => {
     const events = cluster.events;

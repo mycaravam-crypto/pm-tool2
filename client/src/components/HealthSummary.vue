@@ -1,14 +1,13 @@
 <script setup>
 import { AlertCircle, CalendarClock, ShieldAlert, Target, Unlink2 } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['focus-overdue', 'focus-pain', 'focus-upcoming', 'focus-goals', 'focus-scope-creep']);
 const store = useProjectStore();
 
 // Falls back to the portfolio-wide summary when no project is selected, so this
-// is the single stat strip for both "everything" and "what I've filtered to" —
-// see Sidebar.vue, which used to show the portfolio numbers separately.
+// is the single stat strip for both "everything" and "what I've filtered to".
 const isScoped = computed(() => store.selectedProjectIds.length > 0);
 const summary = computed(() => (isScoped.value ? store.scopedSummary : store.portfolioSummary));
 const scopeLabel = computed(() => (isScoped.value ? 'Selected' : 'Portfolio'));

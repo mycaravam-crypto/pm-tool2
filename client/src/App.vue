@@ -1,24 +1,24 @@
 <script setup>
 import { CalendarDays, CalendarRange, FileText, FileUp, ListChecks, Plus } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
-import AggregatedTabs from './components/AggregatedTabs.vue';
-import EventDetailModal from './components/EventDetailModal.vue';
-import HealthSummary from './components/HealthSummary.vue';
-import ImportEventsModal from './components/ImportEventsModal.vue';
-import InitializeProjectModal from './components/InitializeProjectModal.vue';
-import LoginView from './components/LoginView.vue';
-import MembersModal from './components/MembersModal.vue';
-import NotificationsLogModal from './components/NotificationsLogModal.vue';
-import ProjectFormModal from './components/ProjectFormModal.vue';
-import ResetPasswordView from './components/ResetPasswordView.vue';
-import Sidebar from './components/Sidebar.vue';
-import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vue';
-import Timeline from './components/Timeline.vue';
-import { api } from './lib/api.js';
-import { formatDate, todayStr } from './lib/dateFormat.js';
-import { playNotificationSound } from './lib/sound.js';
-import { connectNotificationSocket } from './lib/ws.js';
-import { useProjectStore } from './stores/useProjectStore.js';
+import { onMounted, ref } from 'vue';
+import AggregatedTabs from '@/components/AggregatedTabs.vue';
+import EventDetailModal from '@/components/EventDetailModal.vue';
+import HealthSummary from '@/components/HealthSummary.vue';
+import ImportEventsModal from '@/components/ImportEventsModal.vue';
+import InitializeProjectModal from '@/components/InitializeProjectModal.vue';
+import LoginView from '@/components/LoginView.vue';
+import MembersModal from '@/components/MembersModal.vue';
+import NotificationsLogModal from '@/components/NotificationsLogModal.vue';
+import ProjectFormModal from '@/components/ProjectFormModal.vue';
+import ResetPasswordView from '@/components/ResetPasswordView.vue';
+import Sidebar from '@/components/Sidebar.vue';
+import StakeholderDirectoryModal from '@/components/StakeholderDirectoryModal.vue';
+import Timeline from '@/components/Timeline.vue';
+import { api } from '@/lib/api.js';
+import { formatDate, todayStr } from '@/lib/dateFormat.js';
+import { playNotificationSound } from '@/lib/sound.js';
+import { connectNotificationSocket } from '@/lib/ws.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const store = useProjectStore();
 
@@ -100,7 +100,7 @@ function openNewEventOnDate(dateStr) {
 async function exportSituationReport() {
   // pdfReports.js embeds its own Inter font data (~300KB) — loaded on demand
   // here rather than bundled into the main app chunk every visitor downloads.
-  const { generateSituationReportPdf } = await import('./lib/pdfReports.js');
+  const { generateSituationReportPdf } = await import('@/lib/pdfReports.js');
   generateSituationReportPdf({
     projects: store.selectedProjects,
     events: store.events,
@@ -108,12 +108,13 @@ async function exportSituationReport() {
   });
 }
 
-// Jumps from a Health Summary count straight to the matching filtered list —
-// a token (always a fresh value) so re-clicking the same stat re-applies the
-// filter even when subTab/flags are already at those values.
 async function ensureProjectsSelected() {
   if (store.selectedProjectIds.length === 0) await store.selectAllProjects();
 }
+
+// Each jumps from a Health Summary count straight to the matching filtered list —
+// a token (always a fresh value) so re-clicking the same stat re-applies the
+// filter even when subTab/flags are already at those values.
 async function focusOverdueActions() {
   await ensureProjectsSelected();
   mainTab.value = 'dashboard';

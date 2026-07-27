@@ -1,7 +1,10 @@
 <script setup>
 import { Calendar, CalendarSearch, Repeat, RotateCcw, Search, Target, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
+import ClusterDetailPopover from '@/components/ClusterDetailPopover.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import TimelineMiniMap from '@/components/TimelineMiniMap.vue';
+import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '@/lib/dateFormat.js';
 import {
   EVENT_TYPE_KEYS,
   EVENT_TYPES,
@@ -10,65 +13,47 @@ import {
   resolveEventVisual,
   resolveGoalVisual,
   TYPE_COLORS,
-} from '../lib/eventTypes.js';
-import { computeClusters as computeClustersPure, computePositionedEvents } from '../lib/timelineAggregation.js';
+} from '@/lib/eventTypes.js';
+import { computeClusters as computeClustersPure, computePositionedEvents } from '@/lib/timelineAggregation.js';
 import {
   computeRange,
   computeSemanticZoomLabel,
   computeTrackWidth,
+  DAY_MS,
   leftPercent as leftPercentPure,
-} from '../lib/timelineScale.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import ClusterDetailPopover from './ClusterDetailPopover.vue';
-import HelpTooltip from './HelpTooltip.vue';
-import TimelineMiniMap from './TimelineMiniMap.vue';
+} from '@/lib/timelineScale.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['select-event', 'select-goal', 'new-event']);
 const store = useProjectStore();
 
 const todayStr = getTodayStr();
-const DAY_MS = 86400000;
 const TRACK_HEIGHT = 400;
 const BASELINE_TOP = 280;
-// A card is a single 30px-tall row (icon + inline title, no separate label
-// line below it like the old bubble layout had), so it only needs enough
-// clearance above the baseline to fit itself plus a small gap.
+// Offset of the first (bottom) stacked card above the baseline; STACK_STEP spaces each one above it.
 const STACK_BASE = 40;
 const STACK_STEP = 38;
-// Beyond this many events, a cluster collapses the rest into a "+N" chip
-// instead of stacking indefinitely — an unbounded stack eventually pushes
-// cards above the track entirely (or into the "Today" label near the top),
-// so capping keeps the tallest stack offset constant regardless of size.
+// Clusters larger than this collapse the remainder into a "+N" overflow chip instead of stacking indefinitely.
 const MAX_VISIBLE_STACK = 5;
 
-// Zoom controls pixels-per-day directly, so "zoom in" is literally "give nearby
-// events more room" — which is also how label collisions get resolved, see
-// CLUSTER_THRESHOLD_PX below.
+// Zoom controls pixels-per-day directly; zooming in is also what resolves label collisions (CLUSTER_THRESHOLD_PX below).
 const BASE_PX_PER_DAY = 5;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 6;
 const ZOOM_STEP = 1.4;
-// Continuous zoom factor per wheel-delta unit (vs. the fixed ZOOM_STEP used by
-// the +/- buttons), so a single scroll gesture zooms smoothly rather than in clicky jumps.
+// Per-wheel-delta-unit zoom factor for smooth scroll-to-zoom, vs. the fixed ZOOM_STEP used by the +/- buttons.
 const WHEEL_ZOOM_SENSITIVITY = 0.0018;
 const MAX_TRACK_WIDTH = 16000;
-// Two truncated card titles start visually colliding once their anchors are
-// closer than about this many pixels — CARD_WIDTH below is kept safely under
-// this so cards from two different (non-clustered) anchors never overlap.
+// Card anchors closer than this start visually colliding; CARD_WIDTH is kept safely under it.
 const CLUSTER_THRESHOLD_PX = 100;
 const CARD_WIDTH = 88;
-// Day gridlines only render once each day has this much width — below it
-// they'd pack into an illegible solid band, so day-level detail stays hidden
-// until you've zoomed in far enough for it to actually read as detail.
+// Minimum px/day before day gridlines render — below this they'd pack into an illegible band.
 const DAY_GRID_MIN_PX_PER_DAY = 16;
 
-// A dblclick within this many pixels of a mousedown still counts as "did not
-// drag" — trackpads and imprecise pointers rarely land the second click on
-// the exact pixel of the first, so a zero-tolerance check would make
-// double-click-to-create feel broken for anyone not using a mouse on glass.
+// Pointer movement under this still counts as a click, not a drag — exact-pixel
+// matching would make double-click-to-create unreliable on trackpads.
 const DRAG_MOVE_THRESHOLD_PX = 4;
-// Arrow-key panning moves a week at the current zoom; Shift+Arrow jumps a
-// near-full viewport, mirroring how PageUp/PageDown behave in text editors.
+// Arrow keys pan by a week at the current zoom; Shift+Arrow jumps a near-full viewport.
 const KEY_PAN_DAYS = 7;
 
 const zoomLevel = ref(1);
@@ -88,17 +73,14 @@ function toggleAllTypes() {
   activeTypes.value = activeTypes.value.length === EVENT_TYPE_KEYS.length ? [] : [...EVENT_TYPE_KEYS];
 }
 
-// Named zoom tiers so the toolbar readout matches the issue's semantic-zoom
-// vocabulary (Jahr/Quartal/Monat/Woche/Tag) instead of a bare percentage —
-// thresholds are picked against the actual pxPerDay range this component
-// produces (BASE_PX_PER_DAY * [ZOOM_MIN..ZOOM_MAX] = 2..30). Delegates to
-// timelineScale.js so the tier logic has a unit-testable, Vue-free home.
+// Named zoom tier (Jahr/Quartal/Monat/Woche/Tag) for the toolbar readout instead
+// of a bare percentage; tier logic lives in timelineScale.js so it's unit-testable.
 const semanticZoomLabel = computed(() =>
   computeSemanticZoomLabel(BASE_PX_PER_DAY * zoomLevel.value, DAY_GRID_MIN_PX_PER_DAY),
 );
 
-// Goal target dates feed the range too (not just when the "Goals" pill is on) so the
-// visible date span doesn't jump around as that toggle is flipped.
+// Includes goal target dates (not just when the "Goals" pill is on) so the visible
+// range doesn't jump around as that toggle is flipped.
 const range = computed(() =>
   computeRange(
     [
@@ -130,10 +112,9 @@ const visibleEvents = computed(() => {
   );
 });
 
-// Goals rendered as their own lens on the timeline (ALIGNMENT_ROADMAP.md Phase 2) —
-// synthetic pseudo-events built from each selected project's goals, not real `events`
-// rows. Shares the same search term as events so search covers both; gated separately
-// by the "Goals" pill rather than the type-filter pills, since a goal isn't a real event type.
+// Synthetic pseudo-events built from each selected project's goals, not real `events`
+// rows — shares the same search term but is gated by its own "Goals" pill since a
+// goal isn't a real event type.
 const visibleGoalMarkers = computed(() => {
   if (!showGoals.value) return [];
   const term = search.value.trim().toLowerCase();
@@ -171,11 +152,8 @@ const summaryStats = computed(() => {
 });
 
 // Groups events close enough in *rendered pixel space* to collide, not just events
-// sharing an exact date. At low zoom many days collapse into the same handful of
-// pixels, so nearby-but-different-date events need to stack too; at high zoom the
-// same events end up far enough apart to stand alone. Recomputes with trackWidth,
-// so zooming in is the fix for "labels are colliding." Logic lives in
-// timelineAggregation.js so it's unit-testable without mounting the component.
+// sharing an exact date — recomputes with trackWidth, so zooming in is what
+// un-clusters them. Logic lives in timelineAggregation.js so it's unit-testable.
 const clusters = computed(() =>
   computeClustersPure([...visibleEvents.value, ...visibleGoalMarkers.value], {
     range: range.value,
@@ -235,9 +213,7 @@ const monthMarkers = computed(() => {
   return markers;
 });
 
-// Year gridlines are the heaviest tier — they anchor the "which year am I in"
-// question at a glance, since the month labels below repeat the year on every
-// single tick and get easy to lose track of over a multi-year range.
+// Heaviest gridline tier — anchors "which year" over a multi-year range, since month labels alone are easy to lose track of.
 const yearMarkers = computed(() => {
   const { min, max } = range.value;
   const markers = [];
@@ -255,11 +231,8 @@ const yearMarkers = computed(() => {
   return markers;
 });
 
-// Day gridlines are the lightest tier, gated by DAY_GRID_MIN_PX_PER_DAY (see
-// above) so they only appear once you've zoomed in enough for one-per-day
-// lines to read as texture instead of a solid smear. Uses the actual rendered
-// trackWidth (post-clamping) rather than the nominal zoom-derived px/day, since
-// that's what determines how the lines will really look.
+// Uses the actual rendered trackWidth (post-clamping), not the nominal zoom-derived
+// px/day, since that's what determines whether the lines are legible.
 const dayMarkers = computed(() => {
   const { min, max } = range.value;
   const totalDays = (max - min) / DAY_MS;
@@ -291,9 +264,7 @@ function jumpToDate() {
   scrollToDate(jumpDate.value);
 }
 
-// Tracked reactively (rather than read imperatively on demand) so the minimap's
-// viewport window can follow every scroll/zoom/pan/resize without each of
-// those call sites having to remember to notify it separately.
+// Tracked reactively so the minimap's viewport window follows every scroll/zoom/pan/resize automatically.
 const scrollLeftPx = ref(0);
 const viewportWidthPx = ref(0);
 let resizeObserver = null;
@@ -321,10 +292,8 @@ function handleMinimapNavigate(pct) {
 }
 
 // Re-centers on whatever was under `viewportAnchor` (an x-offset within the
-// container's visible area) before zooming, so a zoom doesn't jump the view to
-// an unrelated part of the timeline. Defaults to the viewport's own center for
-// the +/- buttons; the wheel handler below passes the cursor position instead,
-// so scrolling zooms into whatever date you're pointing at.
+// container) before zooming, so the view doesn't jump. Defaults to the viewport
+// center for the +/- buttons; the wheel handler passes the cursor position instead.
 function zoomBy(factor, viewportAnchor) {
   const container = scrollContainer.value;
   const oldWidth = trackWidth.value;
@@ -350,11 +319,9 @@ function resetZoom() {
   nextTick(scrollToToday);
 }
 
-// Lets the mouse wheel zoom the timeline (matching the pinch-to-zoom feel of
-// maps/design tools) instead of only offering it via the +/- buttons. Plain
-// wheel is free to repurpose here because the track never overflows
-// vertically — horizontal panning still works via shift+wheel, trackpad swipe,
-// or the scrollbar, none of which this handler touches (deltaY stays ~0 for those).
+// Wheel zooms the timeline (like map/design-tool pinch-to-zoom). Safe to repurpose
+// since the track never overflows vertically — horizontal panning still works via
+// shift+wheel/trackpad swipe/scrollbar, none of which touch deltaY.
 function handleWheel(e) {
   if (e.deltaY === 0) return;
   const container = scrollContainer.value;
@@ -364,11 +331,10 @@ function handleWheel(e) {
   zoomBy(Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY), anchor);
 }
 
-// Click-and-drag panning for mouse users (trackpads/touch already pan via
-// native scroll). Skipped when the press starts on an interactive element —
-// event cards, the overflow popover, form controls — so their own click
-// handling is untouched. `moved` gates the paired dblclick handler below so
-// a drag-release-drag never gets misread as a double-click.
+// Click-and-drag panning for mouse users (trackpads/touch already pan via native
+// scroll). Skipped on interactive elements so their own click handling is
+// untouched. `panMoved` gates the dblclick handler below so a drag isn't misread
+// as a double-click.
 let panStartX = 0;
 let panStartScrollLeft = 0;
 let panMoved = false;
@@ -397,9 +363,8 @@ function handlePointerUp() {
   window.removeEventListener('pointerup', handlePointerUp);
 }
 
-// Double-click on empty timeline space creates a new event pre-filled with
-// the clicked date — clicks on an event/cluster card are excluded so they
-// keep going to their own click handler instead of also firing this.
+// Double-click on empty timeline space creates a new event pre-filled with the
+// clicked date; clicks on an event/cluster card are excluded via closest('button').
 function handleDblclick(e) {
   if (panMoved) return;
   if (e.target.closest('button')) return;
@@ -412,9 +377,8 @@ function handleDblclick(e) {
   emit('new-event', new Date(t).toISOString().slice(0, 10));
 }
 
-// Keyboard equivalents for pan/zoom/today so the timeline is usable without
-// a mouse: arrow keys pan (Shift = near-full-viewport jump), +/- zoom, Home
-// or 0 return to today — the same actions the toolbar buttons trigger.
+// Keyboard equivalents of the toolbar buttons: arrow keys pan (Shift = near-full-
+// viewport jump), +/- zoom, Home or 0 return to today.
 function handleKeydown(e) {
   const container = scrollContainer.value;
   if (!container) return;
@@ -445,11 +409,9 @@ function handleKeydown(e) {
   }
 }
 
-// scrollContainer is only rendered once a project is selected and its events
-// have loaded (see the v-if branches below), so it can go from null to an
-// element well after this component's own onMounted has already fired —
-// watching the ref (rather than a one-shot onMounted) re-attaches the
-// observer and re-centers on today whenever that first happens.
+// scrollContainer only renders once a project is selected, so it can go from null
+// to an element well after onMounted — watching the ref (not a one-shot onMounted)
+// re-attaches the observer and re-centers on today whenever that first happens.
 watch(
   scrollContainer,
   (el, oldEl) => {
@@ -478,15 +440,11 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
     <div v-else-if="!store.loading && store.events.length === 0" class="text-center py-24 text-slate-500">
       No events yet for the selected project(s).
     </div>
-    <!-- Kept mounted across a background refetch (e.g. toggling a project
-         checkbox) whenever there's already something to show, rather than
-         swapping to the "Loading…" branch above and destroying/recreating
-         this whole subtree — that was killing the enter/leave transitions
-         below since TransitionGroup had no continuity to animate across. -->
+    <!-- Kept mounted across a background refetch instead of falling back to the
+         "Loading…" branch above, so TransitionGroup below has continuity to animate. -->
     <template v-else>
       <div class="glass rounded-[26px] overflow-hidden">
-        <!-- Project color legend: the timeline's overlay only works if you can tell
-             whose event is whose without looking away to the sidebar checkboxes. -->
+        <!-- Project color legend, shown when multiple projects overlay each other. -->
         <div v-if="store.selectedProjects.length > 1" class="flex items-center gap-3 flex-wrap px-4 sm:px-6 pt-4 text-xs text-slate-400">
           <span v-for="p in store.selectedProjects" :key="p.id" class="flex items-center gap-1.5">
             <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: p.color_hex }" />{{ p.name }}
@@ -600,9 +558,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
           @scroll="handleScroll"
         >
           <div ref="trackEl" class="relative transition-[min-width] duration-300 ease-out" :style="{ height: TRACK_HEIGHT + 'px', minWidth: trackWidth + 'px' }">
-            <!-- day gridlines: lightest tier, only rendered once zoomed in enough
-                 (see DAY_GRID_MIN_PX_PER_DAY) for one-per-day lines to read as
-                 texture rather than a solid smear -->
+            <!-- day gridlines: lightest tier -->
             <TransitionGroup name="fade-pop" tag="div">
               <div
                 v-for="d in dayMarkers" :key="d.key"
@@ -627,8 +583,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
               >{{ m.label }}</div>
             </TransitionGroup>
 
-            <!-- year gridlines: heaviest tier, painted last so they win visually
-                 wherever they land on the same tick as a month/day line -->
+            <!-- year gridlines: heaviest tier, painted last so it wins visually on shared ticks -->
             <TransitionGroup name="fade-pop" tag="div">
               <div
                 v-for="y in yearMarkers" :key="y.key"
@@ -655,11 +610,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
               <span class="absolute -top-1 left-1.5 text-[10px] text-rose-400 font-medium whitespace-nowrap">Today · {{ formatDate(todayStr) }}</span>
             </div>
 
-            <!-- event cards: a flat, TransitionGroup-animated list so events
-                 entering/leaving as the sidebar's project filter, search, or
-                 type pills change fade and pop instead of snapping in/out;
-                 ongoing left/top transitions (re-clustering, zoom, filtering-
-                 driven range changes) still apply per-element below -->
+            <!-- event cards: flat list so TransitionGroup can fade/pop entries in and out as filters change -->
             <TransitionGroup name="event-pop" tag="div">
               <template v-for="event in positionedEvents" :key="event.id">
                 <div
@@ -811,10 +762,9 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
   border: 1px solid #11141c;
 }
 
-/* Event cards: pop + fade in/out as filters (project/search/type) add or
-   remove events. `scale`/`opacity` are used instead of `transform` so this
-   doesn't fight the per-element `left`/`top` transition already on the
-   element — the two compose independently. */
+/* Event cards pop + fade in/out as filters add/remove events. `scale`/`opacity`
+   are used instead of `transform` so this composes independently with the
+   element's own `left`/`top` transition. */
 .event-pop-enter-active,
 .event-pop-leave-active {
   transition: opacity 220ms ease, scale 220ms ease;

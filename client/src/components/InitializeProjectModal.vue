@@ -1,10 +1,11 @@
 <script setup>
 import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, reactive, ref } from 'vue';
-import { formatDate } from '../lib/dateFormat.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
+import { formatDate } from '@/lib/dateFormat.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['close']);
 const store = useProjectStore();
@@ -24,16 +25,14 @@ const form = reactive({
 });
 
 // Draft team/goals/requirements only exist client-side until "Create Project" —
-// nothing here is persisted until the final step, so the whole wizard can be
-// abandoned with @close and no partial project is left behind.
+// nothing is persisted until the final step, so @close abandons the wizard cleanly.
 const team = ref([]);
 const newTeamStakeholderId = ref('');
 const newTeamRole = ref('member');
 
 // Each goal carries a locally-unique `key` (not a real id yet) so a requirement
-// draft can reference "the 2nd goal I just added" and survive goals being
-// reordered or deleted before submission — an array index would silently point
-// at the wrong goal once the list changes.
+// draft can reference it and survive goals being reordered/deleted before
+// submission — an array index would silently point at the wrong goal.
 let goalKeySeq = 0;
 const goals = ref([]);
 const newGoalText = ref('');
@@ -45,6 +44,7 @@ const newRequirementGoalKey = ref('');
 
 const saving = ref(false);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 const leadStakeholder = computed(() => store.stakeholderById(Number(form.lead_stakeholder_id)) ?? null);
 const availableTeamCandidates = computed(() =>
@@ -109,9 +109,8 @@ function goalText(key) {
 }
 
 async function createProject() {
-  error.value = '';
   saving.value = true;
-  try {
+  await runAction(async () => {
     await store.initializeProject({
       name: form.name.trim(),
       description: form.description,
@@ -129,11 +128,8 @@ async function createProject() {
       })),
     });
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
 }
 </script>
 

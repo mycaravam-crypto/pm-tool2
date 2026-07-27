@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { api } from '../lib/api.js';
+import { api } from '@/lib/api.js';
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -31,7 +31,6 @@ export const useProjectStore = defineStore('project', {
     selectedProjects: (state) => state.projects.filter((p) => state.selectedProjectIds.includes(p.id)),
     projectById: (state) => (id) => state.projects.find((p) => p.id === id),
     stakeholderById: (state) => (id) => state.stakeholders.find((s) => s.id === id),
-    sortedEvents: (state) => [...state.events].sort((a, b) => a.date.localeCompare(b.date)),
     isAdmin: (state) => state.currentMember?.role === 'admin',
   },
 
@@ -46,9 +45,8 @@ export const useProjectStore = defineStore('project', {
     },
 
     async init() {
-      // Stakeholder Directory and Members management are admin-only server-side
-      // (PLAN.md Section 3.H) — fetching them as a non-admin would 403 and blow up
-      // this Promise.all, so they're conditional here rather than always-on.
+      // Stakeholder Directory and Members management are admin-only server-side —
+      // fetching them as a non-admin would 403 and blow up this Promise.all.
       const tasks = [this.fetchProjects(), this.fetchPortfolioSummary(), this.fetchNotifications()];
       if (this.isAdmin) tasks.push(this.fetchStakeholders(), this.fetchMembers());
       await Promise.all(tasks);
@@ -71,9 +69,8 @@ export const useProjectStore = defineStore('project', {
     },
 
     // Pushed live over WebSocket (see lib/ws.js). A subsequent fetchNotifications()
-    // triggered by whatever mutation caused this (e.g. the user's own addPainPoint)
-    // will replace this with the authoritative list moments later, so a duplicate
-    // here is at most a brief visual flash, never a lasting one.
+    // replaces this with the authoritative list moments later, so a duplicate here
+    // is at most a brief visual flash.
     receiveNotification(notification) {
       this.notifications = [notification, ...this.notifications];
     },
@@ -129,9 +126,8 @@ export const useProjectStore = defineStore('project', {
       await Promise.all([this.fetchEvents(), this.fetchScopedSummary()]);
     },
 
-    // Used when drilling into a portfolio-wide stat (Health Summary) with no
-    // project selected yet — the dashboard only ever shows selected projects,
-    // so "show me these across the portfolio" means selecting all of them.
+    // Used when drilling into a portfolio-wide stat (Health Summary) with no project
+    // selected yet — "show me these across the portfolio" means selecting all of them.
     async selectAllProjects() {
       this.selectedProjectIds = this.projects.map((p) => p.id);
       await Promise.all([this.fetchEvents(), this.fetchScopedSummary()]);
@@ -165,16 +161,16 @@ export const useProjectStore = defineStore('project', {
       await Promise.all([this.fetchProjects(), this.fetchPortfolioSummary()]);
     },
 
-    // Backs the step-by-step "Initialize Project" wizard: unlike createProject,
-    // this also seeds team/goals/requirements in one go instead of leaving them
-    // for a follow-up edit. Requirements can link to a goal created in the same
-    // call, so goals must be created (and their real ids known) before any
-    // requirement referencing one — team assignment has no such dependency, so
-    // it runs alongside the goal creation rather than after it.
+    // Backs the "Initialize Project" wizard: also seeds team/goals/requirements in
+    // one go. Requirements can link to a goal created in the same call, so goals
+    // must exist (with real ids) first; team assignment has no such dependency, so
+    // it runs alongside goal creation.
     async initializeProject({ team = [], goals = [], requirements = [], ...projectData }) {
       const project = await api.projects.create(projectData);
       const [createdGoals] = await Promise.all([
-        Promise.all(goals.map((g) => api.goals.create({ project_id: project.id, text: g.text, target_date: g.target_date }))),
+        Promise.all(
+          goals.map((g) => api.goals.create({ project_id: project.id, text: g.text, target_date: g.target_date })),
+        ),
         Promise.all(team.map((t) => api.projects.assignStakeholder(project.id, t.stakeholder_id, t.project_role))),
       ]);
       await Promise.all(
@@ -250,11 +246,9 @@ export const useProjectStore = defineStore('project', {
       await this.refreshAll();
     },
 
-    // The fetches below are all independent reads (different endpoints, none
-    // depending on another's result), so they run via Promise.all rather than
-    // sequential awaits — each stacked await was a full extra network round
-    // trip of added latency on every single mutation, most noticeably on the
-    // Overview tab's done/resolved checkboxes, which fire these constantly.
+    // The fetches below are independent reads, so they run via Promise.all rather
+    // than sequential awaits — each stacked await was a full extra round trip,
+    // most noticeable on the Overview tab's done/resolved checkboxes.
     async addDecision(data) {
       await api.decisions.create(data);
       await Promise.all([this.fetchEvents(), this.fetchNotifications()]);
@@ -323,12 +317,9 @@ export const useProjectStore = defineStore('project', {
       ]);
     },
 
-    // Requirements/goals are project-scoped, not event-scoped, and are delivered
-    // nested on GET /api/projects (like lead/scorecard) rather than through a
-    // separate fetch — so a single fetchProjects() refresh is all these need.
-    // Requirement mutations additionally refresh both summaries: unlike goals,
-    // requirements feed the server-computed unlinked_requirements count (scope-creep
-    // signal), so linking/unlinking/deleting one needs to be reflected there too.
+    // Requirements/goals are project-scoped, delivered nested on GET /api/projects,
+    // so a fetchProjects() refresh is all these need. Requirement mutations also
+    // refresh both summaries since requirements feed the unlinked_requirements count.
     async addRequirement(data) {
       await api.requirements.create(data);
       await Promise.all([this.fetchProjects(), this.fetchScopedSummary(), this.fetchPortfolioSummary()]);
