@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { canAccessProject, canContribute } from '../utils/access.js';
+import { canAccessProject, canContribute, canDeleteProjectItems } from '../utils/access.js';
 
 const router = Router();
 
@@ -68,8 +68,8 @@ router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM requirements WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessProject(req.member, existing.project_id))
     return res.status(404).json({ error: 'requirement not found' });
-  if (!canContribute(req.member, existing.project_id))
-    return res.status(403).json({ error: 'read-only access to this project' });
+  if (!canDeleteProjectItems(req.member, existing.project_id))
+    return res.status(403).json({ error: 'only the project lead can delete this' });
   db.prepare('DELETE FROM requirements WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });

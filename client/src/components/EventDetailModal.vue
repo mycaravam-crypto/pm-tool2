@@ -72,6 +72,10 @@ const myRole = computed(
   () => projectPeople.value.find((p) => p.id === store.currentMember?.stakeholder_id)?.project_role ?? null,
 );
 const canContribute = computed(() => store.isAdmin || (myRole.value !== null && myRole.value !== 'stakeholder'));
+// Mirrors server-side canDeleteProjectItems: narrower than canContribute — every
+// committed role can add/edit a decision/action item/pain point, but only the
+// project's lead (or an admin) can delete one.
+const canDelete = computed(() => store.isAdmin || myRole.value === 'lead');
 
 // --- create-mode staged nested items ---
 const stagedDecisions = ref([]);
@@ -383,7 +387,7 @@ function removeStagedPain(idx) {
           <li v-for="(d, idx) in (isEdit ? liveEvent.decisions : stagedDecisions)" :key="d.id ?? idx" class="flex items-center gap-2 text-sm">
             <span class="flex-1">{{ d.text }}</span>
             <span class="text-xs text-slate-500">{{ d.decided_by_name || (d.decided_by && projectPeople.find(p => p.id === d.decided_by)?.name) || 'unassigned' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="isEdit ? canDelete : canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeDecision(d.id) : removeStagedDecision(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.decisions.length : stagedDecisions.length) === 0" class="text-sm text-slate-500">No decisions yet.</li>
         </ul>
@@ -406,7 +410,7 @@ function removeStagedPain(idx) {
             <span class="flex-1" :class="a.done ? 'line-through text-slate-500' : ''">{{ a.text }}</span>
             <span class="text-xs text-slate-500">{{ a.assignee_name || (a.assignee_id && projectPeople.find(p => p.id === a.assignee_id)?.name) || 'unassigned' }}</span>
             <span class="text-xs" :class="isOverdue(a) ? 'text-rose-400 font-medium' : 'text-slate-500'">{{ a.due_date ? formatDate(a.due_date) : 'no due date' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="isEdit ? canDelete : canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removeActionItem(a.id) : removeStagedAction(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.action_items.length : stagedActionItems.length) === 0" class="text-sm text-slate-500">No action items yet.</li>
         </ul>
@@ -437,7 +441,7 @@ function removeStagedPain(idx) {
               :class="{ High: 'bg-rose-500/15 text-rose-300', Medium: 'bg-amber-500/15 text-amber-300', Low: 'bg-white/10 text-slate-400' }[p.severity]"
             >{{ p.severity }}</span>
             <span class="text-xs text-slate-500">{{ p.owner_name || (p.owner_id && projectPeople.find(pp => pp.id === p.owner_id)?.name) || 'unowned' }}</span>
-            <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
+            <button v-if="isEdit ? canDelete : canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="isEdit ? removePainPoint(p.id) : removeStagedPain(idx)"><Trash2 class="w-3.5 h-3.5" /></button>
           </li>
           <li v-if="(isEdit ? liveEvent.pain_points.length : stagedPainPoints.length) === 0" class="text-sm text-slate-500">No pain points yet.</li>
         </ul>

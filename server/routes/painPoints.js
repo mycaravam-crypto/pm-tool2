@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { db } from '../db/connection.js';
-import { canAccessEvent, canContribute, getEventContext, getProjectIdForEvent } from '../utils/access.js';
+import {
+  canAccessEvent,
+  canContribute,
+  canDeleteProjectItems,
+  getEventContext,
+  getProjectIdForEvent,
+} from '../utils/access.js';
 import { notifyAssigned } from '../utils/notify.js';
 
 const router = Router();
@@ -85,8 +91,8 @@ router.delete('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM pain_points WHERE id = ?').get(req.params.id);
   if (!existing || !canAccessEvent(req.member, existing.event_id))
     return res.status(404).json({ error: 'pain point not found' });
-  if (!canContribute(req.member, getProjectIdForEvent(existing.event_id)))
-    return res.status(403).json({ error: 'read-only access to this project' });
+  if (!canDeleteProjectItems(req.member, getProjectIdForEvent(existing.event_id)))
+    return res.status(403).json({ error: 'only the project lead can delete this' });
   db.prepare('DELETE FROM pain_points WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });
