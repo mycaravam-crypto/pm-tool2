@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLanes } from './timelineLanes.js';
+import { computeLanes } from '@/lib/timelineLanes.js';
 
 function item(id, start, end) {
   return { id, start, end };

@@ -3,8 +3,8 @@
 // into a stacked, render-ready list with a bounded overflow badge. Pulled out
 // of the component so it can be unit-tested without mounting Vue.
 
-import { computeLanes } from './timelineLanes.js';
-import { leftPercent } from './timelineScale.js';
+import { computeLanes } from '@/lib/timelineLanes.js';
+import { leftPercent } from '@/lib/timelineScale.js';
 
 // Groups events close enough in *rendered pixel space* to collide, not just
 // events sharing an exact date — at low zoom many days collapse into the same

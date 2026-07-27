@@ -1,7 +1,7 @@
 <script setup>
 import { AlertCircle, CalendarClock, ShieldAlert, Target, Unlink2 } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { useProjectStore } from '../stores/useProjectStore.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['focus-overdue', 'focus-pain', 'focus-upcoming', 'focus-goals', 'focus-scope-creep']);
 const store = useProjectStore();

@@ -1,12 +1,12 @@
 <script setup>
 import { Check, Crown, History, Loader2, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate } from '../lib/dateFormat.js';
-import { goalProgress } from '../lib/goalProgress.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { api } from '@/lib/api.js';
+import { formatDate } from '@/lib/dateFormat.js';
+import { goalProgress } from '@/lib/goalProgress.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({ project: { type: Object, default: null } });
 const emit = defineEmits(['close']);
@@ -73,6 +73,10 @@ const canContribute = computed(
 
 async function save() {
   error.value = '';
+  if (!isEdit.value && !form.lead_stakeholder_id) {
+    error.value = 'A project lead is required.';
+    return;
+  }
   saving.value = true;
   try {
     if (isEdit.value) {
@@ -87,11 +91,6 @@ async function save() {
         budget_spent: Number(form.budget_spent) || 0,
       });
     } else {
-      if (!form.lead_stakeholder_id) {
-        error.value = 'A project lead is required.';
-        saving.value = false;
-        return;
-      }
       await store.createProject({
         name: form.name,
         description: form.description,

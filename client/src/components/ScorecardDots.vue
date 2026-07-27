@@ -1,5 +1,5 @@
 <script setup>
-import { RAG_COLORS, RAG_LABELS } from '../lib/rag.js';
+import { RAG_COLORS, RAG_LABELS } from '@/lib/rag.js';
 
 defineProps({
   scorecard: { type: Object, required: true },

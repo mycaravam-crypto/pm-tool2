@@ -1,24 +1,24 @@
 <script setup>
 import { CalendarDays, CalendarRange, FileText, FileUp, ListChecks, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
-import AggregatedTabs from './components/AggregatedTabs.vue';
-import EventDetailModal from './components/EventDetailModal.vue';
-import HealthSummary from './components/HealthSummary.vue';
-import ImportEventsModal from './components/ImportEventsModal.vue';
-import InitializeProjectModal from './components/InitializeProjectModal.vue';
-import LoginView from './components/LoginView.vue';
-import MembersModal from './components/MembersModal.vue';
-import NotificationsLogModal from './components/NotificationsLogModal.vue';
-import ProjectFormModal from './components/ProjectFormModal.vue';
-import ResetPasswordView from './components/ResetPasswordView.vue';
-import Sidebar from './components/Sidebar.vue';
-import StakeholderDirectoryModal from './components/StakeholderDirectoryModal.vue';
-import Timeline from './components/Timeline.vue';
-import { api } from './lib/api.js';
-import { formatDate, todayStr } from './lib/dateFormat.js';
-import { playNotificationSound } from './lib/sound.js';
-import { connectNotificationSocket } from './lib/ws.js';
-import { useProjectStore } from './stores/useProjectStore.js';
+import AggregatedTabs from '@/components/AggregatedTabs.vue';
+import EventDetailModal from '@/components/EventDetailModal.vue';
+import HealthSummary from '@/components/HealthSummary.vue';
+import ImportEventsModal from '@/components/ImportEventsModal.vue';
+import InitializeProjectModal from '@/components/InitializeProjectModal.vue';
+import LoginView from '@/components/LoginView.vue';
+import MembersModal from '@/components/MembersModal.vue';
+import NotificationsLogModal from '@/components/NotificationsLogModal.vue';
+import ProjectFormModal from '@/components/ProjectFormModal.vue';
+import ResetPasswordView from '@/components/ResetPasswordView.vue';
+import Sidebar from '@/components/Sidebar.vue';
+import StakeholderDirectoryModal from '@/components/StakeholderDirectoryModal.vue';
+import Timeline from '@/components/Timeline.vue';
+import { api } from '@/lib/api.js';
+import { formatDate, todayStr } from '@/lib/dateFormat.js';
+import { playNotificationSound } from '@/lib/sound.js';
+import { connectNotificationSocket } from '@/lib/ws.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const store = useProjectStore();
 

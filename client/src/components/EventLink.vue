@@ -1,5 +1,5 @@
 <script setup>
-import { formatDate } from '../lib/dateFormat.js';
+import { formatDate } from '@/lib/dateFormat.js';
 
 defineProps({ event: { type: Object, required: true } });
 defineEmits(['select']);

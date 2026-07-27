@@ -1,5 +1,5 @@
 <script setup>
-import { formatDate } from '../lib/dateFormat.js';
+import { formatDate } from '@/lib/dateFormat.js';
 
 defineProps({
   overflowEvents: { type: Array, required: true },

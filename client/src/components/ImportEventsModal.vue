@@ -1,12 +1,12 @@
 <script setup>
 import { CircleAlert, Download, Eye, FolderOpen, Upload, X } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate } from '../lib/dateFormat.js';
-import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { api } from '@/lib/api.js';
+import { formatDate } from '@/lib/dateFormat.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['close']);
 const store = useProjectStore();

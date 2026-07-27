@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeClusters, computePositionedEvents } from './timelineAggregation.js';
+import { computeClusters, computePositionedEvents } from '@/lib/timelineAggregation.js';
 
 const range = { min: new Date('2026-01-01'), max: new Date('2026-01-31') }; // 30-day range
 const resolveVisual = () => ({ tag: 'visual' });

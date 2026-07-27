@@ -1,13 +1,13 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { EVENT_TYPES, STATUS_LABELS } from '../lib/eventTypes.js';
-import { goalProgress } from '../lib/goalProgress.js';
-import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '../lib/tableStyles.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import EventLink from './EventLink.vue';
-import ProjectChip from './ProjectChip.vue';
+import EventLink from '@/components/EventLink.vue';
+import ProjectChip from '@/components/ProjectChip.vue';
+import { api } from '@/lib/api.js';
+import { formatDate, todayStr as getTodayStr } from '@/lib/dateFormat.js';
+import { EVENT_TYPES, STATUS_LABELS } from '@/lib/eventTypes.js';
+import { goalProgress } from '@/lib/goalProgress.js';
+import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({
   // Set by the parent (e.g. clicking a Health Summary stat) to jump straight to

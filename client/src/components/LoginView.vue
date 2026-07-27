@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { api } from '../lib/api.js';
+import { api } from '@/lib/api.js';
 
 const emit = defineEmits(['login']);
 

@@ -1,12 +1,12 @@
 <script setup>
 import { CalendarCheck, CalendarX, Check, FileDown, Loader2, Plus, Repeat, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { api } from '../lib/api.js';
-import { formatDate, todayStr as getTodayStr } from '../lib/dateFormat.js';
-import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS, TYPE_COLORS } from '../lib/eventTypes.js';
-import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '../lib/recurrence.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import { api } from '@/lib/api.js';
+import { formatDate, todayStr as getTodayStr } from '@/lib/dateFormat.js';
+import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS, TYPE_COLORS } from '@/lib/eventTypes.js';
+import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '@/lib/recurrence.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({
   event: { type: Object, default: null },

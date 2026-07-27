@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue';
-import { api } from '../lib/api.js';
+import { api } from '@/lib/api.js';
 
 const props = defineProps({ token: { type: String, required: true } });
 const emit = defineEmits(['done']);

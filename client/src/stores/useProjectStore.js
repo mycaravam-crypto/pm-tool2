@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { api } from '../lib/api.js';
+import { api } from '@/lib/api.js';
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
@@ -174,7 +174,9 @@ export const useProjectStore = defineStore('project', {
     async initializeProject({ team = [], goals = [], requirements = [], ...projectData }) {
       const project = await api.projects.create(projectData);
       const [createdGoals] = await Promise.all([
-        Promise.all(goals.map((g) => api.goals.create({ project_id: project.id, text: g.text, target_date: g.target_date }))),
+        Promise.all(
+          goals.map((g) => api.goals.create({ project_id: project.id, text: g.text, target_date: g.target_date })),
+        ),
         Promise.all(team.map((t) => api.projects.assignStakeholder(project.id, t.stakeholder_id, t.project_role))),
       ]);
       await Promise.all(

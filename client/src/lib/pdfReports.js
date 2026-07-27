@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
-import { formatDate, todayStr } from './dateFormat.js';
-import { INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD } from './fonts/interFonts.js';
+import { formatDate, todayStr } from '@/lib/dateFormat.js';
+import { INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD } from '@/lib/fonts/interFonts.js';
 
 const MARGIN = 22; // spec: 20-25mm
 const PAGE_WIDTH = 210; // A4 portrait, mm

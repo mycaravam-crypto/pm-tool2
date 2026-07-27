@@ -1,7 +1,10 @@
 <script setup>
 import { Calendar, CalendarSearch, Repeat, RotateCcw, Search, Target, ZoomIn, ZoomOut } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '../lib/dateFormat.js';
+import ClusterDetailPopover from '@/components/ClusterDetailPopover.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import TimelineMiniMap from '@/components/TimelineMiniMap.vue';
+import { formatDate, formatMonthYear, formatYear, todayStr as getTodayStr } from '@/lib/dateFormat.js';
 import {
   EVENT_TYPE_KEYS,
   EVENT_TYPES,
@@ -10,18 +13,15 @@ import {
   resolveEventVisual,
   resolveGoalVisual,
   TYPE_COLORS,
-} from '../lib/eventTypes.js';
-import { computeClusters as computeClustersPure, computePositionedEvents } from '../lib/timelineAggregation.js';
+} from '@/lib/eventTypes.js';
+import { computeClusters as computeClustersPure, computePositionedEvents } from '@/lib/timelineAggregation.js';
 import {
   computeRange,
   computeSemanticZoomLabel,
   computeTrackWidth,
   leftPercent as leftPercentPure,
-} from '../lib/timelineScale.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import ClusterDetailPopover from './ClusterDetailPopover.vue';
-import HelpTooltip from './HelpTooltip.vue';
-import TimelineMiniMap from './TimelineMiniMap.vue';
+} from '@/lib/timelineScale.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['select-event', 'select-goal', 'new-event']);
 const store = useProjectStore();

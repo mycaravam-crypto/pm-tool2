@@ -1,10 +1,10 @@
 <script setup>
 import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, reactive, ref } from 'vue';
-import { formatDate } from '../lib/dateFormat.js';
-import { useProjectStore } from '../stores/useProjectStore.js';
-import HelpTooltip from './HelpTooltip.vue';
-import ModalShell from './ModalShell.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import ModalShell from '@/components/ModalShell.vue';
+import { formatDate } from '@/lib/dateFormat.js';
+import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const emit = defineEmits(['close']);
 const store = useProjectStore();
