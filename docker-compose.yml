@@ -17,7 +17,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-ChronosPM <no-reply@chronospm.local>}
       CRON_SCHEDULE: ${CRON_SCHEDULE:-0 7 * * *}
       # Seeds demo projects/stakeholders/logins the first time the app starts
-      # against an empty database volume (see docker-entrypoint.sh); never
+      # against an empty database volume (see server/entrypoint.js); never
       # re-seeds an existing one. Leave false for a real deployment.
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
     volumes:
