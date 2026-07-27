@@ -62,6 +62,15 @@ export function canContribute(member, projectId) {
   return role !== null && role !== 'stakeholder';
 }
 
+// Delete access for that same set of operational records — narrower than
+// canContribute: any committed role can create/edit an action item, pain
+// point, decision, requirement, or goal, but removing one outright is
+// restricted to the project's lead (or an admin).
+export function canDeleteProjectItems(member, projectId) {
+  const role = getProjectRole(member, projectId);
+  return role === 'admin' || role === 'lead';
+}
+
 // Write access to the project's own settings (name/dates/budget/status, lead
 // reassignment, team membership) — restricted to the people accountable for
 // those outcomes, not every contributor.

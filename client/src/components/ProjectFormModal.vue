@@ -76,6 +76,10 @@ const canManage = computed(
 const canContribute = computed(
   () => !isEdit.value || store.isAdmin || (myRole.value !== null && myRole.value !== 'stakeholder'),
 );
+// Mirrors server-side canDeleteProjectItems: narrower than canContribute — every
+// committed role can add/edit a requirement or goal, but only the project's
+// lead (or an admin) can delete one.
+const canDelete = computed(() => !isEdit.value || store.isAdmin || myRole.value === 'lead');
 
 async function save() {
   error.value = '';
@@ -385,7 +389,7 @@ function toggleGoalHistory(id) {
                   @click="toggleRequirementHistory(r.id)"
                 ><History class="w-3.5 h-3.5" /></button>
                 <button v-if="canContribute" type="button" title="Edit" class="text-slate-500 hover:text-violet-400" @click="startEditRequirement(r)"><Pencil class="w-3.5 h-3.5" /></button>
-                <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+                <button v-if="canDelete" type="button" class="text-slate-500 hover:text-rose-400" @click="removeRequirement(r.id)"><Trash2 class="w-3.5 h-3.5" /></button>
               </template>
             </div>
             <ul v-if="openRequirementHistoryId === r.id" class="ml-6 mt-1 space-y-0.5 border-l border-white/10 pl-2 text-xs text-slate-500">
@@ -432,7 +436,7 @@ function toggleGoalHistory(id) {
                   @click="toggleGoalHistory(g.id)"
                 ><History class="w-3.5 h-3.5" /></button>
                 <button v-if="canContribute" type="button" title="Edit" class="text-slate-500 hover:text-violet-400" @click="startEditGoal(g)"><Pencil class="w-3.5 h-3.5" /></button>
-                <button v-if="canContribute" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
+                <button v-if="canDelete" type="button" class="text-slate-500 hover:text-rose-400" @click="removeGoal(g.id)"><Trash2 class="w-3.5 h-3.5" /></button>
               </template>
             </div>
             <ul v-if="openGoalHistoryId === g.id" class="ml-6 mt-1 space-y-0.5 border-l border-white/10 pl-2 text-xs text-slate-500">
