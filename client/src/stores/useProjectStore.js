@@ -98,6 +98,11 @@ export const useProjectStore = defineStore('project', {
       await this.fetchNotifications();
       return result;
     },
+    async runStatusReportNow() {
+      const result = await api.notifications.runStatusReport();
+      await this.fetchNotifications();
+      return result;
+    },
 
     async fetchPortfolioSummary() {
       this.portfolioSummary = await api.dashboard.summary();
