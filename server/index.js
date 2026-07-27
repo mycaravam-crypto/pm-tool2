@@ -6,7 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import { db } from './db/connection.js';
 
-import { startDigestCron } from './cron.js';
+import { startDigestCron, startStatusReportCron } from './cron.js';
 import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
 import actionItemsRouter from './routes/actionItems.js';
 import authRouter from './routes/auth.js';
@@ -87,6 +87,7 @@ const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));
 initWebSocketServer(server);
 const digestTask = startDigestCron();
+const statusReportTask = startStatusReportCron();
 
 // Docker/orchestrators send SIGTERM on stop/redeploy (Ctrl-C sends SIGINT
 // locally) — without handling these, the default behavior kills the process
@@ -100,6 +101,7 @@ function shutdown(signal) {
   console.log(`${signal} received, shutting down gracefully...`);
 
   digestTask.stop();
+  statusReportTask.stop();
   closeWebSocketServer();
 
   // Force-exit if something (e.g. a request that never resolves) keeps the

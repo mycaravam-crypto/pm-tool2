@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../db/connection.js';
 import { getAccessibleProjectIds } from '../utils/access.js';
 import { runDigest } from '../utils/digest.js';
+import { runStatusReportDigest } from '../utils/statusReportDigest.js';
 
 const router = Router();
 
@@ -45,6 +46,13 @@ router.get('/', (req, res) => {
 // shared runDigest() so the generation logic never drifts between the two.
 router.post('/run-digest', (_req, res) => {
   const generated = runDigest();
+  res.json({ generated: generated.length });
+});
+
+// Same on-demand supplement as /run-digest above, for the weekly status report
+// cron (server/cron.js) instead of the nightly one.
+router.post('/run-status-report', (_req, res) => {
+  const generated = runStatusReportDigest();
   res.json({ generated: generated.length });
 });
 

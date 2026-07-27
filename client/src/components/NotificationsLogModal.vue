@@ -1,5 +1,5 @@
 <script setup>
-import { Loader2, Mail, PlayCircle } from 'lucide-vue-next';
+import { CalendarClock, Loader2, Mail, PlayCircle } from 'lucide-vue-next';
 import { ref } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import ModalShell from '@/components/ModalShell.vue';
@@ -11,6 +11,8 @@ const emit = defineEmits(['close']);
 const store = useProjectStore();
 const running = ref(false);
 const lastRun = ref(null);
+const runningStatusReport = ref(false);
+const lastStatusReportRun = ref(null);
 const error = ref('');
 const runAction = useAsyncAction(error);
 
@@ -18,11 +20,13 @@ const TYPE_LABELS = {
   assigned: 'Assigned to you',
   overdue_digest: 'Overdue digest',
   deadline_digest: 'Deadline digest',
+  status_report: 'Status report',
 };
 const TYPE_COLORS = {
   assigned: 'bg-violet-500/20 text-violet-300',
   overdue_digest: 'bg-rose-500/15 text-rose-300',
   deadline_digest: 'bg-amber-500/15 text-amber-300',
+  status_report: 'bg-cyan-500/15 text-cyan-300',
 };
 
 async function runDigest() {
@@ -33,6 +37,15 @@ async function runDigest() {
   });
   running.value = false;
 }
+
+async function runStatusReport() {
+  runningStatusReport.value = true;
+  await runAction(async () => {
+    const result = await store.runStatusReportNow();
+    lastStatusReportRun.value = result.generated;
+  });
+  runningStatusReport.value = false;
+}
 </script>
 
 <template>
@@ -40,7 +53,7 @@ async function runDigest() {
     <div class="notifications-log-modal">
     <p class="flex items-center gap-1 text-sm text-slate-500 mb-3">
       Everything the system has generated, most recent first.
-      <HelpTooltip text="Each row was also emailed to its recipient (or logged to the server console if SMTP isn't configured). Real-time rows appear as soon as someone is assigned an action item, pain point, or decision. Digest rows are generated automatically every night — use the button below to also trigger one on demand." />
+      <HelpTooltip text="Each row was also emailed to its recipient (or logged to the server console if SMTP isn't configured). Real-time rows appear as soon as someone is assigned an action item, pain point, or decision. Digest rows are generated automatically every night, and status reports weekly — use the buttons below to also trigger either on demand." />
     </p>
 
     <div class="flex items-center gap-3 mb-4">
@@ -53,6 +66,18 @@ async function runDigest() {
         <PlayCircle v-else class="w-4 h-4" />
       </button>
       <span v-if="lastRun !== null" class="text-sm text-slate-500">Generated {{ lastRun }} digest notification(s).</span>
+    </div>
+
+    <div class="flex items-center gap-3 mb-4">
+      <button
+        class="grid h-9 w-9 place-items-center rounded-md border border-white/15 text-slate-300 hover:bg-white/[.03] disabled:opacity-50"
+        :disabled="runningStatusReport" :title="runningStatusReport ? 'Running…' : 'Run Status Report Now'"
+        @click="runStatusReport"
+      >
+        <Loader2 v-if="runningStatusReport" class="w-4 h-4 animate-spin" />
+        <CalendarClock v-else class="w-4 h-4" />
+      </button>
+      <span v-if="lastStatusReportRun !== null" class="text-sm text-slate-500">Generated {{ lastStatusReportRun }} status report notification(s).</span>
     </div>
     <p v-if="error" class="text-sm text-rose-600 mb-3">{{ error }}</p>
 
