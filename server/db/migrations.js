@@ -40,6 +40,13 @@ export function runMigrations(db) {
   if (!hasColumn(db, 'requirements', 'goal_id')) {
     db.exec('ALTER TABLE requirements ADD COLUMN goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL');
   }
+  // 'decision' was removed as an event type (it collided with the unrelated
+  // decisions log, and was folded into 'review'). SQLite can't alter an existing
+  // CHECK constraint, so a pre-existing database's events table still technically
+  // allows the old value at the SQL level — the app just never writes it anymore,
+  // and this backfills any row that already had it so the UI doesn't hit an
+  // undefined EVENT_TYPES lookup for a type it no longer recognizes.
+  db.exec("UPDATE events SET type = 'review' WHERE type = 'decision'");
   // Outside the check above, not inside it: on a brand-new database the column
   // already exists (created directly by schema.sql), so the ALTER is skipped —
   // but the index still needs to be created either way.

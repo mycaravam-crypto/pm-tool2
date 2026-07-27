@@ -110,7 +110,7 @@ CREATE TABLE events (
     project_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     date TEXT NOT NULL, -- YYYY-MM-DD
-    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')),
+    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','retro','milestone','deadline')),
     summary TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- meaningful only for milestone/deadline
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -246,7 +246,6 @@ Each event renders as a bubble with an icon and a border in its project's color,
 | sync | Refresh | circle |
 | workshop | Users | circle |
 | review | Clipboard check | circle |
-| decision | Git branch | circle |
 | retro | History | circle |
 | milestone | Flag | diamond |
 | deadline | Alarm clock | diamond |

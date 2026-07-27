@@ -1,6 +1,6 @@
 import { parse } from 'csv-parse/sync';
 
-export const EVENT_TYPES = ['kickoff', 'sync', 'workshop', 'review', 'decision', 'retro', 'milestone', 'deadline'];
+export const EVENT_TYPES = ['kickoff', 'sync', 'workshop', 'review', 'retro', 'milestone', 'deadline'];
 export const EVENT_STATUSES = ['pending', 'achieved', 'missed'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
