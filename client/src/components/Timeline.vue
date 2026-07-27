@@ -20,6 +20,7 @@ import {
   computeSemanticZoomLabel,
   computeTrackWidth,
   DAY_MS,
+  isoWeekNumber,
   leftPercent as leftPercentPure,
 } from '@/lib/timelineScale.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
@@ -232,7 +233,8 @@ const yearMarkers = computed(() => {
 });
 
 // Uses the actual rendered trackWidth (post-clamping), not the nominal zoom-derived
-// px/day, since that's what determines whether the lines are legible.
+// px/day, since that's what determines whether the lines are legible. Labeled with
+// the day-of-month number — legible once these render at all, so no separate gate.
 const dayMarkers = computed(() => {
   const { min, max } = range.value;
   const totalDays = (max - min) / DAY_MS;
@@ -242,8 +244,28 @@ const dayMarkers = computed(() => {
   cursor.setDate(cursor.getDate() + 1);
   while (cursor <= max) {
     const dateStr = cursor.toISOString().slice(0, 10);
-    markers.push({ key: dateStr, leftPercent: leftPercent(dateStr) });
+    markers.push({ key: dateStr, leftPercent: leftPercent(dateStr), label: String(cursor.getDate()) });
     cursor.setDate(cursor.getDate() + 1);
+  }
+  return markers;
+});
+
+// ISO week numbers, one per Monday in range — shown only at the "Monat" zoom tier,
+// where individual days aren't legible yet (dayMarkers above) but a bare month
+// label alone is too coarse a sense of "how far into the month". Mutually
+// exclusive with dayMarkers by construction (Monat is always below the day-grid
+// threshold), so they can safely share a label row in the template.
+const weekMarkers = computed(() => {
+  if (semanticZoomLabel.value !== 'Monat') return [];
+  const { min, max } = range.value;
+  const markers = [];
+  const cursor = new Date(min.getFullYear(), min.getMonth(), min.getDate());
+  const dayOfWeek = cursor.getDay() || 7; // Monday=1 .. Sunday=7
+  if (dayOfWeek !== 1) cursor.setDate(cursor.getDate() + (8 - dayOfWeek));
+  while (cursor <= max) {
+    const dateStr = cursor.toISOString().slice(0, 10);
+    markers.push({ key: dateStr, leftPercent: leftPercent(dateStr), label: `W${isoWeekNumber(cursor)}` });
+    cursor.setDate(cursor.getDate() + 7);
   }
   return markers;
 });
@@ -565,6 +587,29 @@ onBeforeUnmount(() => resizeObserver?.disconnect());
                 class="absolute top-0 w-px bg-white/[.04] transition-[left] duration-300 ease-out"
                 :style="{ left: d.leftPercent + '%', height: BASELINE_TOP + 'px' }"
               />
+            </TransitionGroup>
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="d in dayMarkers" :key="'label-' + d.key"
+                class="absolute text-[10px] text-slate-600 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+                :style="{ left: d.leftPercent + '%', top: (BASELINE_TOP + 46) + 'px' }"
+              >{{ d.label }}</div>
+            </TransitionGroup>
+
+            <!-- week gridlines: only at the Monat zoom tier, sharing dayMarkers' label row since the two never render together -->
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="w in weekMarkers" :key="w.key"
+                class="absolute top-0 w-px bg-white/[.05] transition-[left] duration-300 ease-out"
+                :style="{ left: w.leftPercent + '%', height: BASELINE_TOP + 'px' }"
+              />
+            </TransitionGroup>
+            <TransitionGroup name="fade-pop" tag="div">
+              <div
+                v-for="w in weekMarkers" :key="'label-' + w.key"
+                class="absolute text-[10px] text-slate-600 -translate-x-1/2 whitespace-nowrap transition-[left] duration-300 ease-out"
+                :style="{ left: w.leftPercent + '%', top: (BASELINE_TOP + 46) + 'px' }"
+              >{{ w.label }}</div>
             </TransitionGroup>
 
             <!-- month gridlines -->

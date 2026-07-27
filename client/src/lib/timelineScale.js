@@ -53,3 +53,15 @@ export function computeSemanticZoomLabel(pxPerDay, dayGridMinPxPerDay) {
   if (pxPerDay < 24) return 'Woche';
   return 'Tag';
 }
+
+// ISO 8601 week number (weeks start Monday; week 1 is the week containing the
+// year's first Thursday) — matches the de-DE locale week numbering used
+// elsewhere in the app. Returns just the week number, not the ISO week-year,
+// which can differ from `date.getFullYear()` in the last/first days of December.
+export function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7; // Monday=1 .. Sunday=7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum); // shift to this week's Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / DAY_MS + 1) / 7);
+}
