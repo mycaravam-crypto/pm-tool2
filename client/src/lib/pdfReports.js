@@ -7,14 +7,10 @@ const PAGE_WIDTH = 210; // A4 portrait, mm
 const PAGE_HEIGHT = 297;
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 
-// Design system (spec): dark, minimalist executive theme that mirrors the
-// app's own UI (near-black page, off-white text, violet/cyan brand accent)
-// instead of a generic light "corporate report" look. No decorative card
-// backgrounds or borders anywhere — hierarchy comes from type weight, color,
-// and whitespace alone. Exactly four status colors are reserved for
-// communicating status (schedule/cost/quality, KPI health, budget state,
-// risk severity) — no per-"kind" rainbow coding, and the brand accent
-// (violet/cyan) is never used to mean a status.
+// Dark, minimalist theme mirroring the app's own UI, not a generic light
+// "corporate report" look — hierarchy comes from type weight, color, and
+// whitespace, no card borders/fills. Status colors (green/amber/red/blue)
+// are reserved for status only; the brand accent never means a status.
 const COLOR = {
   bg: [0x08, 0x0a, 0x0f], // #080a0f — matches app's --bg
   text: [0xf6, 0xf7, 0xfb], // #f6f7fb — matches app's --text
@@ -409,10 +405,8 @@ function drawTaskList(doc, y, tasks, emptyLabel) {
   return y + 6;
 }
 
-// Requirements/Goals: a bold "X of Y complete" roll-up + thin progress bar
-// up top (so the aggregate is the first thing read), then the itemized list
-// below — kept, since the underlying text must not be dropped, but with a
-// minimal open/filled dot instead of a bordered checkbox glyph.
+// Requirements/Goals: a bold "X of Y complete" roll-up + progress bar up top,
+// then the itemized list below with a minimal open/filled dot per item.
 function drawChecklist(doc, y, items, emptyLabel) {
   y = ensureRoom(doc, y, 30);
   const total = items.length;

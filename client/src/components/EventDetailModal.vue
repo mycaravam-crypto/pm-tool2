@@ -19,9 +19,8 @@ const store = useProjectStore();
 const isEdit = computed(() => !!props.event);
 const todayStr = getTodayStr();
 
-// props.event is a snapshot taken when the modal opened; store.events gets replaced
-// wholesale after every mutation (see useProjectStore), so nested lists must be read
-// from the live store entry or the modal goes stale after the first add/toggle/delete.
+// props.event is a snapshot from when the modal opened; store.events gets replaced
+// wholesale after every mutation, so nested lists must be read from the live entry.
 const liveEvent = computed(() => {
   if (!isEdit.value) return null;
   return store.events.find((e) => e.id === props.event.id) ?? props.event;
@@ -347,8 +346,7 @@ function removeStagedPain(idx) {
         </div>
       </div>
 
-      <!-- Repeat: create-mode only — an existing series is managed afterwards
-           via "save/delete entire series" rather than by re-editing its rule. -->
+      <!-- Repeat (create-mode only) -->
       <div v-if="!isEdit && canContribute" class="border-t border-white/10 pt-3">
         <label class="flex items-center gap-2 text-xs font-medium text-slate-400 mb-2">
           <input v-model="recurrence.enabled" type="checkbox" />

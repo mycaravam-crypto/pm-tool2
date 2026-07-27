@@ -16,9 +16,8 @@ const store = useProjectStore();
 const isEdit = computed(() => !!props.project);
 
 // props.project is a snapshot from when the modal opened; store.projects gets
-// replaced wholesale after every mutation (see useProjectStore), so Requirements
-// and Goals — delivered nested on the project, like lead/scorecard — must be read
-// from the live store entry or they'd go stale after the first add/toggle/delete.
+// replaced wholesale after every mutation, so nested Requirements/Goals must be
+// read from the live store entry or they'd go stale after the first edit.
 const liveProject = computed(() => (isEdit.value ? (store.projectById(props.project.id) ?? props.project) : null));
 
 // original_target_end_date is snapshotted once at creation and never updated
@@ -65,10 +64,9 @@ onMounted(loadPeople);
 
 const availableToAdd = computed(() => store.stakeholders.filter((s) => !people.value.some((p) => p.id === s.id)));
 
-// Only reachable in edit mode — creating a project is already admin-only,
-// gated at the "New Project" button. Mirrors the server-side canManageProject/
-// canContribute checks in server/utils/access.js: settings/team changes need
-// lead/sponsor/admin, while Requirements/Goals follow the wider contribute tier.
+// Mirrors server-side canManageProject/canContribute (server/utils/access.js):
+// settings/team changes need lead/sponsor/admin, Requirements/Goals need any
+// committed role.
 const myRole = computed(
   () => people.value.find((p) => p.id === store.currentMember?.stakeholder_id)?.project_role ?? null,
 );
@@ -204,11 +202,9 @@ async function removeGoal(id) {
   await runAction(() => store.deleteGoal(id));
 }
 
-// Content editing (text, and for goals target_date too) is separate from the
-// done/achieved checkbox and the goal-link dropdown above — those are status/
-// relationship changes with their own visible current-state indicator, not
-// "content," so they don't go through this edit flow or generate history rows
-// (see server/routes/requirements.js and goals.js, which only log on a text diff).
+// Content editing (text, and target_date for goals) is separate from the
+// done/achieved checkbox and goal-link dropdown above — those are status changes
+// and don't generate history rows (server only logs on a text diff).
 const editingRequirementId = ref(null);
 const editRequirementText = ref('');
 function startEditRequirement(r) {

@@ -7,8 +7,7 @@ const emit = defineEmits(['focus-overdue', 'focus-pain', 'focus-upcoming', 'focu
 const store = useProjectStore();
 
 // Falls back to the portfolio-wide summary when no project is selected, so this
-// is the single stat strip for both "everything" and "what I've filtered to" —
-// see Sidebar.vue, which used to show the portfolio numbers separately.
+// is the single stat strip for both "everything" and "what I've filtered to".
 const isScoped = computed(() => store.selectedProjectIds.length > 0);
 const summary = computed(() => (isScoped.value ? store.scopedSummary : store.portfolioSummary));
 const scopeLabel = computed(() => (isScoped.value ? 'Selected' : 'Portfolio'));

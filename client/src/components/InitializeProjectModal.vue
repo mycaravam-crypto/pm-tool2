@@ -25,16 +25,14 @@ const form = reactive({
 });
 
 // Draft team/goals/requirements only exist client-side until "Create Project" —
-// nothing here is persisted until the final step, so the whole wizard can be
-// abandoned with @close and no partial project is left behind.
+// nothing is persisted until the final step, so @close abandons the wizard cleanly.
 const team = ref([]);
 const newTeamStakeholderId = ref('');
 const newTeamRole = ref('member');
 
 // Each goal carries a locally-unique `key` (not a real id yet) so a requirement
-// draft can reference "the 2nd goal I just added" and survive goals being
-// reordered or deleted before submission — an array index would silently point
-// at the wrong goal once the list changes.
+// draft can reference it and survive goals being reordered/deleted before
+// submission — an array index would silently point at the wrong goal.
 let goalKeySeq = 0;
 const goals = ref([]);
 const newGoalText = ref('');

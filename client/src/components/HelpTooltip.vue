@@ -16,10 +16,8 @@ const tooltip = ref(null);
 const tooltipStyle = ref({});
 
 // Teleported to <body> and positioned in fixed viewport coordinates instead of
-// `absolute` inside `root` — every caller lives inside ModalShell's
-// `overflow-y-auto` body (or worse, a modal nested inside another modal), and
-// an absolutely-positioned descendant gets clipped to the nearest scrolling
-// ancestor's bounds no matter how high its z-index is set.
+// `absolute` inside `root` — every caller lives inside a scrollable modal body,
+// and an absolutely-positioned descendant gets clipped to it regardless of z-index.
 function updatePosition() {
   const btn = root.value?.querySelector('button');
   if (!btn || !tooltip.value) return;

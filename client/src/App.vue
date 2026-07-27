@@ -108,12 +108,13 @@ async function exportSituationReport() {
   });
 }
 
-// Jumps from a Health Summary count straight to the matching filtered list —
-// a token (always a fresh value) so re-clicking the same stat re-applies the
-// filter even when subTab/flags are already at those values.
 async function ensureProjectsSelected() {
   if (store.selectedProjectIds.length === 0) await store.selectAllProjects();
 }
+
+// Each jumps from a Health Summary count straight to the matching filtered list —
+// a token (always a fresh value) so re-clicking the same stat re-applies the
+// filter even when subTab/flags are already at those values.
 async function focusOverdueActions() {
   await ensureProjectsSelected();
   mainTab.value = 'dashboard';
