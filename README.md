@@ -96,12 +96,15 @@ docker compose up -d --build
 
 This builds the image, starts the container, and persists the SQLite database in a named Docker volume (`chronos-data`) so it survives rebuilds and `docker compose down`. The container runs as a non-root user and creates the database (schema + migrations) on first boot automatically — nothing to run by hand. Copy [`.env.example`](.env.example) to `.env` next to `docker-compose.yml` and fill in what you need; at minimum, set `CLIENT_ORIGIN` to the real origin you're serving this from — it's used both for password-reset links and to lock down CORS to that origin. Set `SEED_DEMO_DATA=true` there to populate the demo projects/logins the first time the app starts against an empty volume (safe to leave `false`/unset for a real deployment — it never touches an existing database).
 
-**Upgrading an existing deployment:** if your `chronos-data` volume was created before the non-root hardening change (commit `8746234`), its files are still owned by `root` and the app will fail every write with `SQLITE_READONLY` once you rebuild. Fix it once with:
+**Upgrading an existing deployment:** the production image now runs on a distroless base (no shell, no package manager — see PLAN.md) as its built-in non-root `nonroot` user, uid `65532`, instead of the `node:24-slim` image's `node` user (uid `1000`). If your `chronos-data` volume was created before this change, its files are still owned by the old uid (`1000`, or `root` if it predates that too) and the app will fail every write with `SQLITE_READONLY` once you rebuild. The new image has no shell to fix this from inside the container, so fix it once from a throwaway container that mounts the same volume directly:
 
 ```bash
-docker compose exec -u root app chown -R node:node /app/server/data
-docker compose restart app
+docker compose down
+docker run --rm -v <project>_chronos-data:/data alpine chown -R 65532:65532 /data
+docker compose up -d
 ```
+
+(`<project>` is your Compose project name, normally the directory `docker-compose.yml` lives in — confirm the exact volume name with `docker volume ls | grep chronos-data`.)
 
 **Backups:** `docker compose exec app npm run backup -w server` snapshots the live database to a timestamped file inside the same volume (safe to run while the app is up — it doesn't lock the database). Copy it out with `docker cp`, then get it off the host on whatever schedule/storage you use for backups elsewhere.
 

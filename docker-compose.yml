@@ -25,6 +25,9 @@ services:
       # `docker compose down`/image rebuilds. Back it up with
       # `docker compose exec app npm run backup -w server` (writes into this
       # same volume; copy the resulting file out with `docker cp` afterward).
+      # Upgrading an existing volume across a container-uid change (e.g. the
+      # move to a distroless runtime image)? See README.md's Deployment
+      # section — the new image has no shell to fix ownership from inside.
       - chronos-data:/app/server/data
     restart: unless-stopped
 
