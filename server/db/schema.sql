@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS events (
     title TEXT NOT NULL,
     date TEXT NOT NULL,
     time TEXT, -- optional 'HH:MM', 24h; a date-only event (most of them) leaves this null
-    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','decision','retro','milestone','deadline')),
+    type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','retro','milestone','deadline')),
     summary TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- only meaningful for milestone/deadline; ignored elsewhere
     series_id INTEGER, -- set only on events generated from a repeat rule; null for one-off events

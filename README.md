@@ -23,7 +23,7 @@ This is intentionally lightweight: no formal Work Breakdown Structure, no Earned
 
 ## Features
 
-**Overlay timeline** — Zoomable, with automatic clustering so close-together events separate into their own bubbles instead of overlapping. Meeting-type events (kickoff, sync, workshop, review, decision, retro) render as circles; forward-looking markers (milestone, deadline) render as diamonds and track a pending/achieved/missed status. Every bubble is bordered in its project's color so you always know whose event you're looking at, even with several projects overlaid at once.
+**Overlay timeline** — Zoomable, with automatic clustering so close-together events separate into their own bubbles instead of overlapping. Meeting-type events (kickoff, sync, workshop, review, retro) render as circles; forward-looking markers (milestone, deadline) render as diamonds and track a pending/achieved/missed status. Every bubble is bordered in its project's color so you always know whose event you're looking at, even with several projects overlaid at once.
 
 **Event detail view** — Click any event to see its full record: title, date, summary, participants, and three linked lists — Decisions, Action Items, and Pain Points — each with an owner or assignee drawn from that project's assigned stakeholders.
 

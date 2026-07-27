@@ -84,7 +84,7 @@ function downloadTemplate() {
         <div class="flex items-center gap-2 text-slate-400">
           <Upload class="w-4 h-4 shrink-0" />
           <span>{{ fileName || 'Choose a CSV file to import' }}</span>
-          <HelpTooltip text="Columns: title, date (YYYY-MM-DD), type (kickoff/sync/workshop/review/decision/retro/milestone/deadline), summary, status (pending/achieved/missed, optional), participants (optional, stakeholder names separated by ;)." />
+          <HelpTooltip text="Columns: title, date (YYYY-MM-DD), type (kickoff/sync/workshop/review/retro/milestone/deadline), summary, status (pending/achieved/missed, optional), participants (optional, stakeholder names separated by ;)." />
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <button type="button" title="Download template" class="grid h-9 w-9 place-items-center rounded-md text-violet-400 hover:bg-white/[.03]" @click="downloadTemplate">
