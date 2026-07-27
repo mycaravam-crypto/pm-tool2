@@ -31,6 +31,15 @@ const scheduleSlip = computed(() => {
   return { originalDate: proj.original_target_end_date, days };
 });
 
+// original_budget_planned is snapshotted once at creation and never updated (see
+// POST /api/projects) — same "baseline vs. current" pattern as scheduleSlip above.
+const budgetSlip = computed(() => {
+  const proj = liveProject.value;
+  if (proj?.original_budget_planned == null || proj?.budget_planned == null) return null;
+  if (proj.original_budget_planned === proj.budget_planned) return null;
+  return { originalAmount: proj.original_budget_planned, delta: proj.budget_planned - proj.original_budget_planned };
+});
+
 const goalsWithProgress = computed(() => {
   const requirements = liveProject.value?.requirements ?? [];
   return (liveProject.value?.goals ?? []).map((g) => ({ ...g, progress: goalProgress(g.id, requirements) }));
@@ -295,6 +304,10 @@ function toggleGoalHistory(id) {
         <div>
           <label class="block text-xs font-medium text-slate-400 mb-1">Budget planned</label>
           <input v-model="form.budget_planned" type="number" step="0.01" :disabled="!canManage" class="w-full border border-white/15 rounded-md px-3 py-1.5 text-sm disabled:bg-white/[.03] disabled:text-slate-500" />
+          <p v-if="budgetSlip" class="text-xs mt-1" :class="budgetSlip.delta > 0 ? 'text-amber-400' : 'text-slate-500'">
+            Originally planned: {{ budgetSlip.originalAmount }}
+            ({{ budgetSlip.delta > 0 ? `+${budgetSlip.delta}` : budgetSlip.delta }})
+          </p>
         </div>
         <div>
           <label class="block text-xs font-medium text-slate-400 mb-1">Budget spent</label>

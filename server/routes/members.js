@@ -8,7 +8,7 @@ const router = Router();
 // the UI gets about whether a member can log in.
 const MEMBER_COLUMNS = `
   m.id, m.name, m.email, m.stakeholder_id, m.role,
-  m.notify_assigned, m.notify_overdue_action_items, m.notify_upcoming_deadlines,
+  m.notify_assigned, m.notify_overdue_action_items, m.notify_upcoming_deadlines, m.notify_status_report,
   m.created_at, s.name AS stakeholder_name,
   (m.password_hash IS NOT NULL) AS has_password
 `;
@@ -55,6 +55,7 @@ router.post('/', (req, res) => {
     notify_assigned = true,
     notify_overdue_action_items = true,
     notify_upcoming_deadlines = true,
+    notify_status_report = true,
   } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'name and email are required' });
   if (password && password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
@@ -65,8 +66,8 @@ router.post('/', (req, res) => {
   try {
     const info = db
       .prepare(`
-      INSERT INTO members (name, email, stakeholder_id, password_hash, role, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO members (name, email, stakeholder_id, password_hash, role, notify_assigned, notify_overdue_action_items, notify_upcoming_deadlines, notify_status_report)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .run(
         name,
@@ -77,6 +78,7 @@ router.post('/', (req, res) => {
         notify_assigned ? 1 : 0,
         notify_overdue_action_items ? 1 : 0,
         notify_upcoming_deadlines ? 1 : 0,
+        notify_status_report ? 1 : 0,
       );
     res.status(201).json(getMemberStmt.get(info.lastInsertRowid));
   } catch (e) {
@@ -97,6 +99,7 @@ router.put('/:id', (req, res) => {
     notify_assigned = existing.notify_assigned,
     notify_overdue_action_items = existing.notify_overdue_action_items,
     notify_upcoming_deadlines = existing.notify_upcoming_deadlines,
+    notify_status_report = existing.notify_status_report,
     password,
   } = req.body;
   if (password && password.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
@@ -114,7 +117,7 @@ router.put('/:id', (req, res) => {
   try {
     db.prepare(`
       UPDATE members SET name = ?, email = ?, stakeholder_id = ?, password_hash = ?, role = ?, notify_assigned = ?,
-        notify_overdue_action_items = ?, notify_upcoming_deadlines = ? WHERE id = ?
+        notify_overdue_action_items = ?, notify_upcoming_deadlines = ?, notify_status_report = ? WHERE id = ?
     `).run(
       name,
       email,
@@ -124,6 +127,7 @@ router.put('/:id', (req, res) => {
       notify_assigned ? 1 : 0,
       notify_overdue_action_items ? 1 : 0,
       notify_upcoming_deadlines ? 1 : 0,
+      notify_status_report ? 1 : 0,
       req.params.id,
     );
     res.json(getMemberStmt.get(req.params.id));

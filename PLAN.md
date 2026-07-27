@@ -88,6 +88,8 @@ CREATE TABLE projects (
         -- schedule slip (current vs. originally planned) visible (Section 10)
     actual_end_date TEXT, -- set when status flips to 'completed'; null while active
     budget_planned REAL, -- the Cost constraint; single implicit currency
+    original_budget_planned REAL, -- snapshotted once at creation, never touched again — makes
+        -- budget slip (current plan vs. originally planned) visible, same idiom as the schedule baseline above
     budget_spent REAL NOT NULL DEFAULT 0, -- a running total, not a line-item ledger
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -392,9 +394,11 @@ Two further rounds of work landed after Section 9: closing specific project-mana
 
 **PM-domain gaps closed**, each by extending an existing pattern rather than adding a new subsystem:
 - **Schedule baseline.** `projects.original_target_end_date` is snapshotted once at creation and never touched again, mirroring the existing budget planned-vs-actual idiom — the project edit form now shows how far the current target date has slipped (or moved up) from what was originally planned.
+- **Budget baseline.** `projects.original_budget_planned` is the same idiom applied to cost: snapshotted once at creation, never touched again, so a later revision to `budget_planned` (a re-plan, not spend) stays visible as a delta from what was originally budgeted — distinct from `budget_spent`, which tracks actual spend against whatever the plan currently is.
 - **Risk vs. issue split.** `pain_points.kind` (`'issue' | 'risk'`) reuses the existing severity/owner/resolved shape instead of a parallel risk-register table — a risk is just a pain point that hasn't happened yet. The event detail view and the aggregated Pain Points tab both tag and filter by kind.
 - **Resource overload signal.** `GET /api/stakeholders` now returns `active_project_count`, `open_item_count`, and a derived `overloaded` flag (lead on 2+ active projects, or 5+ open items across projects), computed on the fly in a handful of grouped queries — the same "computed, not stored" philosophy as the RAG scorecard (Section 6.E). Surfaced as a "Load" column in the Stakeholder Directory.
 - **Missed-milestone/deadline notification.** The nightly digest (Section 9) now also flags pending milestones/deadlines whose date has already passed, reusing the existing `notify_upcoming_deadlines` toggle and `deadline_digest` type — previously this only showed up as a passive amber nudge on the timeline (Section 6.B), easy to miss if nobody opens the app.
+- **Recurring status report.** A second scheduled digest (`server/utils/statusReportDigest.js`, `server/cron.js`'s `STATUS_REPORT_CRON_SCHEDULE`, default weekly on Monday) sends each subscribed member a per-project schedule/cost/quality/scope summary — the same shape as the PDF Situation Report, but plain text and delivered without anyone having to remember to export it. One notification row per (member, project), same as the nightly digest, but batched into a single combined email per member across all their subscribed projects. Gated by a new `notify_status_report` member toggle (default on) and a new `status_report` notification type, with its own "Run Status Report Now" button.
 - **Global search.** The aggregated dashboards (Section 6.C) gained a free-text filter, always visible regardless of which tab is active, layered on top of every existing filter the same way `onlyMine`/`projectFilter`/etc. already are — a client-side substring match against each row's display text (an event's title on the Upcoming tab, since those rows have no `.text`), no new endpoint or index needed at this scale.
 
 **Production hardening**, scoped to what a single-container go-live needs rather than a full ops buildout:

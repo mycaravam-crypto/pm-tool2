@@ -22,6 +22,10 @@ export function runMigrations(db) {
     // read as "slipped from nothing" — best available proxy for "what it was at creation".
     db.exec('UPDATE projects SET original_target_end_date = target_end_date WHERE original_target_end_date IS NULL');
   }
+  if (!hasColumn(db, 'projects', 'original_budget_planned')) {
+    db.exec('ALTER TABLE projects ADD COLUMN original_budget_planned REAL');
+    db.exec('UPDATE projects SET original_budget_planned = budget_planned WHERE original_budget_planned IS NULL');
+  }
   if (!hasColumn(db, 'pain_points', 'kind')) {
     db.exec("ALTER TABLE pain_points ADD COLUMN kind TEXT NOT NULL DEFAULT 'issue' CHECK(kind IN ('issue', 'risk'))");
   }
@@ -47,10 +51,42 @@ export function runMigrations(db) {
   // and this backfills any row that already had it so the UI doesn't hit an
   // undefined EVENT_TYPES lookup for a type it no longer recognizes.
   db.exec("UPDATE events SET type = 'review' WHERE type = 'decision'");
+  if (!hasColumn(db, 'members', 'notify_status_report')) {
+    db.exec('ALTER TABLE members ADD COLUMN notify_status_report INTEGER NOT NULL DEFAULT 1');
+  }
+  widenNotificationTypeCheck(db);
   // Outside the check above, not inside it: on a brand-new database the column
   // already exists (created directly by schema.sql), so the ALTER is skipped —
   // but the index still needs to be created either way.
   db.exec('CREATE INDEX IF NOT EXISTS idx_notifications_project_id ON notifications(project_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_events_series_id ON events(series_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_requirements_goal_id ON requirements(goal_id)');
+}
+
+// Adding 'status_report' as a notification type means widening notifications.type's
+// CHECK — SQLite has no ALTER TABLE for that, so an existing database needs the
+// table recreated (copy data in, drop old, rename new) rather than a simple ALTER.
+// Detected via the table's own stored CREATE statement rather than a probe column,
+// since every column stays the same and only the CHECK's value list changes.
+function widenNotificationTypeCheck(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notifications'").get();
+  if (!row || row.sql.includes('status_report')) return;
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE notifications_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          member_id INTEGER NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest','status_report')),
+          subject TEXT NOT NULL,
+          body TEXT NOT NULL,
+          project_id INTEGER,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      );
+      INSERT INTO notifications_new SELECT * FROM notifications;
+      DROP TABLE notifications;
+      ALTER TABLE notifications_new RENAME TO notifications;
+    `);
+  })();
 }

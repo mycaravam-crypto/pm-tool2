@@ -22,6 +22,7 @@ const form = reactive({
   notify_assigned: true,
   notify_overdue_action_items: true,
   notify_upcoming_deadlines: true,
+  notify_status_report: true,
 });
 const error = ref('');
 const runAction = useAsyncAction(error);
@@ -43,6 +44,7 @@ function startNew() {
   form.notify_assigned = true;
   form.notify_overdue_action_items = true;
   form.notify_upcoming_deadlines = true;
+  form.notify_status_report = true;
   subscribedProjects.value = [];
 }
 
@@ -58,6 +60,7 @@ async function startEdit(m) {
   form.notify_assigned = !!m.notify_assigned;
   form.notify_overdue_action_items = !!m.notify_overdue_action_items;
   form.notify_upcoming_deadlines = !!m.notify_upcoming_deadlines;
+  form.notify_status_report = !!m.notify_status_report;
   await loadSubscriptions(m.id);
 }
 
@@ -78,6 +81,7 @@ async function save() {
     notify_assigned: form.notify_assigned,
     notify_overdue_action_items: form.notify_overdue_action_items,
     notify_upcoming_deadlines: form.notify_upcoming_deadlines,
+    notify_status_report: form.notify_status_report,
   };
   await runAction(async () => {
     if (editingId.value) {
@@ -121,7 +125,7 @@ async function toggleSubscription(project) {
     <div class="members-modal">
     <p class="flex items-center gap-1 text-sm text-slate-500 mb-3">
       People who receive email notifications.
-      <HelpTooltip text="Separate from the Stakeholder directory — a member can (optionally) link to their Stakeholder identity to get 'assigned to you' alerts, and subscribes to projects independently to get overdue/deadline digests. Sending is stubbed for now — see the Notifications log." />
+      <HelpTooltip text="Separate from the Stakeholder directory — a member can (optionally) link to their Stakeholder identity to get 'assigned to you' alerts, and subscribes to projects independently to get overdue/deadline digests and a weekly status report. Sending is stubbed for now — see the Notifications log." />
     </p>
 
     <p v-if="error && !showForm" class="text-sm text-rose-600 mb-3">{{ error }}</p>
@@ -167,6 +171,7 @@ async function toggleSubscription(project) {
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_assigned" /> Assigned to you</label>
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_overdue_action_items" /> Overdue action items</label>
         <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_upcoming_deadlines" /> Upcoming deadlines</label>
+        <label class="flex items-center gap-1.5"><input type="checkbox" v-model="form.notify_status_report" /> Weekly status report</label>
       </div>
 
       <div v-if="editingId">

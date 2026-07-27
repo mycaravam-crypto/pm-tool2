@@ -101,5 +101,6 @@ export const api = {
   notifications: {
     list: (limit) => get(`/notifications${limit ? `?limit=${limit}` : ''}`),
     runDigest: () => post('/notifications/run-digest', {}),
+    runStatusReport: () => post('/notifications/run-status-report', {}),
   },
 };

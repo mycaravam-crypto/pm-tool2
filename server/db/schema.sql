@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS projects (
         -- schedule slip (current vs. originally planned) stays visible even after target_end_date moves
     actual_end_date TEXT,
     budget_planned REAL,
+    original_budget_planned REAL, -- snapshotted once at creation; never touched again, so
+        -- budget slip (current plan vs. originally planned) stays visible even after budget_planned moves
     budget_spent REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -150,6 +152,7 @@ CREATE TABLE IF NOT EXISTS members (
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
+    notify_status_report INTEGER NOT NULL DEFAULT 1,
     email_verified INTEGER NOT NULL DEFAULT 1, -- defaults true; only meaningful if verification is ever enforced later
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
@@ -195,7 +198,7 @@ CREATE TABLE IF NOT EXISTS member_projects (
 CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id INTEGER NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest')),
+    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest','status_report')),
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
     project_id INTEGER, -- nullable: lets the notification log be filtered by project access; losing the project shouldn't delete history
