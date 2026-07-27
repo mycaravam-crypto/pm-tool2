@@ -27,7 +27,7 @@ This is intentionally lightweight: no formal Work Breakdown Structure, no Earned
 
 **Event detail view** — Click any event to see its full record: title, date, summary, participants, and three linked lists — Decisions, Action Items, and Pain Points — each with an owner or assignee drawn from that project's assigned stakeholders.
 
-**Aggregated dashboards** — Action Items, Pain Points, and Decisions each get their own cross-project tab, scoped to whatever projects are currently selected, with overdue items and high-severity issues highlighted; Pain Points are also filterable by risk vs. issue.
+**Aggregated dashboards** — Action Items, Pain Points, and Decisions each get their own cross-project tab, scoped to whatever projects are currently selected, with overdue items and high-severity issues highlighted; Pain Points are also filterable by risk vs. issue. A free-text search box, always visible regardless of tab, layers on top of every other filter.
 
 **Health summary & scorecards** — A summary strip shows overdue action items, open high-severity pain points, upcoming deadlines, and at-risk goals for the selected projects, plus a portfolio-wide badge that's always visible. Every project also gets a four-dot RAG (red/amber/green) scorecard for Scope, Schedule, Cost, and Quality — the full PM iron triangle — computed from its goals, dates, budget, and open pain points.
 

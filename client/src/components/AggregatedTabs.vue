@@ -28,6 +28,11 @@ const subTab = ref('overview');
 // to filter to), or on Decisions/Requirements/Goals, which have no personal owner.
 const onlyMine = ref(true);
 const myStakeholderId = computed(() => store.currentMember?.stakeholder_id ?? null);
+// Free-text filter, always visible regardless of tab — applied on top of every
+// other filter below, against each row's display text (event title for Upcoming,
+// since those rows have no `.text`).
+const searchTerm = ref('');
+const matchesSearch = (text) => !searchTerm.value || text.toLowerCase().includes(searchTerm.value.trim().toLowerCase());
 const projectFilter = ref('');
 const actionOverdueOnly = ref(false);
 const painOpenOnly = ref(false);
@@ -154,8 +159,11 @@ const allItemsInScope = computed(() => {
   return rows.sort((a, b) => b.date.localeCompare(a.date));
 });
 const allItems = computed(() => {
-  if (!onlyMine.value || !myStakeholderId.value) return allItemsInScope.value;
-  return allItemsInScope.value.filter((r) => r.personId === undefined || r.personId === myStakeholderId.value);
+  let rows = allItemsInScope.value;
+  if (onlyMine.value && myStakeholderId.value) {
+    rows = rows.filter((r) => r.personId === undefined || r.personId === myStakeholderId.value);
+  }
+  return rows.filter((r) => matchesSearch(r.text));
 });
 
 const KIND_LABELS = {
@@ -184,11 +192,13 @@ const actionItems = computed(() => {
   let rows = actionItemsInScope.value;
   if (onlyMine.value && myStakeholderId.value) rows = rows.filter((a) => a.assignee_id === myStakeholderId.value);
   if (actionOverdueOnly.value) rows = rows.filter(isOverdue);
+  rows = rows.filter((a) => matchesSearch(a.text));
   return [...rows].sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
 });
 function clearActionFilters() {
   onlyMine.value = false;
   actionOverdueOnly.value = false;
+  searchTerm.value = '';
 }
 
 const painPointsInScope = computed(() => {
@@ -202,6 +212,7 @@ const painPoints = computed(() => {
   if (painOpenOnly.value) rows = rows.filter((p) => !p.resolved);
   if (painSeverityFilter.value) rows = rows.filter((p) => p.severity === painSeverityFilter.value);
   if (painKindFilter.value) rows = rows.filter((p) => p.kind === painKindFilter.value);
+  rows = rows.filter((p) => matchesSearch(p.text));
   const order = { High: 0, Medium: 1, Low: 2 };
   return [...rows].sort((a, b) => order[a.severity] - order[b.severity]);
 });
@@ -210,6 +221,7 @@ function clearPainFilters() {
   painOpenOnly.value = false;
   painSeverityFilter.value = '';
   painKindFilter.value = '';
+  searchTerm.value = '';
 }
 
 // Requirements/goals are project-scoped, not event-scoped — they're already
@@ -224,11 +236,13 @@ const requirementsList = computed(() => {
   let rows = requirementsInScope.value;
   if (requirementOpenOnly.value) rows = rows.filter((r) => !r.done);
   if (requirementUnlinkedOnly.value) rows = rows.filter((r) => r.goal_id == null);
+  rows = rows.filter((r) => matchesSearch(r.text));
   return [...rows].sort((a, b) => a.created_at.localeCompare(b.created_at));
 });
 function clearRequirementFilters() {
   requirementOpenOnly.value = false;
   requirementUnlinkedOnly.value = false;
+  searchTerm.value = '';
 }
 // Requirements and goals are both nested off the same project, so a requirement's
 // linked goal text is a lookup into its own project's goals rather than a join.
@@ -247,6 +261,7 @@ const goalsList = computed(() => {
   // Same "at risk" definition as GET /api/dashboard/summary's at_risk_goals: unachieved
   // and either already overdue or due within 14 days.
   if (goalAtRiskFilter.value) rows = rows.filter((g) => !g.achieved && g.target_date && g.target_date <= in14DaysStr);
+  rows = rows.filter((g) => matchesSearch(g.text));
   return [...rows]
     .sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'))
     .map((g) => ({ ...g, progress: goalProgress(g.id, g.project.requirements) }));
@@ -254,23 +269,26 @@ const goalsList = computed(() => {
 function clearGoalFilters() {
   goalOpenOnly.value = false;
   goalAtRiskFilter.value = false;
+  searchTerm.value = '';
 }
 
 // Milestone/deadline events get their own tab rather than folding into Overview.
 // Mirrors the 14-day window GET /api/dashboard/summary uses server-side.
-const upcomingEvents = computed(() => {
+const upcomingEventsInScope = computed(() => {
   let rows = store.events.filter(
     (e) => ['milestone', 'deadline'].includes(e.type) && e.date >= todayStr && e.date <= in14DaysStr,
   );
   if (projectFilter.value) rows = rows.filter((e) => e.project_id === Number(projectFilter.value));
   return rows.sort((a, b) => a.date.localeCompare(b.date));
 });
+const upcomingEvents = computed(() => upcomingEventsInScope.value.filter((e) => matchesSearch(e.title)));
 
-const decisions = computed(() => {
+const decisionsInScope = computed(() => {
   let rows = store.events.flatMap((e) => e.decisions.map((d) => ({ ...d, event: e })));
   if (projectFilter.value) rows = rows.filter((d) => d.event.project_id === Number(projectFilter.value));
   return rows.sort((a, b) => b.event.date.localeCompare(a.event.date));
 });
+const decisions = computed(() => decisionsInScope.value.filter((d) => matchesSearch(d.text)));
 
 // This view spans every selected project, so each row needs its own project's role
 // checked (unlike EventDetailModal/ProjectFormModal, which compute one canContribute
@@ -328,6 +346,10 @@ async function toggleGoal(g) {
           >{{ t[1] }}</button>
         </div>
         <div class="flex items-center gap-2">
+          <input
+            v-model="searchTerm" type="search" placeholder="Search…"
+            class="border border-white/15 rounded px-2 py-1 text-sm w-40"
+          />
           <label
             v-if="['overview', 'actions', 'pain'].includes(subTab)"
             class="flex items-center gap-1.5 text-sm text-slate-400 whitespace-nowrap"
@@ -410,8 +432,11 @@ async function toggleGoal(g) {
       </table>
       <div v-if="subTab === 'overview' && allItems.length === 0" class="text-sm text-slate-500 py-4">
         <template v-if="allItemsInScope.length > 0">
-          Nothing of yours right now — {{ allItemsInScope.length }} other item{{ allItemsInScope.length === 1 ? '' : 's' }} hidden.
-          <button type="button" class="text-violet-400 hover:underline" @click="onlyMine = false">Show all</button>
+          Nothing matches right now — {{ allItemsInScope.length }} other item{{ allItemsInScope.length === 1 ? '' : 's' }} hidden.
+          <button
+            type="button" class="text-violet-400 hover:underline"
+            @click="onlyMine = false; searchTerm = ''"
+          >Show all</button>
         </template>
         <template v-else>Nothing to show yet.</template>
       </div>
@@ -494,7 +519,13 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'decisions' && decisions.length === 0" class="text-sm text-slate-500 py-4">No decisions logged.</p>
+      <div v-if="subTab === 'decisions' && decisions.length === 0" class="text-sm text-slate-500 py-4">
+        <template v-if="decisionsInScope.length > 0">
+          No decisions match the current search — {{ decisionsInScope.length }} hidden.
+          <button type="button" class="text-violet-400 hover:underline" @click="searchTerm = ''">Clear search</button>
+        </template>
+        <template v-else>No decisions logged.</template>
+      </div>
 
       <table v-if="subTab === 'requirements'" class="w-full text-sm">
         <thead>
@@ -566,7 +597,13 @@ async function toggleGoal(g) {
           </tr>
         </tbody>
       </table>
-      <p v-if="subTab === 'upcoming' && upcomingEvents.length === 0" class="text-sm text-slate-500 py-4">No milestones or deadlines in the next 14 days.</p>
+      <div v-if="subTab === 'upcoming' && upcomingEvents.length === 0" class="text-sm text-slate-500 py-4">
+        <template v-if="upcomingEventsInScope.length > 0">
+          No milestones/deadlines match the current search — {{ upcomingEventsInScope.length }} hidden.
+          <button type="button" class="text-violet-400 hover:underline" @click="searchTerm = ''">Clear search</button>
+        </template>
+        <template v-else>No milestones or deadlines in the next 14 days.</template>
+      </div>
     </template>
   </div>
 </template>
