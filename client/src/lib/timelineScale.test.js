@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { computeRange, computeSemanticZoomLabel, computeTrackWidth, leftPercent } from '@/lib/timelineScale.js';
+import {
+  computeRange,
+  computeSemanticZoomLabel,
+  computeTrackWidth,
+  isoWeekNumber,
+  leftPercent,
+} from '@/lib/timelineScale.js';
 
 describe('computeRange', () => {
   const DAY_MS = 86400000;
@@ -95,5 +101,26 @@ describe('computeSemanticZoomLabel', () => {
   it('treats the day-grid threshold as the Monat/Woche boundary', () => {
     expect(computeSemanticZoomLabel(15.9, 16)).toBe('Monat');
     expect(computeSemanticZoomLabel(16, 16)).toBe('Woche');
+  });
+});
+
+describe('isoWeekNumber', () => {
+  it("numbers weeks starting Monday, week 1 containing the year's first Thursday", () => {
+    expect(isoWeekNumber(new Date(2024, 0, 1))).toBe(1); // Monday
+    expect(isoWeekNumber(new Date(2025, 0, 1))).toBe(1); // Wednesday
+    expect(isoWeekNumber(new Date(2026, 0, 1))).toBe(1); // Thursday
+  });
+
+  it("assigns late-December dates to next year's week 1 once that week has started", () => {
+    expect(isoWeekNumber(new Date(2024, 11, 31))).toBe(1); // Tuesday, in the Mon-Dec30..Sun-Jan5 week
+  });
+
+  it("assigns early-January dates to the previous year's final week when the new year hasn't reached its first Thursday yet", () => {
+    expect(isoWeekNumber(new Date(2020, 11, 31))).toBe(53); // Thursday, ISO week 53 of 2020
+    expect(isoWeekNumber(new Date(2021, 0, 4))).toBe(1); // Monday
+  });
+
+  it('matches a known mid-year date', () => {
+    expect(isoWeekNumber(new Date(2026, 6, 27))).toBe(31);
   });
 });
