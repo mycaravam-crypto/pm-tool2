@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from 'lucide-vue-
 import { computed, reactive, ref } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { formatDate } from '@/lib/dateFormat.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
@@ -45,6 +46,7 @@ const newRequirementGoalKey = ref('');
 
 const saving = ref(false);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 const leadStakeholder = computed(() => store.stakeholderById(Number(form.lead_stakeholder_id)) ?? null);
 const availableTeamCandidates = computed(() =>
@@ -109,9 +111,8 @@ function goalText(key) {
 }
 
 async function createProject() {
-  error.value = '';
   saving.value = true;
-  try {
+  await runAction(async () => {
     await store.initializeProject({
       name: form.name.trim(),
       description: form.description,
@@ -129,11 +130,8 @@ async function createProject() {
       })),
     });
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
 }
 </script>
 

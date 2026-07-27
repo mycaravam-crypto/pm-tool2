@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
 
 const props = defineProps({ token: { type: String, required: true } });
@@ -9,18 +10,15 @@ const password = ref('');
 const error = ref('');
 const success = ref(false);
 const loading = ref(false);
+const runAction = useAsyncAction(error);
 
 async function submit() {
-  error.value = '';
   loading.value = true;
-  try {
+  await runAction(async () => {
     await api.auth.resetPassword(props.token, password.value);
     success.value = true;
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  });
+  loading.value = false;
 }
 </script>
 

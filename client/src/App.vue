@@ -1,6 +1,6 @@
 <script setup>
 import { CalendarDays, CalendarRange, FileText, FileUp, ListChecks, Plus } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import AggregatedTabs from '@/components/AggregatedTabs.vue';
 import EventDetailModal from '@/components/EventDetailModal.vue';
 import HealthSummary from '@/components/HealthSummary.vue';
@@ -100,7 +100,7 @@ function openNewEventOnDate(dateStr) {
 async function exportSituationReport() {
   // pdfReports.js embeds its own Inter font data (~300KB) — loaded on demand
   // here rather than bundled into the main app chunk every visitor downloads.
-  const { generateSituationReportPdf } = await import('./lib/pdfReports.js');
+  const { generateSituationReportPdf } = await import('@/lib/pdfReports.js');
   generateSituationReportPdf({
     projects: store.selectedProjects,
     events: store.events,

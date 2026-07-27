@@ -3,6 +3,7 @@ import { Loader2, Mail, PlayCircle } from 'lucide-vue-next';
 import { ref } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { formatDateTime } from '@/lib/dateFormat.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
@@ -11,6 +12,7 @@ const store = useProjectStore();
 const running = ref(false);
 const lastRun = ref(null);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 const TYPE_LABELS = {
   assigned: 'Assigned to you',
@@ -25,15 +27,11 @@ const TYPE_COLORS = {
 
 async function runDigest() {
   running.value = true;
-  error.value = '';
-  try {
+  await runAction(async () => {
     const result = await store.runDigestNow();
     lastRun.value = result.generated;
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    running.value = false;
-  }
+  });
+  running.value = false;
 }
 </script>
 

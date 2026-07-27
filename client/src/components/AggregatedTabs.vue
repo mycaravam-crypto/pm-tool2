@@ -2,11 +2,13 @@
 import { computed, ref, watch } from 'vue';
 import EventLink from '@/components/EventLink.vue';
 import ProjectChip from '@/components/ProjectChip.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
-import { formatDate, todayStr as getTodayStr } from '@/lib/dateFormat.js';
+import { formatDate, todayStr as getTodayStr, isOverdue as isOverdueOn } from '@/lib/dateFormat.js';
 import { EVENT_TYPES, STATUS_LABELS } from '@/lib/eventTypes.js';
 import { goalProgress } from '@/lib/goalProgress.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
+import { DAY_MS } from '@/lib/timelineScale.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({
@@ -55,11 +57,9 @@ watch(
 );
 
 const todayStr = getTodayStr();
-const in14DaysStr = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+const in14DaysStr = new Date(Date.now() + 14 * DAY_MS).toISOString().slice(0, 10);
 
-function isOverdue(item) {
-  return item.due_date && !item.done && item.due_date < todayStr;
-}
+const isOverdue = (item) => isOverdueOn(item, todayStr);
 
 // Combines every trackable item — event-sourced (decisions/action items/pain
 // points) and project-sourced (requirements/goals) — into one chronological
@@ -242,7 +242,9 @@ const goalsList = computed(() => {
   // and either already overdue or due within 14 days — a portfolio-wide lens on the Goals
   // tab, mirroring Pain Points' risk/issue filter (ALIGNMENT_ROADMAP.md Phase 2, item 3).
   if (goalAtRiskFilter.value) rows = rows.filter((g) => !g.achieved && g.target_date && g.target_date <= in14DaysStr);
-  return [...rows].sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'));
+  return [...rows]
+    .sort((a, b) => (a.target_date || '9999-99-99').localeCompare(b.target_date || '9999-99-99'))
+    .map((g) => ({ ...g, progress: goalProgress(g.id, g.project.requirements) }));
 });
 function clearGoalFilters() {
   goalOpenOnly.value = false;
@@ -311,37 +313,18 @@ function canContributeToProject(projectId) {
 }
 
 const toggleError = ref('');
+const runToggle = useAsyncAction(toggleError);
 async function toggleDone(item) {
-  toggleError.value = '';
-  try {
-    await store.toggleActionItemDone(item.id, !item.done);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleActionItemDone(item.id, !item.done));
 }
 async function toggleResolved(pp) {
-  toggleError.value = '';
-  try {
-    await store.togglePainPointResolved(pp.id, !pp.resolved);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.togglePainPointResolved(pp.id, !pp.resolved));
 }
 async function toggleRequirement(r) {
-  toggleError.value = '';
-  try {
-    await store.toggleRequirementDone(r.id, !r.done);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleRequirementDone(r.id, !r.done));
 }
 async function toggleGoal(g) {
-  toggleError.value = '';
-  try {
-    await store.toggleGoalAchieved(g.id, !g.achieved);
-  } catch (e) {
-    toggleError.value = e.message;
-  }
+  await runToggle(() => store.toggleGoalAchieved(g.id, !g.achieved));
 }
 </script>
 
@@ -560,9 +543,7 @@ async function toggleGoal(g) {
             <td class="py-1.5" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</td>
             <td class="py-1.5"><ProjectChip :project="g.project" /></td>
             <td class="py-1.5 text-slate-500">
-              <template v-if="goalProgress(g.id, g.project.requirements).total > 0">
-                {{ goalProgress(g.id, g.project.requirements).done }}/{{ goalProgress(g.id, g.project.requirements).total }} reqs
-              </template>
+              <template v-if="g.progress.total > 0">{{ g.progress.done }}/{{ g.progress.total }} reqs</template>
               <template v-else>—</template>
             </td>
             <td class="py-1.5 text-slate-500">{{ g.target_date ? formatDate(g.target_date) : '—' }}</td>

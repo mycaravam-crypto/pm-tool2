@@ -2,6 +2,7 @@
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { TABLE_BODY_ROW, TABLE_HEADER_ROW } from '@/lib/tableStyles.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
@@ -12,6 +13,7 @@ const editingId = ref(null);
 const form = reactive({ name: '', email: '', role: '' });
 const showNewForm = ref(false);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 function startEdit(s) {
   editingId.value = s.id;
@@ -39,17 +41,14 @@ function cancel() {
 
 async function save() {
   if (!form.name) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     if (editingId.value) {
       await store.updateStakeholder(editingId.value, { ...form });
     } else {
       await store.createStakeholder({ ...form });
     }
     cancel();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function remove(id) {
@@ -59,11 +58,7 @@ async function remove(id) {
     )
   )
     return;
-  try {
-    await store.deleteStakeholder(id);
-  } catch (e) {
-    alert(e.message);
-  }
+  await runAction(() => store.deleteStakeholder(id));
 }
 </script>
 
@@ -79,6 +74,8 @@ async function remove(id) {
         <Plus class="w-4 h-4" />
       </button>
     </div>
+
+    <p v-if="error && !(showNewForm || editingId)" class="text-sm text-rose-400 mb-3">{{ error }}</p>
 
     <form v-if="showNewForm || editingId" class="border border-white/10 rounded-md p-3 mb-3 space-y-2" @submit.prevent="save">
       <div class="grid grid-cols-3 gap-2">

@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
 
 const emit = defineEmits(['login']);
@@ -14,6 +15,7 @@ const password = ref('');
 const error = ref('');
 const info = ref('');
 const loading = ref(false);
+const runAction = useAsyncAction(error);
 
 function switchMode(next) {
   mode.value = next;
@@ -23,10 +25,9 @@ function switchMode(next) {
 }
 
 async function submit() {
-  error.value = '';
   info.value = '';
   loading.value = true;
-  try {
+  await runAction(async () => {
     if (mode.value === 'login') {
       const member = await api.auth.login(email.value, password.value);
       emit('login', member);
@@ -37,11 +38,8 @@ async function submit() {
       await api.auth.forgotPassword(email.value);
       info.value = "If that email is registered, we've sent a reset link.";
     }
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    loading.value = false;
-  }
+  });
+  loading.value = false;
 }
 </script>
 

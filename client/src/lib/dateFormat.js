@@ -13,6 +13,10 @@ export function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function isOverdue(item, today) {
+  return !!item.due_date && !item.done && item.due_date < today;
+}
+
 // Accepts a YYYY-MM-DD date-only string and formats it as DD.MM.YYYY, avoiding
 // the UTC-midnight-rolls-back-a-day trap that new Date('YYYY-MM-DD') hits in
 // timezones behind UTC. Falls back to the raw input for malformed strings

@@ -19,6 +19,7 @@ import {
   computeRange,
   computeSemanticZoomLabel,
   computeTrackWidth,
+  DAY_MS,
   leftPercent as leftPercentPure,
 } from '@/lib/timelineScale.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
@@ -27,7 +28,6 @@ const emit = defineEmits(['select-event', 'select-goal', 'new-event']);
 const store = useProjectStore();
 
 const todayStr = getTodayStr();
-const DAY_MS = 86400000;
 const TRACK_HEIGHT = 400;
 const BASELINE_TOP = 280;
 // A card is a single 30px-tall row (icon + inline title, no separate label

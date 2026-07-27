@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { formatDate, todayStr } from '@/lib/dateFormat.js';
+import { formatDate, isOverdue, todayStr } from '@/lib/dateFormat.js';
 import { INTER_BOLD, INTER_REGULAR, INTER_SEMIBOLD } from '@/lib/fonts/interFonts.js';
 
 const MARGIN = 22; // spec: 20-25mm
@@ -96,10 +96,6 @@ function fractionStatus(done, total) {
   if (done === total) return 'green';
   if (done === 0) return 'red';
   return 'amber';
-}
-
-function isOverdue(item, today) {
-  return !!item.due_date && !item.done && item.due_date < today;
 }
 
 // Breaks to a new page if there's not enough room left for at least a

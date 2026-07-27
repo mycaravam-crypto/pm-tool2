@@ -2,8 +2,9 @@
 import { CalendarCheck, CalendarX, Check, FileDown, Loader2, Plus, Repeat, Trash2, X } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
-import { formatDate, todayStr as getTodayStr } from '@/lib/dateFormat.js';
+import { formatDate, todayStr as getTodayStr, isOverdue as isOverdueOn } from '@/lib/dateFormat.js';
 import { EVENT_TYPE_KEYS, EVENT_TYPES, STATUS_KEYS, STATUS_LABELS, TYPE_COLORS } from '@/lib/eventTypes.js';
 import { generateOccurrenceDates, MAX_OCCURRENCES, RECURRENCE_FREQUENCIES } from '@/lib/recurrence.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
@@ -88,14 +89,11 @@ const newPainSeverity = ref('Medium');
 const newPainOwner = ref('');
 const newPainKind = ref('issue');
 
-function isOverdue(item) {
-  return item.due_date && !item.done && item.due_date < todayStr;
-}
+const isOverdue = (item) => isOverdueOn(item, todayStr);
 
 async function addDecision() {
   if (!newDecisionText.value) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     if (isEdit.value) {
       await store.addDecision({
         event_id: props.event.id,
@@ -107,9 +105,7 @@ async function addDecision() {
     }
     newDecisionText.value = '';
     newDecisionBy.value = '';
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 async function addActionItem() {
   if (!newActionText.value) return;
@@ -118,8 +114,7 @@ async function addActionItem() {
     assignee_id: newActionAssignee.value || null,
     due_date: newActionDue.value || null,
   };
-  error.value = '';
-  try {
+  await runAction(async () => {
     if (isEdit.value) {
       await store.addActionItem({ event_id: props.event.id, ...payload });
     } else {
@@ -128,9 +123,7 @@ async function addActionItem() {
     newActionText.value = '';
     newActionAssignee.value = '';
     newActionDue.value = '';
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 async function addPainPoint() {
   if (!newPainText.value) return;
@@ -140,8 +133,7 @@ async function addPainPoint() {
     owner_id: newPainOwner.value || null,
     kind: newPainKind.value,
   };
-  error.value = '';
-  try {
+  await runAction(async () => {
     if (isEdit.value) {
       await store.addPainPoint({ event_id: props.event.id, ...payload });
     } else {
@@ -151,13 +143,12 @@ async function addPainPoint() {
     newPainSeverity.value = 'Medium';
     newPainOwner.value = '';
     newPainKind.value = 'issue';
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 const saving = ref(false);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 async function save() {
   error.value = '';
@@ -166,7 +157,7 @@ async function save() {
     return;
   }
   saving.value = true;
-  try {
+  await runAction(async () => {
     if (isEdit.value) {
       await store.updateEvent(props.event.id, {
         title: form.title,
@@ -196,17 +187,13 @@ async function save() {
       });
     }
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
 }
 
 async function saveSeries() {
-  error.value = '';
   saving.value = true;
-  try {
+  await runAction(async () => {
     await store.updateEventSeries(liveEvent.value.series_id, {
       title: form.title,
       time: form.time || null,
@@ -215,30 +202,24 @@ async function saveSeries() {
       participants: form.participants,
     });
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
 }
 
 async function exportProtocol() {
   // pdfReports.js embeds its own Inter font data (~300KB) — loaded on demand
   // here rather than bundled into the main app chunk every visitor downloads.
-  const { generateEventProtocolPdf } = await import('../lib/pdfReports.js');
+  const { generateEventProtocolPdf } = await import('@/lib/pdfReports.js');
   generateEventProtocolPdf(liveEvent.value);
 }
 
 async function removeEvent() {
   if (!confirm(`Delete "${props.event.title}"? This also deletes its decisions, action items, and pain points.`))
     return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.deleteEvent(props.event.id);
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function removeSeries() {
@@ -249,54 +230,26 @@ async function removeSeries() {
     )
   )
     return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.deleteEventSeries(liveEvent.value.series_id);
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function toggleDone(item) {
-  error.value = '';
-  try {
-    await store.toggleActionItemDone(item.id, !item.done);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.toggleActionItemDone(item.id, !item.done));
 }
 async function toggleResolved(pp) {
-  error.value = '';
-  try {
-    await store.togglePainPointResolved(pp.id, !pp.resolved);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.togglePainPointResolved(pp.id, !pp.resolved));
 }
 async function removeDecision(id) {
-  error.value = '';
-  try {
-    await store.deleteDecision(id);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.deleteDecision(id));
 }
 async function removeActionItem(id) {
-  error.value = '';
-  try {
-    await store.deleteActionItem(id);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.deleteActionItem(id));
 }
 async function removePainPoint(id) {
-  error.value = '';
-  try {
-    await store.deletePainPoint(id);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.deletePainPoint(id));
 }
 function removeStagedDecision(idx) {
   stagedDecisions.value.splice(idx, 1);

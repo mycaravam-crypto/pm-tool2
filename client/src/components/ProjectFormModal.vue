@@ -3,9 +3,11 @@ import { Check, Crown, History, Loader2, Pencil, Plus, Trash2, X } from 'lucide-
 import { computed, onMounted, reactive, ref } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import ModalShell from '@/components/ModalShell.vue';
+import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
 import { formatDate } from '@/lib/dateFormat.js';
 import { goalProgress } from '@/lib/goalProgress.js';
+import { DAY_MS } from '@/lib/timelineScale.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const props = defineProps({ project: { type: Object, default: null } });
@@ -26,8 +28,13 @@ const scheduleSlip = computed(() => {
   const proj = liveProject.value;
   if (!proj?.original_target_end_date || !proj?.target_end_date) return null;
   if (proj.original_target_end_date === proj.target_end_date) return null;
-  const days = Math.round((new Date(proj.target_end_date) - new Date(proj.original_target_end_date)) / 86400000);
+  const days = Math.round((new Date(proj.target_end_date) - new Date(proj.original_target_end_date)) / DAY_MS);
   return { originalDate: proj.original_target_end_date, days };
+});
+
+const goalsWithProgress = computed(() => {
+  const requirements = liveProject.value?.requirements ?? [];
+  return (liveProject.value?.goals ?? []).map((g) => ({ ...g, progress: goalProgress(g.id, requirements) }));
 });
 
 const form = reactive({
@@ -47,6 +54,7 @@ const newPersonId = ref('');
 const newPersonRole = ref('member');
 const saving = ref(false);
 const error = ref('');
+const runAction = useAsyncAction(error);
 
 async function loadPeople() {
   if (!isEdit.value) return;
@@ -78,7 +86,7 @@ async function save() {
     return;
   }
   saving.value = true;
-  try {
+  await runAction(async () => {
     if (isEdit.value) {
       await store.updateProject(props.project.id, {
         name: form.name,
@@ -103,11 +111,8 @@ async function save() {
       });
     }
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    saving.value = false;
-  }
+  });
+  saving.value = false;
 }
 
 async function removeProject() {
@@ -117,64 +122,48 @@ async function removeProject() {
     )
   )
     return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.deleteProject(props.project.id);
     emit('close');
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function addPerson() {
   if (!newPersonId.value) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.assignStakeholderToProject(props.project.id, Number(newPersonId.value), newPersonRole.value);
     newPersonId.value = '';
     newPersonRole.value = 'member';
     await loadPeople();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function makeLead(stakeholderId) {
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.setProjectLead(props.project.id, stakeholderId);
     await loadPeople();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function removePerson(stakeholderId) {
-  error.value = '';
-  try {
+  await runAction(async () => {
     await api.projects.removeStakeholder(props.project.id, stakeholderId);
     await loadPeople();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 async function changeRole(stakeholderId, role) {
-  error.value = '';
-  try {
+  await runAction(async () => {
     await api.projects.setStakeholderRole(props.project.id, stakeholderId, role);
     await loadPeople();
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 const newRequirementText = ref('');
 const newRequirementGoalId = ref('');
 async function addRequirement() {
   if (!newRequirementText.value.trim()) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.addRequirement({
       project_id: props.project.id,
       text: newRequirementText.value.trim(),
@@ -182,41 +171,23 @@ async function addRequirement() {
     });
     newRequirementText.value = '';
     newRequirementGoalId.value = '';
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 async function toggleRequirement(r) {
-  error.value = '';
-  try {
-    await store.toggleRequirementDone(r.id, !r.done);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.toggleRequirementDone(r.id, !r.done));
 }
 async function changeRequirementGoal(r, goalId) {
-  error.value = '';
-  try {
-    await store.updateRequirement(r.id, { text: r.text, goal_id: goalId || null });
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.updateRequirement(r.id, { text: r.text, goal_id: goalId || null }));
 }
 async function removeRequirement(id) {
-  error.value = '';
-  try {
-    await store.deleteRequirement(id);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.deleteRequirement(id));
 }
 
 const newGoalText = ref('');
 const newGoalTargetDate = ref('');
 async function addGoal() {
   if (!newGoalText.value.trim()) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.addGoal({
       project_id: props.project.id,
       text: newGoalText.value.trim(),
@@ -224,25 +195,13 @@ async function addGoal() {
     });
     newGoalText.value = '';
     newGoalTargetDate.value = '';
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 async function toggleGoal(g) {
-  error.value = '';
-  try {
-    await store.toggleGoalAchieved(g.id, !g.achieved);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.toggleGoalAchieved(g.id, !g.achieved));
 }
 async function removeGoal(id) {
-  error.value = '';
-  try {
-    await store.deleteGoal(id);
-  } catch (e) {
-    error.value = e.message;
-  }
+  await runAction(() => store.deleteGoal(id));
 }
 
 // Content editing (text, and for goals target_date too) is separate from the
@@ -261,13 +220,10 @@ function cancelEditRequirement() {
 }
 async function saveRequirementEdit(r) {
   if (!editRequirementText.value.trim()) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.updateRequirement(r.id, { text: editRequirementText.value.trim(), goal_id: r.goal_id });
     editingRequirementId.value = null;
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 const editingGoalId = ref(null);
@@ -283,13 +239,10 @@ function cancelEditGoal() {
 }
 async function saveGoalEdit(g) {
   if (!editGoalText.value.trim()) return;
-  error.value = '';
-  try {
+  await runAction(async () => {
     await store.updateGoal(g.id, { text: editGoalText.value.trim(), target_date: editGoalTargetDate.value || null });
     editingGoalId.value = null;
-  } catch (e) {
-    error.value = e.message;
-  }
+  });
 }
 
 // Only one history list open at a time per section — toggling the same id closes it.
@@ -458,7 +411,7 @@ function toggleGoalHistory(id) {
       <div v-if="isEdit" class="border-t border-white/10 pt-4">
         <h3 class="text-xs font-medium uppercase tracking-wide text-slate-500 mb-2">Goals</h3>
         <ul class="space-y-1 mb-2">
-          <li v-for="g in liveProject?.goals ?? []" :key="g.id" class="text-sm">
+          <li v-for="g in goalsWithProgress" :key="g.id" class="text-sm">
             <div class="flex items-center gap-2">
               <input type="checkbox" :checked="!!g.achieved" :disabled="!canContribute" @change="toggleGoal(g)" />
               <template v-if="editingGoalId === g.id">
@@ -473,10 +426,10 @@ function toggleGoalHistory(id) {
               <template v-else>
                 <span class="flex-1" :class="g.achieved ? 'line-through text-slate-500' : ''">{{ g.text }}</span>
                 <span
-                  v-if="goalProgress(g.id, liveProject?.requirements ?? []).total > 0"
+                  v-if="g.progress.total > 0"
                   class="text-xs text-slate-500 whitespace-nowrap"
                   title="Linked requirements done"
-                >{{ goalProgress(g.id, liveProject?.requirements ?? []).done }}/{{ goalProgress(g.id, liveProject?.requirements ?? []).total }} reqs</span>
+                >{{ g.progress.done }}/{{ g.progress.total }} reqs</span>
                 <span v-if="g.target_date" class="text-xs text-slate-500 whitespace-nowrap">{{ formatDate(g.target_date) }}</span>
                 <button
                   v-if="g.history?.length" type="button" title="Edit history" class="text-slate-500 hover:text-slate-300"

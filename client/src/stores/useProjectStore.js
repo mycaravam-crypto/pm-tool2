@@ -31,7 +31,6 @@ export const useProjectStore = defineStore('project', {
     selectedProjects: (state) => state.projects.filter((p) => state.selectedProjectIds.includes(p.id)),
     projectById: (state) => (id) => state.projects.find((p) => p.id === id),
     stakeholderById: (state) => (id) => state.stakeholders.find((s) => s.id === id),
-    sortedEvents: (state) => [...state.events].sort((a, b) => a.date.localeCompare(b.date)),
     isAdmin: (state) => state.currentMember?.role === 'admin',
   },
 
