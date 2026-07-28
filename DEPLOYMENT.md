@@ -42,6 +42,8 @@ Commit or merge to main
 | `docker-compose.prod.yml` | Production Compose file — runs a published image, not a local build |
 | `deploy.sh` | Backup → deploy → healthcheck → rollback, run on the production host |
 | `.env.example` | Documents the environment variables `docker-compose.prod.yml` reads |
+| `ops/setup-production-environment.sh` | One-time `gh`-CLI script: creates the `production` Environment, required reviewers, `BACKUP_DIR` variable, and `main` branch protection |
+| `ops/register-production-runner.sh` | One-time script, run on the production host: installs and registers the self-hosted `production` runner |
 | `Dockerfile` | Unchanged build logic; now also bakes in `GIT_SHA` (see `/version` below) |
 | `server/index.js` | `/healthz` now does a real DB round-trip; new `/version` endpoint |
 | `client/src/composables/useVersionCheck.js`, `client/src/components/UpdateBanner.vue` | Optional "new version available" banner (Section 10) |
@@ -88,14 +90,31 @@ Recorded here because the task asked risks/assumptions to be documented, not inv
 
 ## Required GitHub configuration
 
+Everything in this section is a repository/account-level setting, not code —
+none of it can be done from a CI job or an automated coding session (this
+repo's GitHub App connection doesn't grant that access, by design). It has
+to be run once by a human with admin rights on the repo, either by hand in
+the GitHub UI or via [`ops/setup-production-environment.sh`](ops/setup-production-environment.sh),
+which does the whole block below in one shot using the `gh` CLI:
+
+```bash
+gh auth login   # once, as a repo admin
+./ops/setup-production-environment.sh --reviewer <your-github-username>
+```
+
 ### Branch protection and repository settings
 
 Configure in **Settings → Branches** for `main`:
 
 - Require a pull request before merging (no direct pushes).
-- Require status checks to pass before merging — select the `quality` job
-  from `ci.yml`.
+- Require status checks to pass before merging — select the `Lint, test, build` job from `ci.yml`.
 - (Recommended) Require signed commits / linear history per your team's policy.
+
+Note: with a single repository collaborator, requiring a *review approval*
+on top of the passing-checks requirement would lock that person out of
+merging their own work (GitHub doesn't let a PR's author approve their own
+PR) — `ops/setup-production-environment.sh` leaves the approval count at 0
+for that reason. Raise it once there's more than one maintainer.
 
 ### The `production` GitHub Environment
 
@@ -108,7 +127,7 @@ Configure in **Settings → Environments → production**:
 - **Deployment branches**: restrict to `main` only (belt-and-suspenders on
   top of the workflow's own `github.ref` check).
 - **Environment secrets** (if you choose not to use a host-side `.env` file
-  — see [Server installation](#server-installation) for the alternative):
+  — see [Server installation](#server-installation-first-time-setup) for the alternative):
   none are strictly required by `production.yml` itself, since it
   authenticates to GHCR with the automatically-provided `GITHUB_TOKEN`.
 - **Environment variables** (non-secret):
@@ -118,11 +137,19 @@ Configure in **Settings → Environments → production**:
 ### The self-hosted `production` runner
 
 `production.yml` targets `runs-on: [self-hosted, production]` — a runner you
-register yourself (**Settings → Actions → Runners → New self-hosted
-runner**), labeled `production`, installed on (or with direct access to) the
-production Docker host. This is a deliberate, meaningful trust boundary:
-anything this runner executes has access to the production database and
-whatever credentials live on that host. Concretely:
+register yourself, labeled `production`, installed on (or with direct access
+to) the production Docker host. [`ops/register-production-runner.sh`](ops/register-production-runner.sh)
+does this end to end (installs the runner, configures it with the
+`production` label, and installs it as a system service) — run it **on the
+production host itself**, not from wherever you're reading this:
+
+```bash
+GH_TOKEN=$(gh auth token) ./ops/register-production-runner.sh
+```
+
+This is a deliberate, meaningful trust boundary: anything this runner
+executes has access to the production database and whatever credentials
+live on that host. Concretely:
 
 - Register it with the `production` label **and no other label** other
   workflows might target.
@@ -142,12 +169,11 @@ runner performs that login step, which it does.
 
 ## Server installation (first-time setup)
 
-1. Install Docker Engine and the Compose plugin (v2.17+, for `--wait`/`--wait-timeout`) on the production host.
-2. Register the host as a self-hosted GitHub Actions runner labeled `production` (see above).
-3. Create a working directory for the deployment (this becomes the runner's job workspace for this repo automatically if you let Actions manage checkouts there; otherwise pick a fixed path and `cd` into it before running `deploy.sh` by hand).
-4. Next to `docker-compose.prod.yml`, create a `.env` file (copy `.env.example`) with the real `CLIENT_ORIGIN`, `SMTP_*`, and cron settings for this deployment. **Never commit this file** — it's already covered by `.gitignore`'s `.env`/`.env.*` rules.
-5. Create the backup directory: `mkdir -p /var/backups/chronospm` (or whatever `BACKUP_DIR` you configured), owned by whichever user the runner/Docker run as.
-6. Trigger `production.yml` manually (Actions tab → "Deploy to production" → Run workflow) for the first deploy. `deploy.sh` will detect there's no previous container, skip the backup step (nothing to back up yet), and start the app fresh.
+1. Install Docker Engine and the Compose plugin (v2.17+, for `--wait`/`--wait-timeout`) on the production host — see https://docs.docker.com/engine/install/ for your distro; this isn't scripted here since the install steps are too OS-specific to do safely/generically.
+2. Run [`ops/register-production-runner.sh`](ops/register-production-runner.sh) on that host (see above) — it also creates the deployment (`/opt/chronospm` by default) and backup (`/var/backups/chronospm` by default) directories.
+3. Copy `docker-compose.prod.yml` into the deployment directory, plus a `.env` file (copy `.env.example`) with the real `CLIENT_ORIGIN`, `SMTP_*`, and cron settings for this deployment. **Never commit this file** — it's already covered by `.gitignore`'s `.env`/`.env.*` rules.
+4. From a repo admin's machine (not the production host), run [`ops/setup-production-environment.sh`](ops/setup-production-environment.sh) — see [Required GitHub configuration](#required-github-configuration) above.
+5. Trigger `production.yml` manually (Actions tab → "Deploy to production" → Run workflow) for the first deploy. `deploy.sh` will detect there's no previous container, skip the backup step (nothing to back up yet), and start the app fresh.
 
 ## Backup and restore
 
