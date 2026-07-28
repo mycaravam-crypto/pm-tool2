@@ -53,6 +53,16 @@ test('getAccessibleProjectIds: returns only the projects the stakeholder is assi
   assert.deepEqual(getAccessibleProjectIds(member).sort(), [projectA, projectB].sort());
 });
 
+test('canAccessProject: false for a nonexistent project id, even for an admin', () => {
+  // Regression test: getAccessibleProjectIds returns the "unrestricted" null
+  // sentinel for admins, which used to make canAccessProject say yes to a
+  // project id that doesn't exist at all — letting a bad id from an admin's
+  // request reach an INSERT/UPDATE and fail as an unhandled foreign-key 500
+  // instead of the clean 404 every route actually expects from this check.
+  const admin = { role: 'admin' };
+  assert.equal(canAccessProject(admin, 999999), false);
+});
+
 test('canAccessProject: admin can access any project id, committed member only their own', () => {
   const stakeholderId = makeStakeholder();
   const project = makeProject();

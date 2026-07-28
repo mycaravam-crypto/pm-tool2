@@ -8,7 +8,7 @@
     "start": "node index.js",
     "seed": "node db/seed.js",
     "backup": "node scripts/backup.js",
-    "test": "node --import ./test/setup.js --test"
+    "test": "node --import ./test/setup.js --test \"**/*.test.js\""
   },
   "dependencies": {
     "better-sqlite3": "^13.0.1",

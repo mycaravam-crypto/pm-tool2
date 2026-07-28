@@ -19,7 +19,15 @@ export function getAccessibleProjectIds(member) {
   return getProjectIdsForStakeholder.all(member.stakeholder_id).map((r) => r.project_id);
 }
 
+const projectExistsStmt = db.prepare('SELECT 1 FROM projects WHERE id = ?');
+
+// Checks existence before permission — for a non-admin this falls out for free
+// (getAccessibleProjectIds only ever contains real project ids), but an admin's
+// "unrestricted" sentinel (null) would otherwise say yes to a project_id that
+// doesn't exist at all, letting a bad id reach an INSERT/UPDATE and fail as an
+// unhandled foreign-key-constraint 500 instead of a clean 404.
 export function canAccessProject(member, projectId) {
+  if (!projectExistsStmt.get(projectId)) return false;
   const ids = getAccessibleProjectIds(member);
   return ids === null || ids.includes(Number(projectId));
 }
