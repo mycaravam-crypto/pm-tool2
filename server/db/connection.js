@@ -5,7 +5,9 @@ import Database from 'better-sqlite3';
 import { runMigrations } from './migrations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', 'data', 'chronos.db');
+// Overridable so tests can point at an isolated ':memory:' database instead
+// of the real server/data/chronos.db — see server/test/setup.js.
+const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'chronos.db');
 
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 

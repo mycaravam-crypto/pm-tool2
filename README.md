@@ -123,7 +123,7 @@ Without Docker, `npm run build` (builds the client) followed by `npm run start` 
 | `npm run backup` (from `server/`) | Snapshot the live database to a timestamped file |
 | `npm run lint` | Check formatting/lint issues with Biome |
 | `npm run lint:fix` | Auto-fix formatting/lint issues with Biome |
-| `npm run test` | Run the client's Vitest unit tests |
+| `npm run test` | Run the client (Vitest) and server (`node --test`) unit tests |
 | `npm run test:e2e` | Run the Playwright end-to-end tests |
 
 ## Notes on scope
