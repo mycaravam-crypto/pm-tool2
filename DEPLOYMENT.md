@@ -296,10 +296,16 @@ side by side, which is what keeps this true in practice.
   probe** — it doesn't validate that every subsystem (SMTP, WebSocket) is
   functioning, by design (keeping it cheap enough to poll every few
   seconds during a deploy).
-- **No server-side automated tests exist** in this repository today — `npm
-  run test` (used by `ci.yml`) only covers the client (Vitest). The CI gate
-  is exactly as strong as the test suite it runs; it was not this task's
-  place to add server test coverage that wasn't asked for.
+- **Server-side test coverage is real but not exhaustive.** `npm run test`
+  (used by `ci.yml`) now runs both the client (Vitest) and server (Node's
+  built-in test runner, see `server/test/`) suites — covering the
+  permission model (`utils/access.js`), scorecard/RAG computation,
+  recurrence date math, password hashing, migration idempotency, and the
+  core auth lifecycle end to end. It does not cover every route (e.g.
+  events/decisions/action-items/pain-points/goals/requirements CRUD, the
+  WebSocket layer, cron digests) — a regression in those can still merge to
+  `main` without CI catching it. Extending coverage further is left as
+  follow-up work, prioritized by what actually breaks.
 - **Pre-existing, out-of-scope gaps** noted in `README.md`'s "Notes on
   scope" (no CSRF tokens, no security headers, no expired-session cleanup)
   are unrelated to deployment and were left as-is.
