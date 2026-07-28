@@ -57,9 +57,13 @@ screen to match.
 
 - Layout: page size/orientation (currently A4 portrait, 22mm margins), single vs
   multi-column, where page breaks should/shouldn't happen
-- Color: current palette is near-black text + grey secondary/borders, with exactly
-  four status colors (green/amber/red/blue) reserved for meaning — no per-category
-  rainbow coding. Say explicitly if you want to break this rule.
+- Color: current theme is dark (near-black `#080a0f` page, near-white `#f6f7fb`
+  text, muted grey `#8b93a7` secondary text, subtle hairline borders, brand
+  violet accent), mirroring the app's own dark UI rather than a generic light
+  "corporate report" look. Four status states — On Track (green), At Risk
+  (amber), Critical (red), Info (the brand-violet accent, not a literal blue)
+  — are reserved for meaning; no per-category rainbow coding. Say explicitly
+  if you want to break this rule or go back to a light page.
 - Typography: currently Inter (regular/semibold/bold) only
 - Density: more whitespace vs more compact/data-dense
 - Any element you want gone entirely (e.g. "no more circular status dots, use a word")

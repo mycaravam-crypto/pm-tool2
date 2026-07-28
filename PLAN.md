@@ -35,7 +35,7 @@ We didn't want to invent our own vocabulary, so the app is built around the clas
 
 | PM concept | Represented as |
 |---|---|
-| Scope | The project description, plus the Decisions log (a record of what was actually agreed to build) |
+| Scope | The project description, its Decisions log, and its Goals/Requirements (Section 11) — what was agreed to build, and whether it's tracking toward the outcomes it's for |
 | Time | Start date / target end date / actual end date, plus milestone and deadline events on the timeline |
 | Cost | Planned budget vs. spent budget |
 | Quality | Pain Points, each with a severity and a resolution state |
@@ -63,7 +63,7 @@ Key modeling decisions worth calling out:
 - **Foreign keys cascade sensibly:** deleting a project cascades to its events, decisions, action items, and pain points. Deleting a stakeholder nulls out their references (`decided_by`, `owner_id`, `assignee_id`) rather than deleting the records they're attached to — losing a person shouldn't erase project history.
 
 <details>
-<summary>Reference: full SQLite schema</summary>
+<summary>Reference: full SQLite schema (kept in sync with <code>server/db/schema.sql</code> — treat that file as the source of truth if this ever drifts)</summary>
 
 ```sql
 -- 1. Stakeholders — people referenced by project events (not necessarily login users)
@@ -79,7 +79,7 @@ CREATE TABLE stakeholders (
 CREATE TABLE projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    description TEXT, -- Scope
+    description TEXT, -- Scope, alongside the Decisions log and Goals/Requirements below
     color_hex TEXT NOT NULL DEFAULT '#3B82F6', -- identifies this project on the overlay timeline
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived','completed')),
     start_date TEXT, -- YYYY-MM-DD
@@ -106,18 +106,39 @@ CREATE TABLE project_stakeholders (
 -- Guarantees a single accountable owner: at most one lead per project.
 CREATE UNIQUE INDEX idx_one_lead_per_project ON project_stakeholders(project_id) WHERE project_role = 'lead';
 
+-- 4a. Event Series — the recurrence rule behind a set of generated event rows.
+-- Occurrences are materialized up front (one row per event.series_id) rather than
+-- expanded on read, so a recurring meeting plugs into every existing event code
+-- path (timeline, exports, notifications) with zero changes. count is capped
+-- (MAX_OCCURRENCES, server/utils/recurrence.js) — this is "the next N meetings,"
+-- not an open-ended series.
+CREATE TABLE event_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    frequency TEXT NOT NULL CHECK(frequency IN ('daily','weekly','monthly')),
+    interval INTEGER NOT NULL DEFAULT 1,
+    count INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_event_series_project_id ON event_series(project_id);
+
 -- 4. Events — the entries that appear on the timeline
 CREATE TABLE events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     date TEXT NOT NULL, -- YYYY-MM-DD
+    time TEXT, -- optional 'HH:MM', 24h; null for a date-only event (most of them)
     type TEXT NOT NULL CHECK(type IN ('kickoff','sync','workshop','review','retro','milestone','deadline')),
     summary TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','achieved','missed')), -- meaningful only for milestone/deadline
+    series_id INTEGER, -- set only on events generated from a repeat rule; null for one-off events
+    occurrence_index INTEGER, -- this event's 0-based position within its series, for "3 of 10" display
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (series_id) REFERENCES event_series(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_events_project_id ON events(project_id);
 CREATE INDEX idx_events_date ON events(date);
@@ -189,12 +210,27 @@ CREATE TABLE members (
     notify_assigned INTEGER NOT NULL DEFAULT 1,
     notify_overdue_action_items INTEGER NOT NULL DEFAULT 1,
     notify_upcoming_deadlines INTEGER NOT NULL DEFAULT 1,
+    notify_status_report INTEGER NOT NULL DEFAULT 1, -- opt into the weekly per-project status report (Section 10)
+    email_verified INTEGER NOT NULL DEFAULT 1, -- defaults true; only meaningful if verification is ever enforced later
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (stakeholder_id) REFERENCES stakeholders(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_members_stakeholder_id ON members(stakeholder_id);
 
--- 9b. Sessions — backs the login cookie
+-- 9b. Password resets — short-lived tokens backing the forgot-password flow (Section 9)
+CREATE TABLE password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_password_resets_member_id ON password_resets(member_id);
+
+-- 9c. Sessions — backs the login cookie. No sliding expiry or cleanup job; a
+-- session is just valid until expires_at, full stop (Section 6.G).
 CREATE TABLE sessions (
     token TEXT PRIMARY KEY,
     member_id INTEGER NOT NULL,
@@ -213,17 +249,76 @@ CREATE TABLE member_projects (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
--- 11. Notifications — stub outbox until a real email provider is wired in
+-- 11. Notifications — outbox log; sendEmail (server/utils/mailer.js) also
+-- emails each row via SMTP, or logs to the console if none is configured.
 CREATE TABLE notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id INTEGER NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest')),
+    type TEXT NOT NULL CHECK(type IN ('assigned','overdue_digest','deadline_digest','status_report')),
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
+    project_id INTEGER, -- nullable: lets the log be filtered by project access (Section 9); losing
+        -- the project shouldn't delete notification history
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
 );
 CREATE INDEX idx_notifications_member_id ON notifications(member_id);
+
+-- 12. Requirements — what the project must deliver (Scope, alongside
+-- projects.description and the Decisions log). Project-scoped, not
+-- event-scoped, since a requirement isn't tied to a single meeting.
+CREATE TABLE requirements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    goal_id INTEGER, -- optional link to the outcome (goal) this deliverable serves (Section 11);
+        -- nulled rather than cascaded on goal deletion, same treatment as decided_by/owner_id/assignee_id
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_requirements_project_id ON requirements(project_id);
+
+-- 13. Goals — what success looks like for the project (Section 11). target_date
+-- is optional; a goal doesn't have to be time-bound.
+CREATE TABLE goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    achieved INTEGER NOT NULL DEFAULT 0,
+    target_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_goals_project_id ON goals(project_id);
+
+-- 14. Requirement History — a snapshot of a requirement's text each time it's
+-- edited, so "what did this used to say, and who changed it" is answerable.
+CREATE TABLE requirement_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    requirement_id INTEGER NOT NULL,
+    previous_text TEXT NOT NULL,
+    changed_by INTEGER,
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (requirement_id) REFERENCES requirements(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES members(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_requirement_history_requirement_id ON requirement_history(requirement_id);
+
+-- 15. Goal History — same idea as requirement_history, for a goal's text and target_date.
+CREATE TABLE goal_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    previous_text TEXT NOT NULL,
+    previous_target_date TEXT,
+    changed_by INTEGER,
+    changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by) REFERENCES members(id) ON DELETE SET NULL
+);
+CREATE INDEX idx_goal_history_goal_id ON goal_history(goal_id);
 ```
 
 </details>
@@ -235,7 +330,7 @@ A checklist of active projects, each showing its color, name, lead's initials, a
 
 Creating a project requires picking a Lead up front — you cannot create a project without one. Everyone else (sponsor, additional members, other stakeholders) gets added afterward from the project's own team list.
 
-A small persistent badge in the header always shows portfolio-wide health — overdue action items and open high-severity pain points across every active project — regardless of what's currently selected in the sidebar, so you get a signal even before choosing anything.
+A small persistent badge in the header always shows portfolio-wide health — the same stats as the Health Summary strip (Section 6.D), across every active project — regardless of what's currently selected in the sidebar, so you get a signal even before choosing anything.
 
 ### B. The Overlay Timeline
 The core view: a horizontal chronological track split into Past / Present / Future, with "today" computed from the browser's local date.
@@ -261,16 +356,14 @@ Clicking a bubble opens its detail view: project + lead context, editable title/
 Deleting a project or event cascades to everything nested under it, so both actions get a confirmation dialog that names what's about to disappear (e.g. "this will also delete 12 events").
 
 ### C. Aggregated Views
-Three cross-project tabs, scoped to whatever's currently selected in the sidebar:
-- **Action Items** — task, assignee, project, due date; overdue ones highlighted; filterable by "my tasks" or by project.
-- **Pain Points** — grouped by severity, with owner and project context; filterable by risk vs. issue (Section 10).
-- **Decisions** — a chronological log of what's been agreed, with the originating event, project, and decision-maker.
+Cross-project tabs, scoped to whatever's currently selected in the sidebar: an **Overview** combining everything, plus **Action Items** (assignee, project, due date; overdue highlighted; filterable by "my tasks" or by project), **Pain Points** (grouped by severity, with owner and project context; filterable by risk vs. issue, Section 10), **Decisions** (a chronological log with the originating event, project, and decision-maker), **Requirements** (done/not-done, optionally linked to a Goal — Section 11 — with a "no goal only" filter for scope-creep review), **Goals** (achieved/target date, with a "Linked" requirement count and an "at risk only" filter), and **Upcoming** (milestones/deadlines by date, across whatever's selected). A free-text search box, layered on top of every other filter, applies regardless of which tab is active (Section 10).
 
 ### D. Health Summary
-A strip above the timeline, recomputed whenever the selection changes: overdue action items, open high-severity pain points, and milestones/deadlines coming up in the next 14 days. This exists because a raw timeline and three list tabs tell you what happened, not whether things are okay — this strip is the "is this okay" answer. The portfolio badge in the sidebar reuses the same three numbers, just computed across everything active rather than just the current selection.
+A strip above the timeline, recomputed whenever the selection changes: overdue action items, open high-severity pain points, milestones/deadlines coming up in the next 14 days, at-risk goals, and requirements with no linked goal (Section 11's scope-creep signal). This exists because a raw timeline and a pile of list tabs tell you what happened, not whether things are okay — this strip is the "is this okay" answer. The portfolio badge in the sidebar reuses the same stats, just computed across everything active rather than just the current selection.
 
 ### E. Project Scorecard (RAG status)
-Three traffic-light dots per project — Schedule, Cost, Quality — the exact three things the lead is accountable for. Computed on the fly, not stored:
+Four traffic-light dots per project — Scope, Schedule, Cost, Quality — the full iron triangle from Section 3. Computed on the fly, not stored:
+- **Scope** (Section 11) — `n/a` with no goals; red if any unachieved goal's target date has passed; amber if one is due within 14 days; green otherwise.
 - **Schedule** — red if the target date has passed and the project isn't marked complete; amber if it's within 14 days; green otherwise.
 - **Cost** — red if spend has exceeded the plan; amber at 90%+ of plan; green otherwise.
 - **Quality** — red at 3+ open high-severity pain points, amber at 1–2, green at 0.
@@ -331,7 +424,7 @@ Conventions: JSON bodies, `400` for validation errors, `404` for missing/inacces
 **Decisions / Action Items / Pain Points / Requirements / Goals** — standard create/update/delete per item, plus `PATCH` toggles for done/resolved/achieved status; all require the contribute tier (Section 6.H) on the parent project.
 
 **Dashboard**
-- `GET /api/dashboard/summary?project_ids=...` — the three health-summary counts, scoped or portfolio-wide
+- `GET /api/dashboard/summary?project_ids=...` — the health-summary counts (Section 6.D), scoped or portfolio-wide
 
 **Members** *(admin only)*
 - `GET/POST/PUT/DELETE /api/members`
@@ -408,7 +501,7 @@ Two further rounds of work landed after Section 9: closing specific project-mana
 - **Backups.** `npm run backup` (`server/scripts/backup.js`) snapshots the live database via `better-sqlite3`'s own `.backup()` API — safe to run against a database that's actively being written to, unlike a raw file copy.
 - **Help tooltips.** Longer explanatory paragraphs that used to sit inline in forms/modals (the Members-vs-Stakeholders distinction, what a milestone's status means, the CSV import column reference, etc.) are now behind a small `(?)` popover (`client/src/components/HelpTooltip.vue`) — same information, less permanent visual clutter on forms people use daily.
 
-**Still open, deliberately:** security headers (helmet/CSP), a health-check-informed monitoring/alerting setup, cleanup of expired sessions/reset tokens, SQLite WAL mode, and CSRF tokens (the existing `sameSite: 'lax'` cookie already blocks most cross-site abuse). Automated coverage exists but is scoped to the timeline: Vitest unit tests for its scaling/aggregation/lane-assignment algorithms (`client/src/lib/*.test.js`) and Playwright end-to-end tests for its central user flows (`e2e/timeline.spec.js`) — the rest of the app (auth, CRUD routes, other client components) has no automated test coverage yet.
+**Still open, deliberately:** security headers (helmet/CSP), a health-check-informed monitoring/alerting setup, cleanup of expired sessions/reset tokens, SQLite WAL mode, and CSRF tokens (the existing `sameSite: 'lax'` cookie already blocks most cross-site abuse). Automated coverage: Vitest unit tests for the timeline's scaling/aggregation/lane-assignment algorithms (`client/src/lib/*.test.js`) and Playwright end-to-end tests for its central user flows (`e2e/timeline.spec.js`) on the client; on the server, `node --test` covers the permission model, scorecard math, recurrence date math, password hashing, migration idempotency, and the core auth lifecycle (`server/**/*.test.js`, `server/app.test.js` — see `DEPLOYMENT.md`'s known-risks section for what that does and doesn't reach). Not exhaustive on either side — most client components and most server CRUD routes (events/decisions/action-items/pain-points/goals/requirements beyond what the tests above exercise indirectly) still have no direct coverage.
 
 ## 11. Goal & Scope Alignment (implemented)
 
@@ -417,6 +510,12 @@ Goals and Requirements existed (Section 5, tables 12–13) but were disconnected
 - **Requirement → Goal traceability.** `requirements.goal_id` (nullable, `ON DELETE SET NULL`, same treatment as `decided_by`/`owner_id`/`assignee_id`) optionally links a requirement to the goal it serves. `POST`/`PUT /api/requirements` validate the goal belongs to the same project. A goal's progress is derived on the client from its linked requirements (`client/src/lib/goalProgress.js`) rather than stored — the same "computed, not stored" approach as the scorecard itself — and shown both in the project edit form and the aggregated Goals tab's new "Linked" column.
 - **A fourth scorecard dot: Scope.** `computeScorecard()` (`server/utils/scorecard.js`) now returns `scope` alongside `schedule`/`cost`/`quality` — red if any unachieved goal's `target_date` has passed, amber if one is due within 14 days, green otherwise, `n/a` if the project has no goals — mirroring Schedule's own thresholds exactly, just against goals instead of the project's own target date.
 - **Goal digests.** The nightly digest (Section 9) now also flags overdue and upcoming (14-day) unachieved goals, reusing the existing `deadline_digest` notification type and `notify_upcoming_deadlines` toggle rather than adding a new type or column — the same reuse pattern Section 10 used for `pain_points.kind`.
-- **Health strip.** `GET /api/dashboard/summary` gained `at_risk_goals` (overdue or due within 14 days), surfaced as a fourth stat in the Health Summary strip (Section 6.D) alongside overdue action items, open high-severity pain points, and upcoming deadlines — clicking it jumps to the Goals tab filtered to open items, same drill-through pattern as the other three stats.
+- **Health strip.** `GET /api/dashboard/summary` gained `at_risk_goals` (overdue or due within 14 days), surfaced as a stat in the Health Summary strip (Section 6.D) alongside overdue action items and open high-severity pain points — clicking it jumps to the Goals tab filtered to open items, same drill-through pattern as the other stats.
 
-**Still open, deliberately** (tracked in `ALIGNMENT_ROADMAP.md`): goals rendered as their own marker type on the timeline itself, a scope-creep signal for requirements with no linked goal or added after the schedule baseline, and a portfolio-wide "at risk across every project" view on the Goals tab.
+A second round closed the remaining gaps identified alongside the above (originally tracked in a since-deleted `ALIGNMENT_ROADMAP.md`, superseded by this section):
+
+- **Goals on the timeline.** Each selected project's goals with a `target_date` render as their own fuchsia diamond marker (`client/src/lib/eventTypes.js`'s `GOAL_COLOR`/`resolveGoalVisual`, `Timeline.vue`'s `visibleGoalMarkers`), toggleable independently of the real event-type pills via a "Goals" pill. `events.type`'s CHECK constraint deliberately does not gain a `'goal'` value — these are a separate, synthetic marker layer computed from the `goals` table, not real event rows — so clicking one opens the project's Edit modal, not the event-detail view.
+- **Scope-creep signal.** `GET /api/dashboard/summary` also returns `unlinked_requirements` (requirements with `goal_id IS NULL`), surfaced as a further Health Summary stat drilling into the Requirements tab, which gained a "no goal only" filter and a Goal column. Scoped to the "unlinked" half only — flagging requirements added after a project's schedule baseline moved is a related but separate idea, still unscoped (see below).
+- **Portfolio-wide at-risk goals.** The Goals tab (Section 6.C) gained an "at risk only" filter using the same definition `at_risk_goals` counts (unachieved AND overdue-or-due-within-14-days), mirroring Pain Points' risk/issue filter.
+
+**Future ideas, not yet scoped:** weighting goal progress by requirement count/complexity rather than a flat linked-count ratio, if flat counting proves misleading in practice; extending the `goal_id`-style traceability pattern to decisions, if "which decisions served this goal" turns out to matter as much as "which requirements did"; and flagging requirements added after a project's schedule baseline moved, as a second scope-creep signal alongside the unlinked-requirements one above.
