@@ -73,6 +73,14 @@ FROM gcr.io/distroless/nodejs24-debian12:nonroot@sha256:14d42e2511532589a7c7e01a
 
 WORKDIR /app
 
+# Set by the CI build (--build-arg GIT_SHA=<commit sha>, see
+# .github/workflows/ci.yml) so a running container can report exactly which
+# commit it was built from via GET /version — the traceability link between a
+# deployed image and the source it came from. Falls back to "unknown" for a
+# manual `docker build` with no build-arg.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 COPY --from=assemble /app /app
 
 # Already running as the image's built-in `nonroot` (65532:65532) user; no

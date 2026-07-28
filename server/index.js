@@ -4,9 +4,8 @@ import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
-import { db } from './db/connection.js';
-
 import { startDigestCron, startStatusReportCron } from './cron.js';
+import { db } from './db/connection.js';
 import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
 import actionItemsRouter from './routes/actionItems.js';
 import authRouter from './routes/auth.js';
@@ -37,9 +36,27 @@ app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', cre
 app.use(express.json());
 app.use(cookieParser());
 
-// No auth, no DB — just proves the process is alive, for Docker's HEALTHCHECK
-// (or any orchestrator/load balancer) to poll.
-app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
+// No auth — for Docker's HEALTHCHECK (or any orchestrator/load balancer) to
+// poll. Does a cheap DB round-trip, not just a liveness check: the process
+// can stay up while the SQLite file is unreadable (bad volume permissions,
+// disk full), and a deploy that only checks "process alive" would treat that
+// as healthy and never roll back.
+app.get('/healthz', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('healthz: database check failed', err);
+    res.status(503).json({ ok: false });
+  }
+});
+
+// Unauthenticated and cheap on purpose — polled by the client (see
+// client/src/composables/useVersionCheck.js) to notice a deploy happened
+// while a tab was open, and by ops for post-deploy verification. GIT_SHA is
+// baked in at image build time (see Dockerfile); unset outside a built image
+// (e.g. `npm run dev`).
+app.get('/version', (_req, res) => res.status(200).json({ commit: process.env.GIT_SHA || 'unknown' }));
 
 // Unprotected — you can't require a session to create one.
 app.use('/api/auth', authRouter);
@@ -72,7 +89,7 @@ app.use('/api/notifications', notificationsRouter);
 // The catch-all comes last and only matches non-API GETs, so it can never
 // shadow an actual API route or return HTML for a JSON 404.
 app.use(express.static(clientDistPath));
-app.get(/^(?!\/api|\/ws|\/healthz).*/, (_req, res) => {
+app.get(/^(?!\/api|\/ws|\/healthz|\/version).*/, (_req, res) => {
   res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
     if (err) res.status(404).end();
   });
