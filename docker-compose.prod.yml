@@ -1,0 +1,55 @@
+services:
+  app:
+    # No `build:` here on purpose — production always runs a specific,
+    # already-tested image published by CI (see .github/workflows/ci.yml),
+    # never a rebuild-on-the-fly from whatever source happens to be checked
+    # out on the host. `:?...` fails fast with a clear error instead of
+    # silently starting a stale/wrong container if APP_IMAGE isn't set.
+    # deploy.sh always sets it to an owner/repo@sha256:<digest> reference
+    # (resolved from the commit-SHA tag), not a mutable tag.
+    image: ${APP_IMAGE:?APP_IMAGE must be set to an image reference, e.g. ghcr.io/<owner>/<repo>@sha256:<digest>}
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:?CLIENT_ORIGIN must be set to this deployment's real origin}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-ChronosPM <no-reply@chronospm.local>}
+      CRON_SCHEDULE: ${CRON_SCHEDULE:-0 7 * * *}
+      STATUS_REPORT_CRON_SCHEDULE: ${STATUS_REPORT_CRON_SCHEDULE:-0 8 * * 1}
+      # Never seed demo data over a real production database.
+      SEED_DEMO_DATA: 'false'
+    volumes:
+      # Same named volume as docker-compose.yml — `docker compose up` reuses
+      # it across deploys since it's identified by name, not by which compose
+      # file created it. See DEPLOYMENT.md for backup/restore.
+      - chronos-data:/app/server/data
+    restart: unless-stopped
+    # The distroless runtime image (see Dockerfile) has no shell, curl, or
+    # wget, so the healthcheck has to invoke Node directly. This is also what
+    # `docker compose up --wait` (used by deploy.sh) waits on before
+    # considering the deploy successful, and what triggers deploy.sh's
+    # rollback if it never turns healthy in time.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/nodejs/bin/node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  chronos-data:
+    # `external: true` would refuse to create the volume if it doesn't exist
+    # yet, which is wrong for a brand-new deployment's first run — Compose
+    # creating it on demand (default) and every subsequent deploy reusing it
+    # by name is the intended behavior here.

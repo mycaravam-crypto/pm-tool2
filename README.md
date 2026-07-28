@@ -110,6 +110,8 @@ docker compose up -d
 
 Without Docker, `npm run build` (builds the client) followed by `npm run start` (runs the server, which then also serves `client/dist`) works the same way on a bare host — just bring your own process supervisor (systemd, pm2, etc.) and persistence for `server/data/`.
 
+**Automated production deployment:** the steps above are for running this yourself directly. For a `main`-branch pipeline that tests, publishes a versioned image to GHCR, and deploys it to a production host with a required manual approval, a pre-deploy database backup, a health-checked rollout, and automatic rollback on failure, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Scripts
 
 | Command | Description |

@@ -1,0 +1,108 @@
+name: Deploy to production
+
+# Manually-triggered production deployment. Deliberately NOT triggered by
+# push/pull_request: workflow_dispatch can only be started by a repository
+# collaborator with write access via the Actions UI/API, so untrusted PR code
+# never runs on the production runner. The `production` environment below
+# adds a second, independent gate on top of that — configure required
+# reviewers on it in the repo's Settings > Environments (see DEPLOYMENT.md);
+# this workflow file cannot enforce that part itself, GitHub does.
+on:
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: >-
+          Commit SHA to deploy (as published by CI to GHCR). Leave blank to
+          deploy the commit this workflow run resolves to on main. Must be a
+          git commit SHA — "latest" is rejected on purpose, see DEPLOYMENT.md.
+        required: false
+        type: string
+
+# One deploy at a time, always. A second dispatch while one is running queues
+# behind it instead of racing it — two concurrent `docker compose up`/backup
+# sequences against the same SQLite volume is exactly the "multiple app
+# versions touching one database" scenario Section 7 warns against.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: Deploy
+    # Dedicated runner, not a shared/ephemeral GitHub-hosted one: it needs
+    # long-lived access to the production Docker host (in the simplest and
+    # most common setup, it *is* the production host, registered as a
+    # self-hosted runner with this label) and must never pick up jobs from
+    # other workflows or untrusted branches.
+    runs-on: [self-hosted, production]
+    environment: production
+    steps:
+      - name: Verify this run is allowed to deploy
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Production deploys must be dispatched against main (this run resolved to ${{ github.ref }})." >&2
+            exit 1
+          fi
+          IMAGE_REF="${{ inputs.image_ref }}"
+          if [ -n "$IMAGE_REF" ]; then
+            if [ "$IMAGE_REF" = "latest" ]; then
+              echo "::error::Refusing to deploy the mutable 'latest' tag — pass a commit SHA instead." >&2
+              exit 1
+            fi
+            if ! [[ "$IMAGE_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::image_ref '$IMAGE_REF' doesn't look like a git commit SHA." >&2
+              exit 1
+            fi
+          fi
+
+      # Checked out at the exact commit being deployed (not just whatever's
+      # already on the runner's disk) so a rollback to an older image_ref
+      # also uses the docker-compose.prod.yml/deploy.sh that shipped with it.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.image_ref || github.sha }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr.io requires a lowercase image path; see the same step in ci.yml.
+      - name: Compute lowercase image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # deploy.sh resolves this tag to its immutable digest itself (via
+      # `docker inspect` after pulling) before handing it to `docker compose`
+      # — see deploy.sh. Application runtime config (CLIENT_ORIGIN, SMTP_*,
+      # ...) is intentionally NOT set here: it comes from the `.env` file
+      # provisioned once on the production host next to docker-compose.prod.yml
+      # (see DEPLOYMENT.md "Server installation"), so secrets never need to
+      # pass through Actions inputs/logs on every deploy. If your setup
+      # prefers GitHub Environment secrets instead, export them here from
+      # `secrets.*` — they're masked in logs automatically either way.
+      - name: Deploy
+        env:
+          APP_IMAGE: ${{ steps.image.outputs.name }}:${{ inputs.image_ref || github.sha }}
+          # Non-secret, so it's a GitHub Environment *variable* (Settings >
+          # Environments > production > Variables), not a secret — see
+          # DEPLOYMENT.md. Falls back to a sane default if never configured.
+          BACKUP_DIR: ${{ vars.BACKUP_DIR || '/var/backups/chronospm' }}
+        run: ./deploy.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deployment"
+            echo "- Requested ref: \`${{ inputs.image_ref || github.sha }}\`"
+            echo "- Triggered by: @${{ github.actor }}"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

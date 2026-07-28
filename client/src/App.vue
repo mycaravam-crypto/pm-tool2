@@ -14,6 +14,8 @@ import ResetPasswordView from '@/components/ResetPasswordView.vue';
 import Sidebar from '@/components/Sidebar.vue';
 import StakeholderDirectoryModal from '@/components/StakeholderDirectoryModal.vue';
 import Timeline from '@/components/Timeline.vue';
+import UpdateBanner from '@/components/UpdateBanner.vue';
+import { useVersionCheck } from '@/composables/useVersionCheck.js';
 import { api } from '@/lib/api.js';
 import { formatDate, todayStr } from '@/lib/dateFormat.js';
 import { playNotificationSound } from '@/lib/sound.js';
@@ -21,6 +23,8 @@ import { connectNotificationSocket } from '@/lib/ws.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const store = useProjectStore();
+const { updateAvailable } = useVersionCheck();
+const updateDismissed = ref(false);
 
 const mainTab = ref('timeline');
 const showProjectForm = ref(false);
@@ -145,6 +149,7 @@ async function focusScopeCreep() {
 </script>
 
 <template>
+  <UpdateBanner :show="updateAvailable && !updateDismissed" @dismiss="updateDismissed = true" />
   <ResetPasswordView v-if="resetToken" :token="resetToken" @done="clearResetToken" />
   <div v-else-if="!authChecked" class="app-loading min-h-screen flex items-center justify-center text-sm text-slate-500">
     Loading…

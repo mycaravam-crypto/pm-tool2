@@ -1,0 +1,109 @@
+name: CI
+
+# Quality gate for every change, plus the image publish step of the
+# deployment chain described in DEPLOYMENT.md:
+#   commit/merge to main -> lint/test/build -> docker build -> push to GHCR
+# The `docker` job only runs on a push to main (never for a pull_request,
+# even from this same repo) so PR code is never built with, or granted,
+# push access to the registry — that push happens later, from
+# production.yml, after a human approves the `production` environment.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Default token permissions are read-only; the docker job elevates only what
+# it needs (packages: write) for its own scope.
+permissions:
+  contents: read
+
+# A second push to the same branch/PR supersedes the first — no reason to
+# keep building a commit nobody will deploy.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Reproducible install: uses package-lock.json as-is, fails instead of
+      # updating it, unlike `npm install`.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests (client)
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Build and publish image
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      # GITHUB_TOKEN is scoped to this run only (packages: write above) and is
+      # never printed — docker/login-action masks it in the log regardless.
+      - name: Log in to GHCR
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ghcr.io requires a lowercase image path; github.repository preserves
+      # the owner/repo's actual casing, so normalize it explicitly rather
+      # than assuming it's already lowercase.
+      - name: Compute lowercase image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      # Tags published: the immutable commit SHA (what production.yml and
+      # deploy.sh actually deploy by) and `latest` (for humans browsing the
+      # registry only — never used as a deploy target).
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Record image digest
+        run: |
+          {
+            echo "### Published image"
+            echo "- Tag: \`${{ steps.image.outputs.name }}:${{ github.sha }}\`"
+            echo "- Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
