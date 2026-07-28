@@ -70,10 +70,11 @@ router.get('/summary', (req, res) => {
   `)
     .get(...ids, in14Days).n;
 
-  // Scope-creep signal (ALIGNMENT_ROADMAP.md Phase 2, item 2): a requirement with no
-  // linked goal has no stated outcome it serves. Deliberately just the "unlinked" half
-  // of the roadmap's "unlinked and/or added after the schedule baseline" — that variant
-  // needs no new date-comparison logic and has an existing seed-data example to demo it.
+  // Scope-creep signal (PLAN.md §11): a requirement with no linked goal has no
+  // stated outcome it serves. Deliberately just the "unlinked" half of a
+  // broader "unlinked and/or added after the schedule baseline" idea — the
+  // baseline-comparison variant needs new date-comparison logic and has no
+  // seed-data example to demo it yet (see PLAN.md §11's "Future ideas").
   const unlinkedRequirements = db
     .prepare(`
     SELECT COUNT(*) AS n FROM requirements r
