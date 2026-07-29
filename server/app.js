@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
+import rootPackageJson from '../package.json' with { type: 'json' };
 import { db } from './db/connection.js';
 import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
 import actionItemsRouter from './routes/actionItems.js';
@@ -51,10 +52,13 @@ app.get('/healthz', (_req, res) => {
 
 // Unauthenticated and cheap on purpose — polled by the client (see
 // client/src/composables/useVersionCheck.js) to notice a deploy happened
-// while a tab was open, and by ops for post-deploy verification. GIT_SHA is
-// baked in at image build time (see Dockerfile); unset outside a built image
-// (e.g. `npm run dev`).
-app.get('/version', (_req, res) => res.status(200).json({ commit: process.env.GIT_SHA || 'unknown' }));
+// while a tab was open, drive the version number shown in the sidebar, and
+// for ops post-deploy verification. `version` comes from the root
+// package.json (bump it on release); GIT_SHA is baked in at image build time
+// (see Dockerfile) and unset outside a built image (e.g. `npm run dev`).
+app.get('/version', (_req, res) =>
+  res.status(200).json({ version: rootPackageJson.version, commit: process.env.GIT_SHA || 'unknown' }),
+);
 
 // Unprotected — you can't require a session to create one.
 app.use('/api/auth', authRouter);
