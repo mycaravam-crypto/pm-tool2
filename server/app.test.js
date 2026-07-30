@@ -16,6 +16,16 @@ test('GET /version: reports the app version and commit (commit unset outside a b
   assert.equal(res.body.commit, 'unknown');
 });
 
+test('GET /version: APP_VERSION (baked in at image build time) overrides the package.json fallback', async () => {
+  process.env.APP_VERSION = '2.4.6';
+  try {
+    const res = await request(app).get('/version');
+    assert.equal(res.body.version, '2.4.6');
+  } finally {
+    delete process.env.APP_VERSION;
+  }
+});
+
 test('GET /api/projects without a session: 401', async () => {
   const res = await request(app).get('/api/projects');
   assert.equal(res.status, 401);

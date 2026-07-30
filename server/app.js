@@ -53,11 +53,15 @@ app.get('/healthz', (_req, res) => {
 // Unauthenticated and cheap on purpose — polled by the client (see
 // client/src/composables/useVersionCheck.js) to notice a deploy happened
 // while a tab was open, drive the version number shown in the sidebar, and
-// for ops post-deploy verification. `version` comes from the root
-// package.json (bump it on release); GIT_SHA is baked in at image build time
-// (see Dockerfile) and unset outside a built image (e.g. `npm run dev`).
+// for ops post-deploy verification. `version` is APP_VERSION — the latest
+// semantic-release tag reachable from the built commit (see release.config.js
+// and the Dockerfile) — falling back to the static root package.json version
+// when unset (`npm run dev`, or a manual `docker build`). GIT_SHA is likewise
+// baked in at image build time and unset outside a built image.
 app.get('/version', (_req, res) =>
-  res.status(200).json({ version: rootPackageJson.version, commit: process.env.GIT_SHA || 'unknown' }),
+  res
+    .status(200)
+    .json({ version: process.env.APP_VERSION || rootPackageJson.version, commit: process.env.GIT_SHA || 'unknown' }),
 );
 
 // Unprotected — you can't require a session to create one.

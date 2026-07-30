@@ -15,9 +15,14 @@ the automated `main` → production pipeline.
 ```text
 Commit or merge to main
   → CI: lint, unit tests, client build           (.github/workflows/ci.yml)
+  → semantic-release tags a release from          (.github/workflows/ci.yml)
+    Conventional Commits, if the PR title(s)
+    since the last tag warrant one — see
+    README.md#versioning-and-releases
   → Docker image built and pushed to GHCR         (.github/workflows/ci.yml)
       tags: ghcr.io/<owner>/<repo>:<commit-sha>
             ghcr.io/<owner>/<repo>:latest
+      APP_VERSION build-arg = the release tag (see GET /version below)
   → [manual] Deploy to production is dispatched, requires environment approval
                                                    (.github/workflows/production.yml)
   → deploy.sh, on the production host:
@@ -37,7 +42,8 @@ Commit or merge to main
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | Lint, test, build, and (on `main`) build+push the Docker image to GHCR |
+| `.github/workflows/ci.yml` | Lint, test, build, and (on `main`) tag a release + build+push the Docker image to GHCR |
+| `release.config.js`, `commitlint.config.js` | semantic-release / Conventional Commits config — see README.md#versioning-and-releases |
 | `.github/workflows/production.yml` | Manually-dispatched, environment-gated production deployment |
 | `docker-compose.prod.yml` | Production Compose file — runs a published image, not a local build |
 | `deploy.sh` | Backup → deploy → healthcheck → rollback, run on the production host |
@@ -60,8 +66,9 @@ Recorded here because the task asked risks/assumptions to be documented, not inv
   process was alive, not that it could actually serve requests (no DB
   touch). Hardened to do a cheap `SELECT 1` so a deploy-time healthcheck
   gate actually means something — see [server/index.js](server/index.js).
-- **`/version`**: did not exist; added. Reports the `GIT_SHA` baked in at
-  image build time.
+- **`/version`**: did not exist; added. Reports the `GIT_SHA` and, since
+  semantic-release was added, the `APP_VERSION` (the release tag reachable
+  from that commit) both baked in at image build time.
 - **SIGTERM**: already handled gracefully in `server/index.js` (drains HTTP,
   closes the WebSocket server, stops cron jobs, closes the DB, then exits) —
   this is exactly what `docker compose up` needs on a container replacement
