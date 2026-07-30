@@ -1,8 +1,8 @@
 name: CI
 
-# Quality gate for every change, plus the image publish step of the
-# deployment chain described in DEPLOYMENT.md:
-#   commit/merge to main -> lint/test/build -> docker build -> push to GHCR
+# Quality gate for every change, plus the release + image publish steps of
+# the deployment chain described in DEPLOYMENT.md:
+#   commit/merge to main -> lint/test/build -> semantic-release tag -> docker build -> push to GHCR
 # The `docker` job only runs on a push to main (never for a pull_request,
 # even from this same repo) so PR code is never built with, or granted,
 # push access to the registry — that push happens later, from
@@ -13,8 +13,8 @@ on:
   pull_request:
     branches: [main]
 
-# Default token permissions are read-only; the docker job elevates only what
-# it needs (packages: write) for its own scope.
+# Default token permissions are read-only; the release/docker jobs elevate
+# only what they each need (contents: write / packages: write respectively).
 permissions:
   contents: read
 
@@ -43,6 +43,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Lints the PR *title*, not the individual commits: main only takes
+      # squash-merges (see DEPLOYMENT.md), and GitHub's squash commit message
+      # is the PR title — that's the commit semantic-release's commit-analyzer
+      # (release.config.js) actually sees on main, so that's what has to be
+      # conventional. Piped through an intermediate env var, not interpolated
+      # straight into the script, since a PR title is attacker-controlled.
+      - name: Lint PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$PR_TITLE" | npx commitlint --verbose
+
       - name: Lint
         run: npm run lint
 
@@ -52,9 +64,39 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Tags + publishes a GitHub Release from Conventional Commits on `main`.
+  # See release.config.js for why this only ever pushes a *tag*, never a
+  # commit, against a branch that requires a pull request for every change.
+  release:
+    name: Release
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # semantic-release needs the full history since the last tag
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release
+
   docker:
     name: Build and publish image
-    needs: quality
+    needs: release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -63,6 +105,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # so `git describe` below can see the tag `release` just pushed
+          fetch-tags: true
+
+      # The version baked into the image (see APP_VERSION in the Dockerfile,
+      # read by GET /version) — the release tag `release` just pushed, or the
+      # nearest earlier one if this run's commits didn't warrant a release.
+      # Empty when no tag is reachable at all, in which case the Dockerfile
+      # falls back to package.json's static version.
+      - name: Resolve app version
+        id: app_version
+        run: echo "version=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//')" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -94,6 +148,7 @@ jobs:
           push: true
           build-args: |
             GIT_SHA=${{ github.sha }}
+            APP_VERSION=${{ steps.app_version.outputs.version }}
           tags: |
             ${{ steps.image.outputs.name }}:${{ github.sha }}
             ${{ steps.image.outputs.name }}:latest

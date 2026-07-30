@@ -81,6 +81,13 @@ WORKDIR /app
 ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
 
+# Set by the CI build (--build-arg APP_VERSION=<git tag, sans the leading v>,
+# see .github/workflows/ci.yml) from the latest semantic-release tag reachable
+# from the built commit. Left empty for a manual `docker build`, in which case
+# GET /version falls back to package.json's version (see server/app.js).
+ARG APP_VERSION=
+ENV APP_VERSION=$APP_VERSION
+
 COPY --from=assemble /app /app
 
 # Already running as the image's built-in `nonroot` (65532:65532) user; no
