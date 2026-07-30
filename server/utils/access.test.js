@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db } from '../db/connection.js';
+import { db } from '#server/db/connection.js';
 import {
   canAccessProject,
   canContribute,
@@ -9,7 +9,7 @@ import {
   getAccessibleProjectIds,
   getProjectRole,
   isAdmin,
-} from './access.js';
+} from '#server/utils/access.js';
 
 const insertProject = db.prepare('INSERT INTO projects (name) VALUES (?)');
 const insertStakeholder = db.prepare('INSERT INTO stakeholders (name) VALUES (?)');

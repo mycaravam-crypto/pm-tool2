@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import request from 'supertest';
-import app from './app.js';
+import app from '#server/app.js';
 
 test('GET /healthz: reports ok with a working database', async () => {
   const res = await request(app).get('/healthz');

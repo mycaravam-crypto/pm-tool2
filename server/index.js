@@ -1,7 +1,7 @@
-import app from './app.js';
-import { startDigestCron, startStatusReportCron } from './cron.js';
-import { db } from './db/connection.js';
-import { closeWebSocketServer, initWebSocketServer } from './ws.js';
+import app from '#server/app.js';
+import { startDigestCron, startStatusReportCron } from '#server/cron.js';
+import { db } from '#server/db/connection.js';
+import { closeWebSocketServer, initWebSocketServer } from '#server/ws.js';
 
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => console.log(`ChronosPM API listening on http://localhost:${PORT}`));

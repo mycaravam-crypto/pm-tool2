@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
-import { getAccessibleProjectIds } from '../utils/access.js';
-import { runDigest } from '../utils/digest.js';
-import { runStatusReportDigest } from '../utils/statusReportDigest.js';
+import { db } from '#server/db/connection.js';
+import { getAccessibleProjectIds } from '#server/utils/access.js';
+import { runDigest } from '#server/utils/digest.js';
+import { runStatusReportDigest } from '#server/utils/statusReportDigest.js';
 
 const router = Router();
 

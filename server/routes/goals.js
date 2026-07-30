@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
-import { canAccessProject, canContribute, canDeleteProjectItems } from '../utils/access.js';
+import { db } from '#server/db/connection.js';
+import { canAccessProject, canContribute, canDeleteProjectItems } from '#server/utils/access.js';
 
 const router = Router();
 

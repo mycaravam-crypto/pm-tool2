@@ -4,21 +4,24 @@ import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
+import { db } from '#server/db/connection.js';
+import { requireAdmin, requireAuth } from '#server/middleware/requireAuth.js';
+import actionItemsRouter from '#server/routes/actionItems.js';
+import authRouter from '#server/routes/auth.js';
+import dashboardRouter from '#server/routes/dashboard.js';
+import decisionsRouter from '#server/routes/decisions.js';
+import eventsRouter from '#server/routes/events.js';
+import goalsRouter from '#server/routes/goals.js';
+import membersRouter from '#server/routes/members.js';
+import notificationsRouter from '#server/routes/notifications.js';
+import painPointsRouter from '#server/routes/painPoints.js';
+import projectsRouter from '#server/routes/projects.js';
+import requirementsRouter from '#server/routes/requirements.js';
+import stakeholdersRouter from '#server/routes/stakeholders.js';
+// The monorepo *root* package.json, not server/package.json — genuinely
+// outside what #server/* can address (subpath imports can't reach above
+// their own package root), so this one stays a relative import on purpose.
 import rootPackageJson from '../package.json' with { type: 'json' };
-import { db } from './db/connection.js';
-import { requireAdmin, requireAuth } from './middleware/requireAuth.js';
-import actionItemsRouter from './routes/actionItems.js';
-import authRouter from './routes/auth.js';
-import dashboardRouter from './routes/dashboard.js';
-import decisionsRouter from './routes/decisions.js';
-import eventsRouter from './routes/events.js';
-import goalsRouter from './routes/goals.js';
-import membersRouter from './routes/members.js';
-import notificationsRouter from './routes/notifications.js';
-import painPointsRouter from './routes/painPoints.js';
-import projectsRouter from './routes/projects.js';
-import requirementsRouter from './routes/requirements.js';
-import stakeholdersRouter from './routes/stakeholders.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');

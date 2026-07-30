@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { db } from '#server/db/connection.js';
 
 export function isAdmin(member) {
   return member?.role === 'admin';

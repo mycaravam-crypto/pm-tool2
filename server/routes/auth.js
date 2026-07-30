@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { db } from '../db/connection.js';
-import { authLimiter } from '../middleware/rateLimit.js';
-import { COOKIE_NAME, findSession } from '../middleware/requireAuth.js';
-import { sendEmail } from '../utils/mailer.js';
-import { hashPassword, verifyPassword } from '../utils/password.js';
+import { db } from '#server/db/connection.js';
+import { authLimiter } from '#server/middleware/rateLimit.js';
+import { COOKIE_NAME, findSession } from '#server/middleware/requireAuth.js';
+import { sendEmail } from '#server/utils/mailer.js';
+import { hashPassword, verifyPassword } from '#server/utils/password.js';
 
 const router = Router();
 // Applied to the whole router, not just /login — register and forgot-password

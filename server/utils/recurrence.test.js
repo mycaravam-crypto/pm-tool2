@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { generateOccurrenceDates, MAX_OCCURRENCES, validateRecurrence } from './recurrence.js';
+import { generateOccurrenceDates, MAX_OCCURRENCES, validateRecurrence } from '#server/utils/recurrence.js';
 
 test('generateOccurrenceDates: daily', () => {
   assert.deepEqual(generateOccurrenceDates('2026-01-30', 'daily', 1, 3), ['2026-01-30', '2026-01-31', '2026-02-01']);

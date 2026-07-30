@@ -1,6 +1,6 @@
-import { db } from '../db/connection.js';
-import { broadcastNotification } from '../ws.js';
-import { sendEmail } from './mailer.js';
+import { db } from '#server/db/connection.js';
+import { sendEmail } from '#server/utils/mailer.js';
+import { broadcastNotification } from '#server/ws.js';
 
 const insertNotification = db.prepare(`
   INSERT INTO notifications (member_id, type, subject, body, project_id) VALUES (?, ?, ?, ?, ?)

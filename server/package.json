@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "main": "index.js",
+  "imports": {
+    "#server/*": "./*"
+  },
   "scripts": {
     "dev": "node --watch index.js",
     "start": "node index.js",

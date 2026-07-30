@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { adminAgent, committedAgent, db, insertProject, insertProjectWithLead } from '../test/helpers.js';
+import { adminAgent, committedAgent, db, insertProject, insertProjectWithLead } from '#server/test/helpers.js';
 
 test('POST /api/goals: requires project_id and text; 404/403 access control', async () => {
   const { project } = insertProjectWithLead();

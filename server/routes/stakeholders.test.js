@@ -9,7 +9,7 @@ import {
   insertProject,
   insertStakeholder,
   request,
-} from '../test/helpers.js';
+} from '#server/test/helpers.js';
 
 test('GET /api/stakeholders requires a session', async () => {
   const res = await request(app).get('/api/stakeholders');

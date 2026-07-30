@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
+import { db } from '#server/db/connection.js';
 import {
   canAccessEvent,
   canContribute,
   canDeleteProjectItems,
   getEventContext,
   getProjectIdForEvent,
-} from '../utils/access.js';
-import { notifyAssigned } from '../utils/notify.js';
+} from '#server/utils/access.js';
+import { notifyAssigned } from '#server/utils/notify.js';
 
 const router = Router();
 

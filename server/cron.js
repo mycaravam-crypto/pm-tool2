@@ -1,6 +1,6 @@
 import cron from 'node-cron';
-import { runDigest } from './utils/digest.js';
-import { runStatusReportDigest } from './utils/statusReportDigest.js';
+import { runDigest } from '#server/utils/digest.js';
+import { runStatusReportDigest } from '#server/utils/statusReportDigest.js';
 
 // Real background scheduler, replacing the old "digests only run when someone
 // clicks the button" gap. CRON_SCHEDULE defaults to nightly at 7am server time;

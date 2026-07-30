@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { adminAgent, committedAgent, db, insertProject, insertProjectWithLead } from '../test/helpers.js';
+import { adminAgent, committedAgent, db, insertProject, insertProjectWithLead } from '#server/test/helpers.js';
 
 function insertGoal(projectId, text = 'a goal') {
   return db.prepare('INSERT INTO goals (project_id, text) VALUES (?, ?)').run(projectId, text).lastInsertRowid;

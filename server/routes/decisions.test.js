@@ -9,7 +9,7 @@ import {
   insertProject,
   insertProjectWithLead,
   insertStakeholder,
-} from '../test/helpers.js';
+} from '#server/test/helpers.js';
 
 test('POST /api/decisions: requires event_id and text, 404 for an inaccessible event', async () => {
   const { project } = insertProjectWithLead();
