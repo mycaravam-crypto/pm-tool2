@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatDate } from './dateFormat.js';
+import { formatDate } from '#server/utils/dateFormat.js';
 
 test('formatDate: converts YYYY-MM-DD to DD.MM.YYYY', () => {
   assert.equal(formatDate('2026-07-28'), '28.07.2026');

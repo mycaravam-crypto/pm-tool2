@@ -5,7 +5,7 @@
 // (cron + rsync/S3/etc, depending on where this is deployed) is still on you.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db } from '../db/connection.js';
+import { db } from '#server/db/connection.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, '..', 'data');

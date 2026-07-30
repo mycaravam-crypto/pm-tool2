@@ -4,9 +4,9 @@
 // — faster, and keeps each test's *own* API calls the thing actually being
 // asserted on.
 import request from 'supertest';
-import app from '../app.js';
-import { db } from '../db/connection.js';
-import { hashPassword } from '../utils/password.js';
+import app from '#server/app.js';
+import { db } from '#server/db/connection.js';
+import { hashPassword } from '#server/utils/password.js';
 
 let counter = 0;
 export function unique(prefix) {

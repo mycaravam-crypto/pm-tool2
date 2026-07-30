@@ -1,4 +1,4 @@
-import { db } from '../db/connection.js';
+import { db } from '#server/db/connection.js';
 
 const todayStmt = () => new Date().toISOString().slice(0, 10);
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
-import { hashPassword } from '../utils/password.js';
+import { db } from '#server/db/connection.js';
+import { hashPassword } from '#server/utils/password.js';
 
 const router = Router();
 

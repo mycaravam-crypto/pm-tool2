@@ -11,7 +11,7 @@ import {
   insertProjectWithLead,
   insertStakeholder,
   request,
-} from '../test/helpers.js';
+} from '#server/test/helpers.js';
 
 test('GET /api/events: no project_ids returns an empty list, not an error', async () => {
   const { agent } = await adminAgent();

@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { COOKIE_NAME, findSession } from './middleware/requireAuth.js';
+import { COOKIE_NAME, findSession } from '#server/middleware/requireAuth.js';
 
 let wss = null;
 

@@ -1,5 +1,5 @@
-import { db } from '../db/connection.js';
-import { isAdmin } from '../utils/access.js';
+import { db } from '#server/db/connection.js';
+import { isAdmin } from '#server/utils/access.js';
 
 export const COOKIE_NAME = 'sid';
 

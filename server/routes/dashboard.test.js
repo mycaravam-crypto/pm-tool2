@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { adminAgent, app, committedAgent, db, insertProject, insertProjectWithLead, request } from '../test/helpers.js';
+import {
+  adminAgent,
+  app,
+  committedAgent,
+  db,
+  insertProject,
+  insertProjectWithLead,
+  request,
+} from '#server/test/helpers.js';
 
 function daysFromToday(n) {
   const d = new Date();

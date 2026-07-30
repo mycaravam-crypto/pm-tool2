@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { EVENT_STATUSES, EVENT_TYPES, parseEventsCsv, validateEventRow } from './eventImport.js';
+import { EVENT_STATUSES, EVENT_TYPES, parseEventsCsv, validateEventRow } from '#server/utils/eventImport.js';
 
 test('parseEventsCsv: parses a well-formed CSV into records with lowercased, trimmed headers', () => {
   const { records, error } = parseEventsCsv('Title, Date ,Type\nKickoff,2026-01-01,kickoff');

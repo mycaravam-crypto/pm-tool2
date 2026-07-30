@@ -9,7 +9,7 @@ import {
   insertProject,
   insertProjectWithLead,
   insertStakeholder,
-} from '../test/helpers.js';
+} from '#server/test/helpers.js';
 
 test('POST /api/pain-points: requires event_id, text, and a valid severity/kind', async () => {
   const { project } = insertProjectWithLead();

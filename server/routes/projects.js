@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { db } from '../db/connection.js';
-import { requireAdmin } from '../middleware/requireAuth.js';
-import { canAccessProject, canManageProject, getAccessibleProjectIds } from '../utils/access.js';
-import { computeScorecard } from '../utils/scorecard.js';
+import { db } from '#server/db/connection.js';
+import { requireAdmin } from '#server/middleware/requireAuth.js';
+import { canAccessProject, canManageProject, getAccessibleProjectIds } from '#server/utils/access.js';
+import { computeScorecard } from '#server/utils/scorecard.js';
 
 const router = Router();
 

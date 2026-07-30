@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db, insertMember, insertProject, insertStakeholder } from '../test/helpers.js';
-import { notifyAssigned } from './notify.js';
+import { db, insertMember, insertProject, insertStakeholder } from '#server/test/helpers.js';
+import { notifyAssigned } from '#server/utils/notify.js';
 
 test('notifyAssigned: no-op when stakeholderId is falsy', () => {
   assert.doesNotThrow(() => notifyAssigned(null, 'subject', 'body'));

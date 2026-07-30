@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { adminAgent, app, authedAgent, db, insertMember, insertProject, request } from '../test/helpers.js';
+import { adminAgent, app, authedAgent, db, insertMember, insertProject, request } from '#server/test/helpers.js';
 
 // Deliberately first in the file and self-contained: the "last admin" guard
 // (server/routes/members.js's isLastAdmin) counts admins across the *whole*

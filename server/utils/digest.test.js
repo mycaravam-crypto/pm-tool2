@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db, insertEvent, insertMember, insertProjectWithLead } from '../test/helpers.js';
-import { runDigest } from './digest.js';
+import { db, insertEvent, insertMember, insertProjectWithLead } from '#server/test/helpers.js';
+import { runDigest } from '#server/utils/digest.js';
 
 // runDigest() scans every subscribed member/project system-wide, so every
 // assertion below filters the returned array down to *this test's own*

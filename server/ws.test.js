@@ -3,9 +3,9 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import { after, test } from 'node:test';
 import { WebSocket } from 'ws';
-import app from './app.js';
-import { db, insertMember } from './test/helpers.js';
-import { broadcastNotification, closeWebSocketServer, initWebSocketServer } from './ws.js';
+import app from '#server/app.js';
+import { db, insertMember } from '#server/test/helpers.js';
+import { broadcastNotification, closeWebSocketServer, initWebSocketServer } from '#server/ws.js';
 
 // One real HTTP server + WebSocketServer for the whole file, matching how
 // index.js wires it up in production — the WS upgrade handshake happens at

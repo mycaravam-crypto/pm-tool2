@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db } from '../db/connection.js';
-import { computeScorecard } from './scorecard.js';
+import { db } from '#server/db/connection.js';
+import { computeScorecard } from '#server/utils/scorecard.js';
 
 const insertProject = db.prepare(`
   INSERT INTO projects (name, status, target_end_date, budget_planned, budget_spent)

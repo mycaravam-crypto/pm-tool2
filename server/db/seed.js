@@ -1,6 +1,6 @@
-import { notifyAssigned } from '../utils/notify.js';
-import { hashPassword } from '../utils/password.js';
-import { db } from './connection.js';
+import { db } from '#server/db/connection.js';
+import { notifyAssigned } from '#server/utils/notify.js';
+import { hashPassword } from '#server/utils/password.js';
 
 const clear = db.transaction(() => {
   for (const table of [

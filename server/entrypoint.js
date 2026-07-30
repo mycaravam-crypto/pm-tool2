@@ -21,8 +21,8 @@ if (isFirstStartup) {
   console.log(`entrypoint: no database found at ${dbFile} — first startup on this volume.`);
   if (process.env.SEED_DEMO_DATA === 'true') {
     console.log('entrypoint: SEED_DEMO_DATA=true, seeding demo data...');
-    await import('./db/seed.js');
+    await import('#server/db/seed.js');
   }
 }
 
-await import('./index.js');
+await import('#server/index.js');

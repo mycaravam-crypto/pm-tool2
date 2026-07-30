@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { adminAgent, app, committedAgent, db, insertMember, insertProjectWithLead, request } from '../test/helpers.js';
+import {
+  adminAgent,
+  app,
+  committedAgent,
+  db,
+  insertMember,
+  insertProjectWithLead,
+  request,
+} from '#server/test/helpers.js';
 
 function insertNotification({ memberId, type = 'assigned', projectId = null, subject = 'subject', body = 'body' }) {
   return db

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db, insertEvent, insertMember, insertProjectWithLead } from '../test/helpers.js';
-import { runStatusReportDigest } from './statusReportDigest.js';
+import { db, insertEvent, insertMember, insertProjectWithLead } from '#server/test/helpers.js';
+import { runStatusReportDigest } from '#server/utils/statusReportDigest.js';
 
 // Same rule as digest.test.js: runStatusReportDigest() scans every active
 // project and every notify_status_report member system-wide, so assertions

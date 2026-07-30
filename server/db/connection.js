@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { runMigrations } from './migrations.js';
+import { runMigrations } from '#server/db/migrations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Overridable so tests can point at an isolated ':memory:' database instead

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { db } from './connection.js';
-import { runMigrations } from './migrations.js';
+import { db } from '#server/db/connection.js';
+import { runMigrations } from '#server/db/migrations.js';
 
 // connection.js already runs schema.sql + runMigrations once at import time
 // (against this test's isolated ':memory:' database — see test/setup.js).
