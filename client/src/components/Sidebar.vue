@@ -5,6 +5,7 @@ import ScorecardDots from '@/components/ScorecardDots.vue';
 import { isMuted, setMuted } from '@/lib/sound.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
+defineProps({ version: String, commit: String });
 const emit = defineEmits([
   'open-stakeholders',
   'open-project-form',
@@ -122,5 +123,13 @@ function toggleMuted() {
         </button>
       </div>
     </div>
+
+    <p
+      v-if="version"
+      class="px-4 py-2 border-t border-white/8 text-[10px] text-slate-600 text-center"
+      :title="commit && commit !== 'unknown' ? `commit ${commit}` : undefined"
+    >
+      ChronosPM v{{ version }}
+    </p>
   </aside>
 </template>

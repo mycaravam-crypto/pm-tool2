@@ -9,9 +9,10 @@ test('GET /healthz: reports ok with a working database', async () => {
   assert.deepEqual(res.body, { ok: true });
 });
 
-test('GET /version: reports the commit (unset outside a built image)', async () => {
+test('GET /version: reports the app version and commit (commit unset outside a built image)', async () => {
   const res = await request(app).get('/version');
   assert.equal(res.status, 200);
+  assert.match(res.body.version, /^\d+\.\d+\.\d+$/);
   assert.equal(res.body.commit, 'unknown');
 });
 

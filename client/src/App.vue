@@ -23,7 +23,7 @@ import { connectNotificationSocket } from '@/lib/ws.js';
 import { useProjectStore } from '@/stores/useProjectStore.js';
 
 const store = useProjectStore();
-const { updateAvailable } = useVersionCheck();
+const { updateAvailable, version, commit } = useVersionCheck();
 const updateDismissed = ref(false);
 
 const mainTab = ref('timeline');
@@ -157,6 +157,8 @@ async function focusScopeCreep() {
   <LoginView v-else-if="!store.currentMember" @login="handleLogin" />
   <div v-else class="app-shell flex h-screen overflow-hidden">
     <Sidebar
+      :version="version"
+      :commit="commit"
       @open-stakeholders="showStakeholders = true"
       @open-project-form="openNewProject"
       @edit-project="openEditProject"

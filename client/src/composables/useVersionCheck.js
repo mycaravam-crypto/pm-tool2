@@ -8,21 +8,25 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 export function useVersionCheck() {
   const updateAvailable = ref(false);
+  const version = ref(null);
+  const commit = ref(null);
   let knownCommit = null;
   let timer = null;
 
   async function poll() {
-    let commit;
+    let body;
     try {
       const res = await fetch('/version');
       if (!res.ok) return;
-      ({ commit } = await res.json());
+      body = await res.json();
     } catch {
       return; // Transient network hiccup — just try again next interval.
     }
+    version.value = body.version;
+    commit.value = body.commit;
     if (knownCommit === null) {
-      knownCommit = commit;
-    } else if (commit !== knownCommit) {
+      knownCommit = body.commit;
+    } else if (body.commit !== knownCommit) {
       updateAvailable.value = true;
     }
   }
@@ -31,5 +35,5 @@ export function useVersionCheck() {
   timer = setInterval(poll, POLL_INTERVAL_MS);
   onBeforeUnmount(() => clearInterval(timer));
 
-  return { updateAvailable };
+  return { updateAvailable, version, commit };
 }
