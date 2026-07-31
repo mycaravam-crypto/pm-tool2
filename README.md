@@ -131,6 +131,8 @@ Without Docker, `npm run build` (builds the client) followed by `npm run start` 
 
 PR titles must follow [Conventional Commits](https://www.conventionalcommits.org) (`feat: ...`, `fix: ...`, `feat!: ...` for a breaking change, etc.) — CI lints this on every PR. That matters because `main` only takes squash-merges, so the PR title *becomes* the commit message on `main`, and that's what [semantic-release](https://semantic-release.gitbook.io) reads on every push to `main` to decide whether to cut a release: `fix:` bumps a patch version, `feat:` a minor version, and a `BREAKING CHANGE:` footer (or `!` after the type) a major version — anything else (`chore:`, `docs:`, `test:`, ...) doesn't trigger a release at all. A release means a new `vX.Y.Z` git tag and GitHub Release with generated notes; see [release.config.js](release.config.js) for why that's *all* it does (no version-bump commit gets pushed back to `main`). The version shown in the app's sidebar and reported by `GET /version` comes from that tag, baked into the Docker image at build time — see [DEPLOYMENT.md](DEPLOYMENT.md).
 
+Opening a PR pre-fills the same rules from [`.github/pull_request_template.md`](.github/pull_request_template.md). For local commits, `git config commit.template .gitmessage` pulls in [`.gitmessage`](.gitmessage), a Conventional Commits cheat-sheet, whenever you run `git commit` without `-m`.
+
 ## Notes on scope
 
 A few things are deliberately left out to keep this a focused prototype rather than a production PM suite: SMS delivery (email only), SSO, CSRF tokens, security headers, and cleanup of expired sessions/reset tokens. See [PLAN.md](PLAN.md) for the full technical specification, including the database schema and API reference.
