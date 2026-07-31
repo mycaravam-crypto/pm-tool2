@@ -1,0 +1,23 @@
+<type>: <subject>
+
+# <type> is one of: feat | fix | perf | refactor | build | ci | docs | style | test | chore | revert
+# <subject> is imperative, lower case, no trailing period, ≤72 chars total on this line.
+#
+# Body (optional): the *why*, wrapped at ~72 chars. Blank line above it.
+
+# Footer (optional):
+# BREAKING CHANGE: <what breaks and how to migrate>
+# Closes #<issue>
+#
+# --- Why this format ---
+# main only takes squash-merges (see DEPLOYMENT.md), and GitHub's squash
+# commit message is the PR title — so it's the PR title that must be a
+# Conventional Commit (CI lints it), not each commit on your branch. This
+# template just gets you in the habit and keeps history readable in the
+# meantime:
+#   feat:     new feature                -> minor release
+#   fix:      bug fix                    -> patch release
+#   perf:     performance improvement    -> patch release
+#   refactor/build/ci/docs/style/test/chore/revert -> no release
+#   `!` after the type, or a BREAKING CHANGE: footer -> major release
+# See README.md "Versioning and releases" and release.config.js.
