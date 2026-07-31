@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { useAsyncAction } from '@/composables/useAsyncAction.js';
 import { api } from '@/lib/api.js';
 
+defineProps({ version: String, commit: String });
 const emit = defineEmits(['login']);
 
 // 'login' | 'register' | 'forgot' — one shared form, swapped by mode, rather
@@ -44,7 +45,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="login-view min-h-screen flex items-center justify-center">
+  <div class="login-view min-h-screen flex flex-col items-center justify-center">
     <form class="glass rounded-2xl p-8 w-full max-w-sm space-y-4" @submit.prevent="submit">
       <div>
         <h1 class="text-lg font-semibold text-white">ChronosPM</h1>
@@ -88,5 +89,13 @@ async function submit() {
         </template>
       </div>
     </form>
+
+    <p
+      v-if="version"
+      class="mt-4 text-[10px] text-slate-600 text-center"
+      :title="commit && commit !== 'unknown' ? `commit ${commit}` : undefined"
+    >
+      ChronosPM v{{ version }}
+    </p>
   </div>
 </template>
