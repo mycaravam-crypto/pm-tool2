@@ -154,7 +154,7 @@ async function focusScopeCreep() {
   <div v-else-if="!authChecked" class="app-loading min-h-screen flex items-center justify-center text-sm text-slate-500">
     Loading…
   </div>
-  <LoginView v-else-if="!store.currentMember" @login="handleLogin" />
+  <LoginView v-else-if="!store.currentMember" :version="version" :commit="commit" @login="handleLogin" />
   <div v-else class="app-shell flex h-screen overflow-hidden">
     <Sidebar
       :version="version"
